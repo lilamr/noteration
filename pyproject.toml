@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "noteration"
+version = "1.0.0"
+description = "Research literature note-taking app: Markdown editor + PDF viewer + Papis + GitHub sync"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = ["research", "notes", "markdown", "pdf", "papis", "literature"]
+
+# Dependensi inti — semua tersedia di PyPI standar
+dependencies = [
+    "PySide6>=6.4",        # GUI (6.4+ sudah cukup; 6.6 untuk QtPdf native)
+    "tomli-w>=1.0",        # tulis config.toml (baca pakai tomllib stdlib Python 3.11+)
+    "gitpython>=3.1",      # GitHub sync
+    "pyyaml>=6.0",         # baca info.yaml Papis
+]
+
+[project.optional-dependencies]
+papis   = ["papis>=0.13"]                       # manajemen literatur penuh
+pymupdf = ["pymupdf>=1.23"]                     # PDF renderer + text extraction
+search  = ["thefuzz[speedup]>=0.20"]            # fuzzy search literatur
+graph   = ["networkx>=3.0"]                     # backlink graph (matplotlib opsional)
+watch   = ["watchdog>=3.0"]                     # file watching untuk live reload
+markdown = ["markdown>=3.0"]                    # Markdown → HTML rendering untuk preview
+all = [
+    "noteration[papis]",
+    "noteration[pymupdf]",
+    "noteration[search]",
+    "noteration[graph]",
+    "noteration[watch]",
+    "noteration[markdown]",
+]
+dev = [
+    "pytest>=7",
+    "pytest-qt>=4",
+    "ruff>=0.1",
+    "mypy>=1.0",
+]
+
+[project.scripts]
+noteration = "noteration.app:main"
+
+[tool.setuptools.packages.find]
+where   = ["."]
+include = ["noteration*"]
+
+# Sertakan file non-Python yang diperlukan
+[tool.setuptools.package-data]
+noteration = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length    = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version      = "3.11"
+ignore_missing_imports = true
