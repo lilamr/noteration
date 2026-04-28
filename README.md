@@ -2,7 +2,7 @@
   <img src="assets/icon_256.png" width="96" alt="Noteration icon"/>
 </p>
 
-<h1 align="center">Noteration</h1>
+<h1 align="center">Noteration: Note-Literature-Synchronization</h1>
 
 <p align="center">
   <strong>Research Literature Note-Taking App</strong><br>
