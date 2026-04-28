@@ -179,6 +179,7 @@ pip install -e ".[all,dev]"
 
 # Jalankan test
 pytest
+mypy
 
 # Linting
 ruff check noteration/
