@@ -120,6 +120,48 @@ On first run, a **Select Vault** dialog will appear to choose or create a new re
 
 ---
 
+## Uninstallation
+
+If you need to remove Noteration, follow the steps for your operating system:
+
+### 🐧 Linux
+```bash
+# Remove installation directory and venv
+rm -rf ~/.local/share/noteration
+
+# Remove wrapper script
+rm ~/.local/bin/noteration
+
+# Remove desktop entry and icon
+rm ~/.local/share/applications/noteration.desktop
+rm ~/.local/share/icons/noteration.png
+```
+
+### 🍎 macOS
+```bash
+# Remove App Bundle
+rm -rf ~/Applications/Noteration.app
+
+# Remove installation directory and binary
+rm -rf ~/.local/share/noteration
+rm ~/.local/bin/noteration
+```
+
+### 🪟 Windows (PowerShell)
+```powershell
+# Remove installation directory
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\noteration"
+
+# Remove shortcuts
+Remove-Item "$env:USERPROFILE\Desktop\Noteration.lnk" -ErrorAction SilentlyContinue
+Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Noteration.lnk" -ErrorAction SilentlyContinue
+```
+
+> [!NOTE]
+> These steps remove the application itself. Your **Vault data** (notes, literature, annotations and config) is stored separately and will not be deleted.
+
+---
+
 ## Vault Structure
 
 ```
