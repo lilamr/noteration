@@ -52,15 +52,51 @@ noteration/
 
 ## Installation
 
+### Prerequisites
+
+Make sure you have the following installed:
+
+- Python 3.11 or higher
+- Git
+- A terminal (Terminal, PowerShell, or Command Prompt)
+
+Check your Python version:
 ```bash
-# Clone repository
+python --version
+```
+### Clone the Repository
+
+```bash
 git clone https://github.com/lilamr/noteration.git
 cd noteration
+```
+
+### Create a Virtual Environment (Strongly Recommended)
+
+```bash
+# Windows
+python -m venv venv
+
+# macOS / Linux
+python3 -m venv venv
+```
+
+Activate the virtual environment
+
+```bash
+# Windows
+venv\Scripts\activate
+
+# macOS / Linux
+source venv/bin/activate
+```
+
+### Install Dependencies
 
 # Install basic dependencies
 pip install -e .
 
-# Install all optional features at once
+# Install all optional features at once (Recommended)
 pip install -e ".[all]"
 ```
 
@@ -74,8 +110,6 @@ pip install -e ".[all]"
 | Backlink graph (NetworkX) | `pip install -e ".[graph]"` |
 | File watcher (live reload) | `pip install -e ".[watch]"` |
 | Markdown preview | `pip install -e ".[markdown]"` |
-
-> **Note:** Python 3.11+ is required. PySide6 ≥ 6.4 includes built-in QtPDF.
 
 ---
 
