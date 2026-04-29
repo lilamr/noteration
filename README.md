@@ -52,57 +52,48 @@ noteration/
 
 ## Installation
 
-### Prerequisites
+Choose the quickest way to get Noteration running on your system.
 
-Make sure you have the following installed:
+### 🐧 Linux & 🍎 macOS (One-liner)
 
+Open your terminal and run:
+```bash
+curl -fsSL https://raw.githubusercontent.com/lilamr/noteration/main/install.sh | bash
+```
+*On macOS, this will create a **Noteration.app** in your Applications folder and add it to your Launchpad.*
+
+### 🪟 Windows (One-liner)
+
+Open PowerShell and run:
+```powershell
+irm https://raw.githubusercontent.com/lilamr/noteration/main/install.ps1 | iex
+```
+*This will create a desktop shortcut and a Start Menu entry for easy access.*
+
+---
+
+### Manual Installation (Development)
+
+If you want to contribute or prefer manual setup:
+
+#### 1. Prerequisites
 - Python 3.11 or higher
 - Git
-- A terminal (Terminal, PowerShell, or Command Prompt)
 
-Check your Python version:
-```bash
-python --version
-```
-### Clone the Repository
-
+#### 2. Clone and Setup
 ```bash
 git clone https://github.com/lilamr/noteration.git
 cd noteration
-```
 
-### Create a Virtual Environment (Strongly Recommended)
-
-```bash
-# Windows
-python -m venv .venv
-
-# macOS / Linux
+# Create and activate virtual environment
 python3 -m venv .venv
-```
+source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
 
-Activate the virtual environment
-
-```bash
-# Windows
-venv\Scripts\activate
-
-# macOS / Linux
-source venv/bin/activate
-```
-
-### Install Dependencies
-
-```
-# Install basic dependencies
-pip install -e .
-
-# Install all optional features at once (Recommended)
+# Install with all features
 pip install -e ".[all]"
 ```
 
-### Optional Dependencies
-
+#### 3. Optional Dependencies
 | Feature | Command |
 |-------|----------|
 | Papis literature management | `pip install -e ".[papis]"` |
@@ -111,6 +102,7 @@ pip install -e ".[all]"
 | Backlink graph (NetworkX) | `pip install -e ".[graph]"` |
 | File watcher (live reload) | `pip install -e ".[watch]"` |
 | Markdown preview | `pip install -e ".[markdown]"` |
+
 
 ---
 
