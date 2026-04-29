@@ -75,10 +75,10 @@ cd noteration
 
 ```bash
 # Windows
-python -m venv venv
+python -m venv .venv
 
 # macOS / Linux
-python3 -m venv venv
+python3 -m venv .venv
 ```
 
 Activate the virtual environment
@@ -93,6 +93,7 @@ source venv/bin/activate
 
 ### Install Dependencies
 
+```
 # Install basic dependencies
 pip install -e .
 
