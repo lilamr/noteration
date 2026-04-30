@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon_256.png" width="96" alt="Noteration icon"/>
+  <img src="noteration/assets/icon_256.png" width="96" alt="Noteration icon"/>
 </p>
 
 <h1 align="center">Noteration: Note-Literature-Synchronization</h1>
@@ -217,10 +217,10 @@ sidebar_visible = true
 ## Project Structure
 
 ```
-noteration/
-├── assets/
-├── docs/
-├── noteration/
+noteration/ (repository root)
+├── noteration/ (package)
+│   ├── assets/              # Icons and static assets
+│   ├── docs/                # User guides and documentation
 │   ├── app.py               # Bootstrap & QApplication
 │   ├── config.py            # TOML Configuration
 │   ├── db/                  # Link graph & layout engine

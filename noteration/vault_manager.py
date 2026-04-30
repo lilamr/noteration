@@ -54,6 +54,9 @@ class VaultManager(QObject):
         super().__init__(parent)
         self.vault_path = vault_path
         
+        # Ensure vault structure exists (handles empty/newly selected folders)
+        self._init_directories()
+        
         # Setup logging to a file within the vault
         setup_logging(vault_path)
         logger.info(f"Initializing VaultManager for {vault_path}")
@@ -70,6 +73,11 @@ class VaultManager(QObject):
         self._sync_timer = QTimer(self)
         self._sync_timer.timeout.connect(self.perform_auto_sync)
         self.restart_auto_sync()
+
+    def _init_directories(self) -> None:
+        """Ensure all required vault subdirectories exist."""
+        for sub in [".noteration", "notes", "literature", "annotations", "attachments"]:
+            (self.vault_path / sub).mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Engine Accessors

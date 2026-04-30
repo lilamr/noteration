@@ -65,7 +65,7 @@ $WshShell = New-Object -ComObject WScript.Shell
 
 # Download Icon for Windows
 $iconPath = Join-Path $installDir "icon.ico"
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/lilamr/noteration/main/assets/icon.ico" -OutFile $iconPath -ErrorAction SilentlyContinue
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/lilamr/noteration/main/noteration/assets/icon.ico" -OutFile $iconPath -ErrorAction SilentlyContinue
 
 function Create-Lnk ($path, $target, $icon) {
     $Shortcut = $WshShell.CreateShortcut($path)

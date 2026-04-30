@@ -34,8 +34,8 @@ class HelpDialog(QDialog):
         self._load_guide()
 
     def _load_guide(self) -> None:
-        # Path to the guide file
-        guide_path = Path(__file__).parent.parent.parent / "docs" / "user_guide.md"
+        # Path to the guide file (now inside the package)
+        guide_path = Path(__file__).parent.parent / "docs" / "user_guide.md"
         
         if not guide_path.exists():
             self._browser.setHtml("<h1>Error</h1><p>Guide file not found.</p>")
