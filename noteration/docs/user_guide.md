@@ -18,9 +18,10 @@
 10. [Git Synchronization](#10-git-synchronization)
 11. [Settings](#11-settings)
 12. [Full Shortcuts](#12-full-shortcuts)
-13. [`config.toml` Configuration](#13-configtoml-configuration)
-14. [Vault Structure](#14-vault-structure)
-15. [Frequently Asked Questions (FAQ)](#15-frequently-asked-questions-faq)
+13. [Focus Mode & Vim Keybindings](#13-focus-mode--vim-keybindings)
+14. [`config.toml` Configuration](#14-configtoml-configuration)
+15. [Vault Structure](#15-vault-structure)
+16. [Frequently Asked Questions (FAQ)](#16-frequently-asked-questions-faq)
 
 ---
 
@@ -89,10 +90,10 @@ The Navigator panel contains four collapsible/expandable sections:
 | Menu | Content |
 |------|-----|
 | **File** | New Note, Open Vault, Save, Exit |
-| **View** | Toggle sidebar/right panel, Literature, Synchronization |
+| **View** | Toggle sidebar/right panel, Focus Mode, Literature, Synchronization |
 | **Search** | Global vault search |
 | **Tools** | Synchronize, Export BibTeX, Build Backlink Graph, Settings |
-| **Help** | Guide, About |
+| **Help** | Guide, Research and Writing, About |
 
 ### Right Panel — Link Graph
 
@@ -530,6 +531,9 @@ Click **Cancel** to revert to the previous theme.
 | Shortcut | Action |
 |----------|------|
 | `F1` | Open this user guide |
+| `F2` | Open Research and Writing briefing |
+| `F11` | Toggle Focus Mode |
+| `Esc` | Exit Focus Mode (from Normal mode) |
 | `Ctrl+,` | Open Settings |
 
 ### Dialogs
@@ -541,7 +545,38 @@ Click **Cancel** to revert to the previous theme.
 
 ---
 
-## 13. `config.toml` Configuration
+## 13. Focus Mode & Vim Keybindings
+
+Focus Mode is designed for distraction-free writing. It can be toggled via **View › Focus Mode** or by pressing **F11**.
+
+### Features
+
+- **Minimalist Interface**: Fullscreen view where the menu bar, status bar, and toolbars are hidden.
+- **Centered Layout**: The editor stays in the center of the screen with a width of 50% of the window.
+- **Vim Integration**: A powerful modal editing system inspired by Vim.
+
+### Vim Modes
+
+| Mode | Trigger | Description |
+|------|---------|-------------|
+| **NORMAL** | `Esc` | Default navigation mode. Move with `h`, `j`, `k`, `l`, `w`, `b`, `0`, `$`, `G`, `g`. |
+| **INSERT** | `i`, `a`, `o` | Standard typing mode. |
+| **VISUAL** | `v`, `V` | Selection mode for characters (`v`) or full lines (`V`). |
+| **COMMAND** | `:` | Input commands like `:w` (save) or `:q` (exit focus mode). |
+
+### Common Vim Commands
+
+| Key | Action |
+|-----|--------|
+| `u` | Undo |
+| `x` | Delete character |
+| `p` | Paste |
+| `y` | Yank (Copy) in Visual mode |
+| `d` | Delete/Cut in Visual mode |
+
+---
+
+## 14. `config.toml` Configuration
 
 The configuration file is located at `<vault>/.noteration/config.toml`.
 It is edited automatically via the Settings dialog, or can be edited manually with a text editor.
@@ -652,5 +687,5 @@ A: Yes, so your vault notes are only accessible and synchronized on your own dev
 
 ---
 
-*This guide applies to Noteration v1.0.0*
+*This guide applies to Noteration v1.1.0*
 

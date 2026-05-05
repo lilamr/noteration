@@ -23,6 +23,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 
+from noteration import __version__
 from noteration.dialogs.vault_picker import VaultPickerDialog
 from noteration.ui.main_window import MainWindow
 from noteration.ui.theme import apply_theme, ThemeMode, SystemThemeWatcher
@@ -65,7 +66,7 @@ def main() -> int:
     # Set metadata before creating the app instance
     QApplication.setApplicationName("Noteration")
     QApplication.setApplicationDisplayName("Noteration")
-    QApplication.setApplicationVersion("1.0.0")
+    QApplication.setApplicationVersion(__version__)
     QApplication.setOrganizationName("Noteration")
     QApplication.setOrganizationDomain("noteration.org")
     QApplication.setDesktopFileName("noteration")

@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-05-04
+
+### Added
+- **Focus Mode**: A distraction-free writing environment (F11) with:
+    - Fullscreen view and hidden UI elements (MenuBar, StatusBar, Toolbar, Sidebars).
+    - Centered editor with dynamic width (50% of the screen).
+    - Integrated Vim keybindings (Normal, Insert, Visual mode).
+    - Vim-style command field for saving (`:w`) and exiting (`:q`).
+- **Research Briefing**: New "Research and Writing" help entry (F2) synthesizing academic writing strategies.
+- **Global Shortcuts**: Enhanced `Ctrl+N` (New Note) and `Ctrl+S` (Save) to work globally, including in Focus Mode.
+
+### Changed
+- Refactored Help Dialog to be reusable for different documentation files.
+- Version increment to v1.1.0.
+
 ## [1.0.0] - 2026-04-30
 
 ### Added

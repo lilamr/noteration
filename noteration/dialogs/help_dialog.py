@@ -10,11 +10,11 @@ from PySide6.QtCore import Qt
 
 
 class HelpDialog(QDialog):
-    """Dialog that displays the user guide (Markdown rendered as HTML)."""
+    """Dialog that displays a Markdown file rendered as HTML."""
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, title: str, file_name: str, parent=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Noteration User Guide")
+        self.setWindowTitle(title)
         self.resize(800, 600)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint)
 
@@ -31,18 +31,18 @@ class HelpDialog(QDialog):
         btn_row.addWidget(close_btn)
         layout.addLayout(btn_row)
 
-        self._load_guide()
+        self._load_file(file_name)
 
-    def _load_guide(self) -> None:
-        # Path to the guide file (now inside the package)
-        guide_path = Path(__file__).parent.parent / "docs" / "user_guide.md"
+    def _load_file(self, file_name: str) -> None:
+        # Path to the doc file
+        doc_path = Path(__file__).parent.parent / "docs" / file_name
         
-        if not guide_path.exists():
-            self._browser.setHtml("<h1>Error</h1><p>Guide file not found.</p>")
+        if not doc_path.exists():
+            self._browser.setHtml(f"<h1>Error</h1><p>File '{file_name}' not found.</p>")
             return
 
         try:
-            content = guide_path.read_text(encoding="utf-8")
+            content = doc_path.read_text(encoding="utf-8")
             # We reuse the conversion logic from EditorTab
             from noteration.ui.editor_tab import _md_to_html
             
@@ -50,4 +50,4 @@ class HelpDialog(QDialog):
             html = _md_to_html(content, theme="light")
             self._browser.setHtml(html)
         except Exception as e:
-            self._browser.setHtml(f"<h1>Error</h1><p>Failed to load guide: {str(e)}</p>")
+            self._browser.setHtml(f"<h1>Error</h1><p>Failed to load '{file_name}': {str(e)}</p>")

@@ -21,9 +21,11 @@ if (!(Get-Command "python" -ErrorAction SilentlyContinue)) {
     }
 }
 
-$version = & $pythonExe -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
-if ([float]$version -lt 3.11) {
-    Write-Error-Msg "Noteration requires Python 3.11+. Current version is $version."
+# Robust Python version check
+& $pythonExe -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"
+if ($LASTEXITCODE -ne 0) {
+    $currentVer = & $pythonExe -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+    Write-Error-Msg "Noteration requires Python 3.11+. Current version is $currentVer."
     exit 1
 }
 
@@ -40,10 +42,12 @@ if (!(Test-Path $installDir)) { New-Item -ItemType Directory -Path $installDir |
 
 # 4. Create Virtual Environment
 Write-Header "Creating virtual environment in $installDir..."
-& $pythonExe -m venv (Join-Path $installDir "venv")
+& $pythonExe -m venv (Join-Path $installDir "venv") --clear
 
-$venvPython = Join-Path $installDir "venv\Scripts\python.exe"
-$venvPip = Join-Path $installDir "venv\Scripts\pip.exe"
+$venvDir = Join-Path $installDir "venv"
+$venvPython = Join-Path $venvDir "Scripts\python.exe"
+$venvPip = Join-Path $venvDir "Scripts\pip.exe"
+$noterationExe = Join-Path $venvDir "Scripts\noteration.exe"
 
 # 5. Install Noteration
 Write-Header "Installing Noteration and dependencies..."
@@ -52,36 +56,48 @@ Write-Header "Installing Noteration and dependencies..."
 
 # 6. Create Wrapper Batch File
 $wrapperPath = Join-Path $installDir "noteration.bat"
-@"
+# Use set "VAR=VAL" and quotes for the exe path to handle spaces correctly
+$batchContent = @"
 @echo off
 setlocal
-set PATH=$installDir\venv\Scripts;%PATH%
-start "" "noteration.exe" %*
-"@ | Out-File -FilePath $wrapperPath -Encoding ascii
+set "PATH=$venvDir\Scripts;%PATH%"
+start "" "$noterationExe" %*
+"@
+$batchContent | Out-File -FilePath $wrapperPath -Encoding ascii
 
-# 7. Create Shortcuts (Desktop & Start Menu)
-Write-Header "Creating shortcuts..."
-$WshShell = New-Object -ComObject WScript.Shell
-
-# Download Icon for Windows
-$iconPath = Join-Path $installDir "icon.ico"
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/lilamr/noteration/main/noteration/assets/icon.ico" -OutFile $iconPath -ErrorAction SilentlyContinue
-
-function Create-Lnk ($path, $target, $icon) {
-    $Shortcut = $WshShell.CreateShortcut($path)
-    $Shortcut.TargetPath = $target
-    $Shortcut.WorkingDirectory = $installDir
-    if (Test-Path $icon) { $Shortcut.IconLocation = $icon }
-    $Shortcut.Save()
+# 7. Add to Microsoft\WindowsApps for easy terminal access
+if (Test-Path $binDir) {
+    Write-Header "Adding 'noteration' command to PATH..."
+    Copy-Item $wrapperPath (Join-Path $binDir "noteration.bat") -Force
 }
 
-$desktopPath = [System.IO.Path]::Combine([Environment]::GetFolderPath("Desktop"), "Noteration.lnk")
-$startMenuPath = [System.IO.Path]::Combine([Environment]::GetFolderPath("Programs"), "Noteration.lnk")
+# 8. Create Shortcuts (Desktop & Start Menu)
+Write-Header "Creating shortcuts..."
+try {
+    $WshShell = New-Object -ComObject WScript.Shell
 
-Create-Lnk $desktopPath $wrapperPath $iconPath
-Create-Lnk $startMenuPath $wrapperPath $iconPath
+    # Download Icon for Windows
+    $iconPath = Join-Path $installDir "icon.ico"
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/lilamr/noteration/main/noteration/assets/icon.ico" -OutFile $iconPath -ErrorAction SilentlyContinue
+
+    function Create-Lnk ($path, $target, $icon) {
+        $Shortcut = $WshShell.CreateShortcut($path)
+        $Shortcut.TargetPath = $target
+        $Shortcut.WorkingDirectory = $installDir
+        if (Test-Path $icon) { $Shortcut.IconLocation = $icon }
+        $Shortcut.Save()
+    }
+
+    $desktopPath = [System.IO.Path]::Combine([Environment]::GetFolderPath("Desktop"), "Noteration.lnk")
+    $startMenuPath = [System.IO.Path]::Combine([Environment]::GetFolderPath("Programs"), "Noteration.lnk")
+
+    Create-Lnk $desktopPath $wrapperPath $iconPath
+    Create-Lnk $startMenuPath $wrapperPath $iconPath
+} catch {
+    Write-Host "Warning: Could not create shortcuts automatically. You can still run Noteration by typing 'noteration' in the terminal."
+}
 
 Write-Success "Noteration installed successfully!"
-Write-Host "You can now run Noteration from your Desktop, Start Menu, or by typing 'noteration' in CMD/PowerShell (if path is updated)."
+Write-Host "You can now run Noteration from your Desktop, Start Menu, or by typing 'noteration' in CMD/PowerShell."
 Write-Host ""
 Write-Host "Note: If 'noteration' command is not found, please restart your terminal."

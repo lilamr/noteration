@@ -15,8 +15,10 @@ from PySide6.QtWidgets import (
     QToolBar, QFileDialog, QMessageBox,
 )
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QKeySequence, QAction
+from PySide6.QtGui import QKeySequence, QAction, QKeyEvent
 
+from noteration import __version__
+from noteration.sync.updater import CheckUpdateThread, run_update_process
 from noteration.ui.sidebar import SidebarWidget
 from noteration.ui.editor_tab import EditorTab
 from noteration.ui.pdf_viewer_tab import PdfViewerTab
@@ -47,12 +49,14 @@ class MainWindow(QMainWindow):
         self._graph     = self.vault.graph
         self._git_repo  = self.vault.git_repo
 
+        self._focus_mode_active = False
+
         # Graph view components
         self._graph_view: GraphView | None = None
         self._graph_dock: QDockWidget | None = None
         self._graph_view_action = None
 
-        self.setWindowTitle(f"Noteration v1.0.0 — {vault_path.name}")
+        self.setWindowTitle(f"Noteration v{__version__} — {vault_path.name}")
         self.resize(1360, 840)
         self.setMinimumSize(900, 560)
 
@@ -152,6 +156,12 @@ class MainWindow(QMainWindow):
         vm.addAction(self._sidebar_dock.toggleViewAction())
         vm.addAction(self._right_dock.toggleViewAction())
         vm.addSeparator()
+        self._act_focus = QAction("Focus Mode", self)
+        self._act_focus.setShortcut("F11")
+        self._act_focus.setCheckable(True)
+        self._act_focus.triggered.connect(self._toggle_focus_mode)
+        vm.addAction(self._act_focus)
+        vm.addSeparator()
         vm.addAction("Literature",     self._open_literature_tab)
         vm.addAction("Synchronization",  self._open_sync_tab)
 
@@ -174,40 +184,47 @@ class MainWindow(QMainWindow):
         tm.addAction("Settings…",               self._open_settings,
                      QKeySequence.StandardKey.Preferences)
 
-        # Help Menu
         hm = mb.addMenu("&Help")
+        hm.addAction("Check for Updates", lambda: self._check_for_updates(silent=False))
         hm.addAction("Guide", self._open_guide, QKeySequence.StandardKey.HelpContents)
+        hm.addAction("Research and Writing", self._open_research_writing, "F2")
         hm.addSeparator()
         hm.addAction("About Noteration", self._about)
 
     def _setup_toolbar(self) -> None:
-        tb = QToolBar("Main Toolbar", self)
-        tb.setMovable(False)
-        tb.setFloatable(False)
-        self.addToolBar(tb)
+        self._main_toolbar = QToolBar("Main Toolbar", self)
+        self._main_toolbar.setMovable(False)
+        self._main_toolbar.setFloatable(False)
+        self.addToolBar(self._main_toolbar)
 
-        tb.addAction("+ Note",  self._new_note)
-        tb.addSeparator()
-        tb.addAction("Save",     self._save_current)
-        tb.addAction("Literature",  self._open_literature_tab)
-        tb.addAction("Sync",       self._sync)
-        tb.addSeparator()
-        tb.addAction("Navigator",  self._sidebar_dock.toggleViewAction().trigger)
-        tb.addAction("Link Graph",  self._right_dock.toggleViewAction().trigger)
+        act_new = self._main_toolbar.addAction("+ Note",  self._new_note)
+        act_new.setShortcut(QKeySequence("Ctrl+N"))
+        self._main_toolbar.addSeparator()
+        self._main_toolbar.addAction("Save",     self._save_current)
+        self._main_toolbar.addAction("Literature",  self._open_literature_tab)
+        self._main_toolbar.addAction("Sync",       self._sync)
+        self._main_toolbar.addSeparator()
+        self._main_toolbar.addAction("Navigator",  self._sidebar_dock.toggleViewAction().trigger)
+        self._main_toolbar.addAction("Link Graph",  self._right_dock.toggleViewAction().trigger)
+
+        # Global shortcuts that work even when menus/toolbars are hidden
+        from PySide6.QtGui import QShortcut
+        QShortcut(QKeySequence("Ctrl+N"), self).activated.connect(self._new_note)
+        QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self._save_current)
 
         sp = QWidget()
         sp.setMinimumWidth(8)
-        tb.addWidget(sp)
+        self._main_toolbar.addWidget(sp)
 
         self._sync_badge = QLabel("Git: offline")
         self._sync_badge.setStyleSheet(
             "padding:2px 8px;border-radius:8px;"
             "background:#F5F5F5;color:#616161;font-size:11px;")
-        tb.addWidget(self._sync_badge)
+        self._main_toolbar.addWidget(self._sync_badge)
 
     def _setup_statusbar(self) -> None:
         sb = self.statusBar()
-        self._st_file  = QLabel("Noteration v1.0.0")
+        self._st_file  = QLabel(f"Noteration v{__version__}")
         self._st_pos   = QLabel("Ln 1, Col 1")
         self._st_words = QLabel("0 words")
         self._st_git   = QLabel("○ offline")
@@ -259,11 +276,17 @@ class MainWindow(QMainWindow):
         tab.citations_changed.connect(self.sidebar.update_citations)
         tab.citations_changed.connect(self.sidebar.update_cited_pdfs)
         tab.word_count_changed.connect(self._on_word_count)
+        tab.save_requested.connect(self._save_current)
+        tab.focus_mode_exit_requested.connect(lambda: self._toggle_focus_mode(False))
 
         idx = self.tabs.addTab(tab, path.name)
         self.tabs.setCurrentIndex(idx)
         self._st_file.setText(path.name)
         
+        # Apply focus mode if active
+        if self._focus_mode_active:
+            tab.set_focus_mode(True)
+
         # Initialize sidebar content from the newly opened note
         self.sidebar.update_outline(tab.headings())
         cited_keys = tab.citation_keys()
@@ -561,10 +584,42 @@ class MainWindow(QMainWindow):
                 w.set_line_numbers_visible(
                     self.config.get("editor", "show_line_numbers", True))
 
+    def _check_for_updates(self, silent: bool = False) -> None:
+        self._update_silent = silent
+        if not silent:
+            self.statusBar().showMessage("Checking for updates...")
+
+        self._update_thread = CheckUpdateThread(self)
+        self._update_thread.finished.connect(self._on_update_check_finished)
+        self._update_thread.error.connect(self._on_update_check_error)
+        self._update_thread.start()
+
+    def _on_update_check_finished(self, available: bool, version: str) -> None:
+        if available:
+            res = QMessageBox.question(
+                self, "Update Available",
+                f"A new version of Noteration (v{version}) is available.\n"
+                f"Current version is v{__version__}.\n\n"
+                "Would you like to update now?\n"
+                "(The application will restart after the update)",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if res == QMessageBox.StandardButton.Yes:
+                if run_update_process():
+                    QTimer.singleShot(500, self.close)
+                else:
+                    QMessageBox.warning(self, "Update Failed", "Could not initiate the update process.")
+        elif not self._update_silent:
+            QMessageBox.information(self, "No Updates", f"You are using the latest version (v{__version__}).")
+
+    def _on_update_check_error(self, message: str) -> None:
+        if not self._update_silent:
+            QMessageBox.critical(self, "Update Error", f"Failed to check for updates:\n{message}")
+
     def _about(self) -> None:
         QMessageBox.about(
             self, "About Noteration",
-            "Noteration v1.0.0\n\n"
+            f"Noteration v{__version__}\n\n"
             "Research note-taking:\n"
             "Markdown · PDF + Annotations · Papis · GitHub sync\n"
             "Backlink graph · Dark mode · Citation autocomplete\n\n"
@@ -573,8 +628,47 @@ class MainWindow(QMainWindow):
 
     def _open_guide(self) -> None:
         from noteration.dialogs.help_dialog import HelpDialog
-        dlg = HelpDialog(self)
+        dlg = HelpDialog("Noteration User Guide", "user_guide.md", self)
         dlg.exec()
+
+    def _open_research_writing(self) -> None:
+        from noteration.dialogs.help_dialog import HelpDialog
+        dlg = HelpDialog("Research and Writing", "research_writing.md", self)
+        dlg.exec()
+
+    def _toggle_focus_mode(self, enabled: bool) -> None:
+        self._focus_mode_active = enabled
+        self._act_focus.setChecked(enabled)
+        
+        if enabled:
+            self.showFullScreen()
+            self.menuBar().hide()
+            self.statusBar().hide()
+            self._main_toolbar.hide()
+            self._sidebar_dock.hide()
+            self._right_dock.hide()
+        else:
+            self.showNormal()
+            self.menuBar().show()
+            self.statusBar().show()
+            self._main_toolbar.show()
+            self._sidebar_dock.show()
+            self._right_dock.show()
+
+        # Update all EditorTabs
+        for i in range(self.tabs.count()):
+            w = self.tabs.widget(i)
+            if isinstance(w, EditorTab):
+                w.set_focus_mode(enabled)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        """Handle global keys, like Esc to exit Focus Mode when no editor is focused."""
+        if event.key() == Qt.Key.Key_Escape and self._focus_mode_active:
+            # If no tab is open or the current tab is not an editor (so it didn't catch the key)
+            if self.tabs.count() == 0 or not isinstance(self.tabs.currentWidget(), EditorTab):
+                self._toggle_focus_mode(False)
+                return
+        super().keyPressEvent(event)
 
     # ── Settings reload helpers ───────────────────────────────────────
 

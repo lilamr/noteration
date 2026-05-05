@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
+from enum import Enum
 
 if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QPlainTextEdit, QTextEdit,
     QApplication, QStackedWidget, QToolBar, QSizePolicy, QFileDialog,
-    QMessageBox,
+    QMessageBox, QLineEdit, QLabel,
 )
 from PySide6.QtCore import Qt, Signal, QRect, QSize, QTimer, QUrl
 from PySide6.QtGui import (
@@ -45,6 +46,42 @@ from noteration.editor.wiki_links import (
     parse_wiki_links, parse_citations, extract_headings,
 )
 
+class VimMode(Enum):
+    NORMAL = "NORMAL"
+    INSERT = "INSERT"
+    VISUAL = "VISUAL"
+    LINE_VISUAL = "LINE_VISUAL"
+    COMMAND = "COMMAND"
+
+# =========================================================================
+# VimCommandField
+# =========================================================================
+
+class VimCommandField(QLineEdit):
+    """Small command field for Vim-like commands (e.g., :w, :q)."""
+    command_entered = Signal(str)
+    esc_pressed = Signal()
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setPlaceholderText("Enter command (e.g., :w, :q)...")
+        self.setStyleSheet(
+            "QLineEdit { border: 1px solid palette(mid); padding: 4px; "
+            " font-family: monospace; background: palette(base); }"
+        )
+        self.hide()
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+            self.command_entered.emit(self.text())
+            self.clear()
+            self.hide()
+        elif event.key() == Qt.Key.Key_Escape:
+            self.clear()
+            self.hide()
+            self.esc_pressed.emit()
+        else:
+            super().keyPressEvent(event)
 
 # =========================================================================
 # LineNumberArea
@@ -77,10 +114,17 @@ class MarkdownEditor(QPlainTextEdit):
     wiki_link_activated = Signal(str)
     image_dropped = Signal(str)  # Relative path to dropped image
     image_pasted = Signal(object)  # QImage from clipboard
+    vim_mode_changed = Signal(VimMode)
+    vim_command_requested = Signal()
+    vim_exit_requested = Signal()
 
     def __init__(self, config: NoterationConfig, parent=None) -> None:
         super().__init__(parent)
         self.config = config
+
+        self._vim_enabled = False
+        self._vim_mode = VimMode.NORMAL
+        self._visual_anchor = -1
 
         font = QFont(config.font_family, config.font_size)
         font.setFixedPitch(True)
@@ -109,6 +153,33 @@ class MarkdownEditor(QPlainTextEdit):
         self.customContextMenuRequested.connect(self._handle_context_menu)
 
         self._read_only = False
+
+    # ── Vim Logic ─────────────────────────────────────────────────────
+
+    def set_vim_enabled(self, enabled: bool) -> None:
+        self._vim_enabled = enabled
+        if enabled:
+            self._set_vim_mode(VimMode.NORMAL)
+        else:
+            self.setReadOnly(self._read_only)
+            # Clear any selection
+            cursor = self.textCursor()
+            cursor.clearSelection()
+            self.setTextCursor(cursor)
+
+    def _set_vim_mode(self, mode: VimMode) -> None:
+        self._vim_mode = mode
+        # In Normal, Visual, and Command modes, the editor is effectively read-only for standard input
+        self.setReadOnly(self._read_only or mode != VimMode.INSERT)
+        
+        if mode in (VimMode.VISUAL, VimMode.LINE_VISUAL):
+            if self._visual_anchor == -1:
+                self._visual_anchor = self.textCursor().position()
+        else:
+            self._visual_anchor = -1
+            
+        self.vim_mode_changed.emit(mode)
+        self._highlight_current_line()
 
     # ── Line numbers ──────────────────────────────────────────────────
 
@@ -209,30 +280,131 @@ class MarkdownEditor(QPlainTextEdit):
     # ── Keyboard handling ──────────────────────────────────────────────
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        if event.key() == Qt.Key.Key_Tab:
-            self.insertPlainText(
-                " " * self.config.get("editor", "tab_width", 2))
-            return
-        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
-            if event.key() == Qt.Key.Key_V:
-                clipboard = QApplication.clipboard()
-                image = clipboard.image()
-                if not image.isNull():
-                    self.image_pasted.emit(image)
-                    return
-                mime = clipboard.mimeData()
-                if mime.hasUrls():
-                    for url in mime.urls():
-                        if url.isLocalFile():
-                            path = url.toLocalFile()
-                            ext = path.lower().rsplit(".", 1)[-1] if "." in path else ""
-                            if ext in ("png", "jpg", "jpeg", "gif", "webp", "bmp"):
-                                self.image_dropped.emit(path)
-                                return
-            elif event.key() == Qt.Key.Key_Y:
-                self.redo()
+        if not self._vim_enabled:
+            if event.key() == Qt.Key.Key_Tab:
+                self.insertPlainText(
+                    " " * self.config.get("editor", "tab_width", 2))
                 return
-        super().keyPressEvent(event)
+            if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+                if event.key() == Qt.Key.Key_V:
+                    clipboard = QApplication.clipboard()
+                    image = clipboard.image()
+                    if not image.isNull():
+                        self.image_pasted.emit(image)
+                        return
+                    mime = clipboard.mimeData()
+                    if mime.hasUrls():
+                        for url in mime.urls():
+                            if url.isLocalFile():
+                                path = url.toLocalFile()
+                                ext = path.lower().rsplit(".", 1)[-1] if "." in path else ""
+                                if ext in ("png", "jpg", "jpeg", "gif", "webp", "bmp"):
+                                    self.image_dropped.emit(path)
+                                    return
+                elif event.key() == Qt.Key.Key_Y:
+                    self.redo()
+                    return
+            super().keyPressEvent(event)
+            return
+
+        # Vim handling
+        key = event.key()
+        text = event.text()
+        
+        if key == Qt.Key.Key_Escape:
+            if self._vim_mode == VimMode.NORMAL:
+                self.vim_exit_requested.emit()
+            
+            self._set_vim_mode(VimMode.NORMAL)
+            cursor = self.textCursor()
+            cursor.clearSelection()
+            self.setTextCursor(cursor)
+            return
+
+        if self._vim_mode == VimMode.INSERT:
+            super().keyPressEvent(event)
+            return
+
+        # NORMAL / VISUAL / LINE_VISUAL handling
+        cursor = self.textCursor()
+        move_mode = QTextCursor.MoveMode.MoveAnchor
+        if self._vim_mode in (VimMode.VISUAL, VimMode.LINE_VISUAL):
+            move_mode = QTextCursor.MoveMode.KeepAnchor
+
+        # Allow standard shortcuts (Ctrl+S, Ctrl+C, etc.) even in Normal mode
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            super().keyPressEvent(event)
+            return
+
+        # Movement keys
+        if key == Qt.Key.Key_H:
+            cursor.movePosition(QTextCursor.MoveOperation.Left, move_mode)
+        elif key == Qt.Key.Key_L:
+            cursor.movePosition(QTextCursor.MoveOperation.Right, move_mode)
+        elif key == Qt.Key.Key_J:
+            cursor.movePosition(QTextCursor.MoveOperation.Down, move_mode)
+        elif key == Qt.Key.Key_K:
+            cursor.movePosition(QTextCursor.MoveOperation.Up, move_mode)
+        elif key == Qt.Key.Key_W:
+            cursor.movePosition(QTextCursor.MoveOperation.NextWord, move_mode)
+        elif key == Qt.Key.Key_B:
+            cursor.movePosition(QTextCursor.MoveOperation.PreviousWord, move_mode)
+        elif key == Qt.Key.Key_0:
+            cursor.movePosition(QTextCursor.MoveOperation.StartOfLine, move_mode)
+        elif key == Qt.Key.Key_Dollar:
+            cursor.movePosition(QTextCursor.MoveOperation.EndOfLine, move_mode)
+        elif key == Qt.Key.Key_G:
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                cursor.movePosition(QTextCursor.MoveOperation.End, move_mode)
+            else:
+                cursor.movePosition(QTextCursor.MoveOperation.Start, move_mode)
+        
+        # State transitions
+        elif self._vim_mode == VimMode.NORMAL:
+            if text == "i":
+                self._set_vim_mode(VimMode.INSERT)
+            elif text == "a":
+                cursor.movePosition(QTextCursor.MoveOperation.Right)
+                self._set_vim_mode(VimMode.INSERT)
+            elif text == "o":
+                cursor.movePosition(QTextCursor.MoveOperation.EndOfLine)
+                cursor.insertText("\n")
+                self._set_vim_mode(VimMode.INSERT)
+            elif text == "v":
+                self._set_vim_mode(VimMode.VISUAL)
+            elif text == "V":
+                self._set_vim_mode(VimMode.LINE_VISUAL)
+                cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
+                self._visual_anchor = cursor.position()
+                cursor.movePosition(QTextCursor.MoveOperation.EndOfLine, QTextCursor.MoveMode.KeepAnchor)
+            elif text == ":":
+                self.vim_command_requested.emit()
+            elif text == "u":
+                self.undo()
+            elif text == "x":
+                cursor.deleteChar()
+            elif text == "p":
+                self.paste()
+            else:
+                # If no Vim command matches, allow standard processing
+                super().keyPressEvent(event)
+                return
+        
+        elif self._vim_mode in (VimMode.VISUAL, VimMode.LINE_VISUAL):
+            if text == "y":
+                self.copy()
+                self._set_vim_mode(VimMode.NORMAL)
+            elif text in ("d", "x"):
+                self.cut()
+                self._set_vim_mode(VimMode.NORMAL)
+            elif text == "c":
+                self.cut()
+                self._set_vim_mode(VimMode.INSERT)
+            else:
+                super().keyPressEvent(event)
+                return
+
+        self.setTextCursor(cursor)
 
     # ── Drag & Drop support ───────────────────────────────────────────
 
@@ -816,6 +988,8 @@ class EditorTab(QWidget):
     headings_changed   = Signal(list)
     citations_changed  = Signal(list)
     word_count_changed = Signal(int)
+    save_requested     = Signal()
+    focus_mode_exit_requested = Signal()
 
     def __init__(
         self,
@@ -829,6 +1003,7 @@ class EditorTab(QWidget):
         self.vault_path  = vault.vault_path
         self.config      = vault.config
         self.is_modified = False
+        self._is_focus_mode = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -866,21 +1041,56 @@ class EditorTab(QWidget):
 
         layout.addWidget(self._tab_toolbar)
 
-        # Content stack: Editor (0) and Preview (1)
+        # Content stack: Standard (0), Preview (1), Focus (2)
         self._stack = QStackedWidget()
         layout.addWidget(self._stack)
 
+        # 1. Standard Editor View
+        self._editor_container = QWidget()
+        self._editor_layout = QVBoxLayout(self._editor_container)
+        self._editor_layout.setContentsMargins(0, 0, 0, 0)
+        
         self._editor = MarkdownEditor(self.config)
         self._editor.wiki_link_activated.connect(self.wiki_link_clicked)
         self._editor.cursorPositionChanged.connect(self._on_cursor_moved)
         self._editor.textChanged.connect(self._on_text_changed)
         self._editor.image_dropped.connect(self._on_image_dropped)
         self._editor.image_pasted.connect(self._on_image_pasted)
-        self._stack.addWidget(self._editor)
+        
+        self._editor.vim_command_requested.connect(self._on_vim_command_requested)
+        self._editor.vim_mode_changed.connect(self._on_vim_mode_changed)
+        self._editor.vim_exit_requested.connect(self.focus_mode_exit_requested)
 
+        self._editor_layout.addWidget(self._editor)
+        self._stack.addWidget(self._editor_container)
+
+        # 2. Preview
         self._preview = MarkdownPreview()
         self._preview.link_clicked.connect(self._on_preview_link)
         self._stack.addWidget(self._preview)
+
+        # 3. Focus View
+        self._focus_view = QWidget()
+        self._focus_layout = QVBoxLayout(self._focus_view)
+        self._focus_layout.setContentsMargins(0, 40, 0, 20)
+        
+        self._centered_layout = QHBoxLayout()
+        self._centered_layout.addStretch()
+        # Editor will be reparented here in set_focus_mode
+        self._centered_layout.addStretch()
+        self._focus_layout.addLayout(self._centered_layout)
+        
+        self._vim_cmd_field = VimCommandField()
+        self._vim_cmd_field.command_entered.connect(self._handle_vim_command)
+        self._vim_cmd_field.esc_pressed.connect(lambda: self._editor.setFocus())
+        self._focus_layout.addWidget(self._vim_cmd_field, 0, Qt.AlignmentFlag.AlignCenter)
+        self._vim_cmd_field.setFixedWidth(1000)
+        
+        self._focus_status = QLabel()
+        self._focus_status.setStyleSheet("color: palette(window-text); font-size: 11px; margin-top: 10px;")
+        self._focus_layout.addWidget(self._focus_status, 0, Qt.AlignmentFlag.AlignCenter)
+        
+        self._stack.addWidget(self._focus_view)
         self._stack.setCurrentIndex(0)
 
         self._is_view_mode = False
@@ -934,10 +1144,122 @@ class EditorTab(QWidget):
     def save(self) -> None:
         self.file_path.write_text(self._editor.toPlainText(), encoding="utf-8")
         self.is_modified = False
+        self._update_focus_status()
 
     def set_line_numbers_visible(self, visible: bool) -> None:
         self._editor.set_line_numbers_visible(visible)
 
+    # ── Focus Mode ───────────────────────────────────────────────────
+
+    def set_focus_mode(self, enabled: bool) -> None:
+        self._is_focus_mode = enabled
+        self._tab_toolbar.setVisible(not enabled)
+        
+        if enabled:
+            # Save the current mode before switching to Focus View
+            is_preview = self._is_view_mode
+            self._editor.set_vim_enabled(True)
+            
+            # Dynamic width calculation
+            width = self.width() // 2 if self.width() > 100 else 800
+            target_w = max(600, width)
+            self._editor.setFixedWidth(target_w)
+            self._preview.setFixedWidth(target_w)
+            self._vim_cmd_field.setFixedWidth(target_w)
+            self._focus_status.setFixedWidth(target_w)
+            
+            if is_preview:
+                self._centered_layout.insertWidget(1, self._preview)
+                self._editor.hide()
+                self._preview.show()
+            else:
+                self._centered_layout.insertWidget(1, self._editor)
+                self._preview.hide()
+                self._editor.show()
+                
+            self._stack.setCurrentIndex(2)
+            self._update_focus_status()
+        else:
+            self._editor.set_vim_enabled(False)
+            self._editor.setMinimumWidth(0)
+            self._editor.setMaximumWidth(16777215)
+            self._preview.setMinimumWidth(0)
+            self._preview.setMaximumWidth(16777215)
+            
+            # Reparent both back to their containers to be safe
+            self._editor_layout.addWidget(self._editor)
+            # Preview doesn't have a dedicated layout container in the stack, 
+            # so we just add it to the stack (it will be index 1)
+            self._stack.insertWidget(1, self._preview)
+            
+            self._editor.show()
+            self._preview.show()
+            
+            # Restore standard view (Edit or Preview)
+            self._stack.setCurrentIndex(1 if self._is_view_mode else 0)
+            self._vim_cmd_field.hide()
+
+    def _update_focus_status(self) -> None:
+        if not self._is_focus_mode:
+            return
+            
+        cursor = self._editor.textCursor()
+        line = cursor.blockNumber() + 1
+        col = cursor.columnNumber() + 1
+        mode = self._editor._vim_mode.value
+        
+        status = f"VIM: {mode}  |  Ln {line}, Col {col}"
+        if self.is_modified:
+            status += "  [modified]"
+        
+        self._focus_status.setText(status)
+
+    def resizeEvent(self, event) -> None:
+        """Dynamically adjust editor width in focus mode on window resize."""
+        super().resizeEvent(event)
+        if self._is_focus_mode:
+            width = self.width() // 2
+            target_w = max(600, width)
+            self._editor.setFixedWidth(target_w)
+            self._preview.setFixedWidth(target_w)
+            self._vim_cmd_field.setFixedWidth(target_w)
+
+    def _on_vim_command_requested(self) -> None:
+        self._vim_cmd_field.show()
+        self._vim_cmd_field.setFocus()
+        self._vim_cmd_field.setText(":")
+
+    def _on_vim_mode_changed(self, mode: VimMode) -> None:
+        self._update_focus_status()
+
+    def _handle_vim_command(self, cmd: str) -> None:
+        cmd = cmd.strip()
+        if not cmd:
+            self._editor.setFocus()
+            return
+
+        if cmd == ":w":
+            self.save_requested.emit()
+            self._show_focus_message("File saved")
+        elif cmd == ":q":
+            self.focus_mode_exit_requested.emit()
+        elif cmd == ":wq":
+            self.save_requested.emit()
+            self.focus_mode_exit_requested.emit()
+
+        self._editor.setFocus()
+
+    def _show_focus_message(self, msg: str) -> None:
+        if self._is_focus_mode:
+            original_text = self._focus_status.text()
+            self._focus_status.setText(msg)
+            self._focus_status.setStyleSheet("color: palette(highlight); font-weight: bold; margin-top: 10px;")
+            QTimer.singleShot(2000, lambda: self._restore_focus_status(original_text))
+
+    def _restore_focus_status(self, text: str) -> None:
+        self._focus_status.setText(text)
+        self._focus_status.setStyleSheet("color: palette(window-text); font-size: 11px; margin-top: 10px;")
+        self._update_focus_status()
     # ── Mode switching ────────────────────────────────────────────────
 
     def set_view_mode(self, enabled: bool) -> None:
@@ -946,12 +1268,27 @@ class EditorTab(QWidget):
         self._is_view_mode = enabled
         self._act_edit.setChecked(not enabled)
         self._act_view.setChecked(enabled)
+        
         if enabled:
-            self._stack.setCurrentIndex(1)
             self._refresh_preview()
+            if self._is_focus_mode:
+                # In focus mode, reparent preview to focus layout
+                self._centered_layout.insertWidget(1, self._preview)
+                self._editor.hide()
+                self._preview.show()
+                self._stack.setCurrentIndex(2)
+            else:
+                self._stack.setCurrentIndex(1)
             QApplication.processEvents()
         else:
-            self._stack.setCurrentIndex(0)
+            if self._is_focus_mode:
+                # In focus mode, reparent editor back to focus layout
+                self._centered_layout.insertWidget(1, self._editor)
+                self._preview.hide()
+                self._editor.show()
+                self._stack.setCurrentIndex(2)
+            else:
+                self._stack.setCurrentIndex(0)
             self._editor.setFocus()
 
     def _refresh_preview(self) -> None:
@@ -1148,12 +1485,14 @@ class EditorTab(QWidget):
     def _on_cursor_moved(self) -> None:
         c = self._editor.textCursor()
         self.cursor_moved.emit(c.blockNumber() + 1, c.columnNumber() + 1)
+        self._update_focus_status()
 
     def _on_text_changed(self) -> None:
         self.is_modified = True
         self.content_changed.emit()
         if hasattr(self, '_debounce') and self._debounce:
             self._debounce.start()
+        self._update_focus_status()
 
     def _emit_parsed_signals(self) -> None:
         """Emit signals for sidebar and status bar updates."""
