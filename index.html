@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Noteration — Research Literature Note-Taking App</title>
+  <meta name="description" content="A desktop app combining Markdown editor, PDF viewer, Papis library, and GitHub sync for researchers." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:      #0e0e0f;
+      --paper:    #f5f2eb;
+      --cream:    #ede9df;
+      --amber:    #c8852a;
+      --amber-lt: #e8a84a;
+      --green:    #2d6a4f;
+      --green-lt: #52b788;
+      --muted:    #7a7060;
+      --rule:     #c9c3b4;
+      --code-bg:  #1a1a1d;
+      --code-fg:  #e8e4da;
+      --white:    #ffffff;
+    }
+
+    html { scroll-behavior: smooth; font-size: 16px; }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE TEXTURE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.5;
+    }
+
+    /* ── TYPOGRAPHY ── */
+    h1, h2, h3 { font-family: 'Playfair Display', Georgia, serif; }
+    code, .mono { font-family: 'DM Mono', 'Courier New', monospace; }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.2rem 3rem;
+      background: rgba(245, 242, 235, 0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .nav-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--ink);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-logo span { color: var(--amber); }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 400;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--ink); }
+
+    .nav-badge {
+      background: var(--green);
+      color: var(--white);
+      font-size: 0.7rem;
+      font-weight: 500;
+      font-family: 'DM Mono', monospace;
+      padding: 0.3rem 0.8rem;
+      border-radius: 2px;
+      text-decoration: none;
+      letter-spacing: 0.05em;
+      transition: background 0.2s;
+    }
+
+    .nav-badge:hover { background: var(--green-lt); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 0;
+      padding-top: 5rem;
+    }
+
+    .hero-left {
+      padding: 6rem 4rem 6rem 6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--amber);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .hero-eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 2rem;
+      height: 1px;
+      background: var(--amber);
+    }
+
+    .hero-title {
+      font-size: clamp(3rem, 5vw, 5rem);
+      font-weight: 900;
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+    }
+
+    .hero-title em {
+      font-style: italic;
+      color: var(--amber);
+    }
+
+    .hero-subtitle {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 38ch;
+      line-height: 1.8;
+      font-weight: 300;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .btn-primary {
+      background: var(--ink);
+      color: var(--paper);
+      padding: 0.9rem 2rem;
+      border: none;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-radius: 2px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary:hover {
+      background: var(--amber);
+      transform: translateY(-2px);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      padding: 0.9rem 1.5rem;
+      border: 1px solid var(--rule);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-radius: 2px;
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--ink);
+      color: var(--ink);
+    }
+
+    .hero-meta {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .hero-meta-item {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .hero-meta-item strong {
+      color: var(--green);
+      font-weight: 500;
+    }
+
+    /* ── HERO RIGHT — terminal mockup ── */
+    .hero-right {
+      background: var(--ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 5rem 3rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-right::before {
+      content: '';
+      position: absolute;
+      top: -30%;
+      right: -20%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(200, 133, 42, 0.12) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+
+    .hero-right::after {
+      content: '';
+      position: absolute;
+      bottom: -20%;
+      left: -10%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(45, 106, 79, 0.15) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+
+    .terminal {
+      background: #141416;
+      border: 1px solid #2a2a2e;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.6);
+      position: relative;
+      z-index: 2;
+      animation: floatUp 0.8s ease-out both;
+    }
+
+    @keyframes floatUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid #2a2a2e;
+    }
+
+    .terminal-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+
+    .td-r { background: #ff5f57; }
+    .td-y { background: #febc2e; }
+    .td-g { background: #28c840; }
+
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: #555;
+      letter-spacing: 0.05em;
+    }
+
+    .terminal-body {
+      padding: 1.5rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      line-height: 1.9;
+      color: #a0a0a8;
+    }
+
+    .t-prompt { color: #28c840; }
+    .t-cmd { color: #e8e4da; }
+    .t-comment { color: #4a4a52; }
+    .t-info { color: #c8852a; }
+    .t-ok { color: #52b788; }
+    .t-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 1em;
+      background: #52b788;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .t-line { display: block; }
+
+    .mockup-ui {
+      margin-top: 2rem;
+      background: #1a1a1d;
+      border: 1px solid #2a2a2e;
+      border-radius: 6px;
+      overflow: hidden;
+      font-size: 0.7rem;
+    }
+
+    .ui-bar {
+      background: #222226;
+      padding: 0.4rem 0.8rem;
+      border-bottom: 1px solid #2a2a2e;
+      display: flex;
+      gap: 1rem;
+      color: #666;
+    }
+
+    .ui-tab-active {
+      color: #e8e4da;
+      border-bottom: 2px solid #c8852a;
+      padding-bottom: 0.2rem;
+    }
+
+    .ui-editor {
+      padding: 1rem;
+      line-height: 2;
+    }
+
+    .md-h1 { color: #7eb8f7; font-weight: 500; }
+    .md-wiki { background: rgba(149, 117, 205, 0.2); color: #b39ddb; padding: 0 3px; border-radius: 2px; }
+    .md-cite { background: rgba(82, 183, 136, 0.15); color: #52b788; padding: 0 3px; border-radius: 2px; }
+    .md-bold { color: #e8e4da; font-weight: 600; }
+    .md-italic { color: #a0a0a8; font-style: italic; }
+
+    /* ── SECTION COMMON ── */
+    section {
+      padding: 6rem 6rem;
+      position: relative;
+    }
+
+    .section-rule {
+      width: 3rem;
+      height: 2px;
+      background: var(--amber);
+      margin-bottom: 1.5rem;
+    }
+
+    .section-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 0.5rem;
+    }
+
+    .section-title {
+      font-size: clamp(2rem, 3.5vw, 3.2rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      color: var(--ink);
+      max-width: 18ch;
+    }
+
+    .section-desc {
+      font-size: 1rem;
+      color: var(--muted);
+      max-width: 55ch;
+      margin-top: 1rem;
+      line-height: 1.8;
+    }
+
+    /* ── FEATURES ── */
+    #features { background: var(--cream); }
+
+    .features-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: end;
+      margin-bottom: 5rem;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+      background: var(--rule);
+      border: 1px solid var(--rule);
+    }
+
+    .feature-card {
+      background: var(--cream);
+      padding: 2.5rem 2rem;
+      transition: background 0.2s;
+      animation: fadeIn 0.6s ease-out both;
+    }
+
+    .feature-card:hover { background: var(--paper); }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .feature-card:nth-child(1) { animation-delay: 0.05s; }
+    .feature-card:nth-child(2) { animation-delay: 0.10s; }
+    .feature-card:nth-child(3) { animation-delay: 0.15s; }
+    .feature-card:nth-child(4) { animation-delay: 0.20s; }
+    .feature-card:nth-child(5) { animation-delay: 0.25s; }
+    .feature-card:nth-child(6) { animation-delay: 0.30s; }
+    .feature-card:nth-child(7) { animation-delay: 0.35s; }
+    .feature-card:nth-child(8) { animation-delay: 0.40s; }
+    .feature-card:nth-child(9) { animation-delay: 0.45s; }
+
+    .feature-icon {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .feature-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 0.6rem;
+      color: var(--ink);
+    }
+
+    .feature-desc {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .feature-tag {
+      display: inline-block;
+      margin-top: 0.8rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--green);
+      border: 1px solid var(--green);
+      padding: 0.15rem 0.5rem;
+      border-radius: 2px;
+    }
+
+    /* ── WORKFLOW ── */
+    #workflow { background: var(--paper); }
+
+    .workflow-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 5rem;
+      align-items: center;
+      margin-top: 4rem;
+    }
+
+    .workflow-steps { display: flex; flex-direction: column; gap: 0; }
+
+    .workflow-step {
+      display: grid;
+      grid-template-columns: 3rem 1fr;
+      gap: 1.5rem;
+      padding: 2rem 0;
+      border-top: 1px solid var(--rule);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .workflow-step:last-child { border-bottom: 1px solid var(--rule); }
+
+    .workflow-step:hover .step-title { color: var(--amber); }
+
+    .step-num {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--amber);
+      letter-spacing: 0.05em;
+      padding-top: 0.2rem;
+    }
+
+    .step-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+      color: var(--ink);
+      transition: color 0.2s;
+    }
+
+    .step-desc {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* vault diagram */
+    .vault-diagram {
+      background: var(--ink);
+      border-radius: 8px;
+      padding: 2.5rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      line-height: 2;
+      color: #a0a0a8;
+      box-shadow: 24px 24px 0 var(--rule);
+    }
+
+    .vd-title { color: var(--amber-lt); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .vd-dir { color: #7eb8f7; }
+    .vd-file { color: #e8e4da; }
+    .vd-comment { color: #555; }
+    .vd-green { color: #52b788; }
+
+    /* ── INSTALL ── */
+    #install {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    #install .section-title { color: var(--paper); }
+    #install .section-desc { color: #7a7a82; }
+
+    .install-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
+      margin-top: 4rem;
+    }
+
+    .install-card {
+      background: #18181b;
+      border: 1px solid #2a2a2e;
+      border-radius: 6px;
+      padding: 2rem;
+      transition: border-color 0.2s;
+    }
+
+    .install-card:hover { border-color: var(--amber); }
+
+    .install-os {
+      font-size: 1.5rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .install-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--paper);
+      margin-bottom: 1rem;
+    }
+
+    .install-cmd {
+      background: #0e0e10;
+      border: 1px solid #2a2a2e;
+      border-radius: 4px;
+      padding: 1rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: #52b788;
+      line-height: 1.6;
+      position: relative;
+      overflow: auto;
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: #2a2a2e;
+      border: none;
+      color: #666;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .copy-btn:hover { background: var(--amber); color: var(--ink); }
+
+    .install-note {
+      font-size: 0.78rem;
+      color: #555;
+      margin-top: 0.8rem;
+      line-height: 1.6;
+    }
+
+    /* ── CHANGELOG ── */
+    #changelog { background: var(--cream); }
+
+    .changelog-layout {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 5rem;
+      margin-top: 4rem;
+    }
+
+    .changelog-nav {
+      position: sticky;
+      top: 6rem;
+      height: fit-content;
+    }
+
+    .cl-version-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      padding: 0.8rem 1rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--muted);
+      cursor: pointer;
+      border-left: 2px solid var(--rule);
+      transition: all 0.2s;
+    }
+
+    .cl-version-btn.active,
+    .cl-version-btn:hover {
+      color: var(--amber);
+      border-left-color: var(--amber);
+    }
+
+    .changelog-entry { margin-bottom: 3rem; }
+
+    .cl-header {
+      display: flex;
+      align-items: baseline;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .cl-ver {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: var(--ink);
+    }
+
+    .cl-date {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .cl-badge {
+      background: var(--green);
+      color: var(--white);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 2px;
+      letter-spacing: 0.05em;
+    }
+
+    .cl-section-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 0.8rem;
+      margin-top: 1.5rem;
+    }
+
+    .cl-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .cl-list li {
+      font-size: 0.9rem;
+      color: var(--muted);
+      padding-left: 1.5rem;
+      position: relative;
+      line-height: 1.6;
+    }
+
+    .cl-list li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: var(--amber);
+    }
+
+    .cl-list li strong { color: var(--ink); font-weight: 500; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--ink);
+      color: #555;
+      padding: 3rem 6rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .footer-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--paper);
+    }
+
+    .footer-logo span { color: var(--amber); }
+
+    .footer-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .footer-links a {
+      color: #555;
+      text-decoration: none;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--amber); }
+
+    .footer-copy {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: #333;
+    }
+
+    /* ── SCROLL ANIMATIONS ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 960px) {
+      nav { padding: 1rem 1.5rem; }
+      .nav-links { display: none; }
+
+      .hero {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+      .hero-left { padding: 6rem 2rem 3rem; }
+      .hero-right { min-height: 50vh; padding: 3rem 1.5rem; }
+
+      section { padding: 4rem 2rem; }
+
+      .features-header { grid-template-columns: 1fr; gap: 1.5rem; margin-bottom: 2.5rem; }
+      .features-grid { grid-template-columns: 1fr 1fr; }
+
+      .workflow-layout { grid-template-columns: 1fr; gap: 2.5rem; }
+      .install-grid { grid-template-columns: 1fr; }
+      .changelog-layout { grid-template-columns: 1fr; }
+      .changelog-nav { display: none; }
+
+      footer { padding: 2rem; flex-direction: column; align-items: flex-start; }
+    }
+
+    @media (max-width: 600px) {
+      .features-grid { grid-template-columns: 1fr; }
+      .hero-title { font-size: 2.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a class="nav-logo" href="#">Note<span>r</span>ation</a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#workflow">How It Works</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#changelog">Changelog</a></li>
+    </ul>
+    <a class="nav-badge" href="https://github.com/lilamr/noteration" target="_blank">GitHub →</a>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero" style="padding:0;">
+    <div class="hero-left">
+      <div class="hero-eyebrow">v1.1.0 · MIT License</div>
+      <h1 class="hero-title">
+        Research,<br>
+        <em>organised.</em>
+      </h1>
+      <p class="hero-subtitle">
+        A desktop app for researchers who read, annotate, and write. Brings together your Markdown notes, PDF library, literature references, and Git sync — in a single focused environment.
+      </p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="#install">↓ Install Now</a>
+        <a class="btn-ghost" href="https://github.com/lilamr/noteration" target="_blank">View Source</a>
+      </div>
+      <div class="hero-meta">
+        <span class="hero-meta-item">Python <strong>3.11+</strong></span>
+        <span class="hero-meta-item">PySide6 <strong>GUI</strong></span>
+        <span class="hero-meta-item">Linux · macOS · <strong>Windows</strong></span>
+        <span class="hero-meta-item">License <strong>MIT</strong></span>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dot td-r"></div>
+          <div class="terminal-dot td-y"></div>
+          <div class="terminal-dot td-g"></div>
+          <div class="terminal-title">bash — noteration vault</div>
+        </div>
+        <div class="terminal-body">
+          <span class="t-line"><span class="t-comment"># Install in one line</span></span>
+          <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">curl -fsSL https://raw.githubusercontent.com/<br>&nbsp;&nbsp;lilamr/noteration/main/install.sh | bash</span></span>
+          <span class="t-line">&nbsp;</span>
+          <span class="t-line"><span class="t-info">==> Creating virtual environment...</span></span>
+          <span class="t-line"><span class="t-info">==> Installing Noteration...</span></span>
+          <span class="t-line"><span class="t-ok">✓  Noteration v1.1.0 installed!</span></span>
+          <span class="t-line">&nbsp;</span>
+          <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">noteration</span> <span class="t-cursor"></span></span>
+        </div>
+        <div class="mockup-ui">
+          <div class="ui-bar">
+            <span class="ui-tab-active">thesis-outline.md</span>
+            <span>literature.py</span>
+          </div>
+          <div class="ui-editor">
+            <span class="t-line"><span class="md-h1"># Chapter 2 — Methodology</span></span>
+            <span class="t-line">&nbsp;</span>
+            <span class="t-line">See <span class="md-wiki">[[sampling-framework]]</span> for</span>
+            <span class="t-line">detailed rationale. As noted by</span>
+            <span class="t-line"><span class="md-cite">@creswell2014</span> the approach is</span>
+            <span class="t-line"><span class="md-bold">**purposive sampling**</span>, which</span>
+            <span class="t-line"><span class="md-italic">*ensures theoretical depth*</span>.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="features-header reveal">
+      <div>
+        <div class="section-label">Features</div>
+        <h2 class="section-title">Every tool a researcher needs</h2>
+      </div>
+      <p class="section-desc">
+        Noteration was built around one idea: the research workflow shouldn't be fragmented across five different apps. Notes, papers, citations, and version control — all in one place.
+      </p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">✎</div>
+        <div class="feature-name">Markdown Editor</div>
+        <p class="feature-desc">Full syntax highlighting, line numbers, auto-indent, and an instant preview mode. Write in raw Markdown or render to HTML with one keypress.</p>
+        <span class="feature-tag">Ctrl+Shift+V</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧘</div>
+        <div class="feature-name">Focus Mode</div>
+        <p class="feature-desc">Press F11 for fullscreen, distraction-free writing. The editor centers itself, all UI hides, and Vim keybindings activate for keyboard-only flow.</p>
+        <span class="feature-tag">New in v1.1</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🕸️</div>
+        <div class="feature-name">Wiki-links & Graph</div>
+        <p class="feature-desc"><code>[[note-name]]</code> links between notes with Ctrl+Click navigation. An interactive force-directed graph visualises your entire knowledge network.</p>
+        <span class="feature-tag">NetworkX</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📘</div>
+        <div class="feature-name">PDF Viewer</div>
+        <p class="feature-desc">Read PDFs without leaving the app. Highlight text, add sticky notes, and capture image regions — all stored in non-destructive JSON, synced via Git.</p>
+        <span class="feature-tag">PyMuPDF</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📚</div>
+        <div class="feature-name">Literature Browser</div>
+        <p class="feature-desc">Browse your Papis library. Fetch metadata automatically from DOI, arXiv, or ISBN. Export to BibTeX per-note or for the entire library.</p>
+        <span class="feature-tag">Papis</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <div class="feature-name">Global Search</div>
+        <p class="feature-desc">One search bar covering all notes, literature metadata, and PDF annotation content simultaneously. Supports regex and case-sensitive filters.</p>
+        <span class="feature-tag">Vault-wide</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">☁️</div>
+        <div class="feature-name">Git Sync</div>
+        <p class="feature-desc">Auto-commit, pull, and push to any remote. Three merge strategies — rebase, merge, stash. A visual three-panel conflict resolution dialog is built in.</p>
+        <span class="feature-tag">GitPython</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎨</div>
+        <div class="feature-name">Dark / Light / System</div>
+        <p class="feature-desc">Full theme engine with light, dark, and OS-adaptive modes. Changes apply live in Settings — press Cancel to revert instantly.</p>
+        <span class="feature-tag">PySide6</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📖</div>
+        <div class="feature-name">Research Guide</div>
+        <p class="feature-desc">Press F2 for an in-app briefing on academic writing strategies — from critical reading techniques to documentation systems and argumentation.</p>
+        <span class="feature-tag">New in v1.1</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- WORKFLOW -->
+  <section id="workflow">
+    <div class="section-label reveal">How It Works</div>
+    <div class="workflow-layout">
+      <div>
+        <h2 class="section-title reveal">The vault-centric research loop</h2>
+        <p class="section-desc reveal">Everything lives in a single folder — your Vault. It's portable, version-controlled, and readable without Noteration.</p>
+        <div class="workflow-steps" style="margin-top:2.5rem;">
+          <div class="workflow-step reveal">
+            <div class="step-num">01</div>
+            <div>
+              <div class="step-title">Create or open a Vault</div>
+              <p class="step-desc">A Vault is just a directory. Noteration adds <code>.noteration/config.toml</code>, then you populate <code>notes/</code>, <code>literature/</code>, and <code>attachments/</code>.</p>
+            </div>
+          </div>
+          <div class="workflow-step reveal">
+            <div class="step-num">02</div>
+            <div>
+              <div class="step-title">Read, highlight, and annotate PDFs</div>
+              <p class="step-desc">Open any paper. Highlight passages, add margin notes — none of it touches the original PDF. Annotations are stored as portable JSON.</p>
+            </div>
+          </div>
+          <div class="workflow-step reveal">
+            <div class="step-num">03</div>
+            <div>
+              <div class="step-title">Write with wiki-links and citations</div>
+              <p class="step-desc">In your Markdown note, type <code>[[</code> to link another note, or <code>@</code> to autocomplete a citation key from your Papis library.</p>
+            </div>
+          </div>
+          <div class="workflow-step reveal">
+            <div class="step-num">04</div>
+            <div>
+              <div class="step-title">Sync to GitHub</div>
+              <p class="step-desc">One click — or auto every 5 minutes. Noteration commits, pulls, and pushes. Your vault is backed up and accessible on any device.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vault-diagram reveal" style="animation-delay:0.2s">
+        <div class="vd-title">~/research-vault/</div>
+        <span class="t-line"><span class="vd-dir">├── .noteration/</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">├── config.toml</span>   <span class="vd-comment"># your settings</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── link_graph.json</span> <span class="vd-comment"># backlink cache</span></span>
+        <span class="t-line">&nbsp;</span>
+        <span class="t-line"><span class="vd-dir">├── notes/</span>           <span class="vd-comment"># Markdown files</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">├── index.md</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">├── methodology.md</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── results/</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── chapter-3.md</span></span>
+        <span class="t-line">&nbsp;</span>
+        <span class="t-line"><span class="vd-dir">├── literature/</span>      <span class="vd-comment"># Papis library</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── creswell2014/</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">├── info.yaml</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── creswell2014.pdf</span></span>
+        <span class="t-line">&nbsp;</span>
+        <span class="t-line"><span class="vd-dir">├── annotations/</span>     <span class="vd-comment"># JSON, synced ✓</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── &lt;sha256&gt;.json</span></span>
+        <span class="t-line">&nbsp;</span>
+        <span class="t-line"><span class="vd-dir">└── attachments/</span>     <span class="vd-comment"># images, files</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── diagram.png</span></span>
+        <span class="t-line">&nbsp;</span>
+        <span class="t-line"><span class="vd-green">✓  git remote: github.com/you/vault</span></span>
+        <span class="t-line"><span class="vd-green">✓  auto-sync every 5 min</span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section id="install">
+    <div class="section-label reveal" style="color:var(--amber)">Installation</div>
+    <h2 class="section-title reveal">Up and running in under a minute</h2>
+    <p class="section-desc reveal">Choose your platform. Each one-liner creates a virtual environment, installs all dependencies, and adds a desktop shortcut.</p>
+
+    <div class="install-grid">
+      <div class="install-card reveal">
+        <div class="install-os">🐧</div>
+        <div class="install-name">Linux</div>
+        <div class="install-cmd" style="position:relative;">
+          <button class="copy-btn" onclick="copyCmd(this, 'curl -fsSL https://raw.githubusercontent.com/lilamr/noteration/main/install.sh | bash')">copy</button>
+          curl -fsSL https://raw.githubusercontent.com/lilamr/noteration/main/install.sh | bash
+        </div>
+        <p class="install-note">Creates a <code>.desktop</code> entry in your applications menu. Requires Python 3.11+, Git, and python3-venv.</p>
+      </div>
+      <div class="install-card reveal" style="animation-delay:0.1s">
+        <div class="install-os">🍎</div>
+        <div class="install-name">macOS</div>
+        <div class="install-cmd" style="position:relative;">
+          <button class="copy-btn" onclick="copyCmd(this, 'curl -fsSL https://raw.githubusercontent.com/lilamr/noteration/main/install.sh | bash')">copy</button>
+          curl -fsSL https://raw.githubusercontent.com/lilamr/noteration/main/install.sh | bash
+        </div>
+        <p class="install-note">Creates <code>Noteration.app</code> in <code>~/Applications</code> with a proper icon — visible in Launchpad.</p>
+      </div>
+      <div class="install-card reveal" style="animation-delay:0.2s">
+        <div class="install-os">🪟</div>
+        <div class="install-name">Windows</div>
+        <div class="install-cmd" style="position:relative;">
+          <button class="copy-btn" onclick="copyCmd(this, 'irm https://raw.githubusercontent.com/lilamr/noteration/main/install.ps1 | iex')">copy</button>
+          irm https://raw.githubusercontent.com/lilamr/noteration/main/install.ps1 | iex
+        </div>
+        <p class="install-note">Run in PowerShell. Creates a Desktop shortcut and a Start Menu entry. No admin rights required.</p>
+      </div>
+    </div>
+
+    <div style="margin-top:3rem; padding-top:2.5rem; border-top:1px solid #2a2a2e;" class="reveal">
+      <div class="section-label" style="color:var(--amber); margin-bottom:1rem;">Manual / Development</div>
+      <div class="install-cmd" style="max-width:560px; position:relative;">
+        <button class="copy-btn" onclick="copyCmd(this, 'git clone https://github.com/lilamr/noteration.git\ncd noteration\npip install -e \".[all]\"')">copy</button>
+        <span class="t-line" style="color:#555"># Clone and install for development</span>
+        <span class="t-line"><span style="color:#c8852a">$</span> git clone https://github.com/lilamr/noteration.git</span>
+        <span class="t-line"><span style="color:#c8852a">$</span> cd noteration</span>
+        <span class="t-line"><span style="color:#c8852a">$</span> pip install -e ".[all]"</span>
+        <span class="t-line"><span style="color:#c8852a">$</span> python -m noteration</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHANGELOG -->
+  <section id="changelog">
+    <div class="section-label reveal">Changelog</div>
+    <h2 class="section-title reveal">Release history</h2>
+
+    <div class="changelog-layout">
+      <div class="changelog-nav reveal">
+        <div style="font-family:'DM Mono',monospace;font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;">Versions</div>
+        <button class="cl-version-btn active">v1.1.0 · Latest</button>
+        <button class="cl-version-btn">v1.0.0 · Initial</button>
+      </div>
+
+      <div>
+        <div class="changelog-entry reveal">
+          <div class="cl-header">
+            <div class="cl-ver">v1.1.0</div>
+            <div class="cl-date">2026-05-04</div>
+            <div class="cl-badge">latest</div>
+          </div>
+
+          <div class="cl-section-title">Added</div>
+          <ul class="cl-list">
+            <li><strong>Focus Mode (F11)</strong> — fullscreen distraction-free writing with all UI hidden, centered editor at 50% screen width.</li>
+            <li><strong>Vim Keybindings</strong> — Normal, Insert, Visual, and Line-Visual modes in Focus Mode. Command field for <code>:w</code>, <code>:q</code>, <code>:wq</code>.</li>
+            <li><strong>Research &amp; Writing Guide (F2)</strong> — in-app briefing on academic writing, critical reading, citation ethics, and discipline-specific conventions.</li>
+            <li><strong>Check for Updates</strong> — background version check against GitHub; one-click update with auto-restart.</li>
+            <li><strong>One-liner installers</strong> — <code>install.sh</code> (Linux/macOS) and <code>install.ps1</code> (Windows) with desktop integration and icon.</li>
+            <li><strong>App icon assets</strong> — PNG and ICNS at 16, 32, 48, 128, 256, 512px for all platforms.</li>
+            <li><strong>Global <code>Ctrl+N</code> / <code>Ctrl+S</code></strong> — now work in Focus Mode and all contexts.</li>
+          </ul>
+
+          <div class="cl-section-title">Changed</div>
+          <ul class="cl-list">
+            <li><strong>HelpDialog refactored</strong> — now generic; accepts any Markdown filename from <code>noteration/docs/</code>.</li>
+            <li><strong>Version bumped</strong> to 1.1.0 in <code>pyproject.toml</code> and <code>noteration/__init__.py</code>.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry reveal" style="animation-delay:0.1s">
+          <div class="cl-header">
+            <div class="cl-ver">v1.0.0</div>
+            <div class="cl-date">2026-04-30</div>
+          </div>
+
+          <div class="cl-section-title">Initial Release</div>
+          <ul class="cl-list">
+            <li><strong>Markdown Editor</strong> with syntax highlighting, line numbers, view/edit modes, and auto-indent.</li>
+            <li><strong>Wiki-links</strong> — <code>[[note-name]]</code> navigation with Ctrl+Click and autocomplete.</li>
+            <li><strong>PDF Viewer</strong> — dual backend (QtPDF / PyMuPDF), non-destructive JSON annotations.</li>
+            <li><strong>Papis Bridge</strong> — fetch from DOI / arXiv / ISBN, BibTeX export, tag and collection management.</li>
+            <li><strong>Git Sync</strong> — auto-commit/pull/push, three merge strategies, visual conflict resolution.</li>
+            <li><strong>Backlink Graph</strong> — interactive force-directed visualization with NetworkX.</li>
+            <li><strong>Global Search</strong> — unified search across notes, literature, and annotations.</li>
+            <li><strong>Theming</strong> — Light, Dark, and System-adaptive modes with live preview.</li>
+            <li><strong>Vault Architecture</strong> — portable, self-contained vault directory with TOML config.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-logo">Note<span>r</span>ation</div>
+    <ul class="footer-links">
+      <li><a href="https://github.com/lilamr/noteration" target="_blank">GitHub</a></li>
+      <li><a href="https://github.com/lilamr/noteration/releases" target="_blank">Releases</a></li>
+      <li><a href="https://github.com/lilamr/noteration/issues" target="_blank">Issues</a></li>
+      <li><a href="https://github.com/lilamr/noteration/blob/main/LICENSE" target="_blank">MIT License</a></li>
+    </ul>
+    <div class="footer-copy">© 2026 lilamr · Built with PySide6, PyMuPDF, GitPython, NetworkX</div>
+  </footer>
+
+  <script>
+    // ── Scroll reveal ──
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          observer.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // ── Copy to clipboard ──
+    function copyCmd(btn, text) {
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'copied!';
+        btn.style.background = 'var(--green)';
+        btn.style.color = '#fff';
+        setTimeout(() => {
+          btn.textContent = orig;
+          btn.style.background = '';
+          btn.style.color = '';
+        }, 2000);
+      });
+    }
+
+    // ── Changelog nav ──
+    document.querySelectorAll('.cl-version-btn').forEach((btn, i) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.cl-version-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const entries = document.querySelectorAll('.changelog-entry');
+        if (entries[i]) {
+          entries[i].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+
+    // ── Terminal typewriter on load ──
+    const cursor = document.querySelector('.t-cursor');
+    let visible = true;
+    setInterval(() => {
+      cursor.style.opacity = (visible = !visible) ? '1' : '0';
+    }, 530);
+  </script>
+</body>
+</html>
