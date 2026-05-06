@@ -213,7 +213,7 @@ class _SyncTab(QWidget):
         self._remote = QLineEdit(config.get("sync", "remote", "origin"))
         fl.addRow("Remote:", self._remote)
 
-        self._branch = QLineEdit(config.get("sync", "branch", "main"))
+        self._branch = QLineEdit(config.get("sync", "branch", ""))
         fl.addRow("Branch:", self._branch)
 
         self._strategy = QComboBox()
@@ -222,7 +222,7 @@ class _SyncTab(QWidget):
         fl.addRow("Pull strategy:", self._strategy)
 
         self._auto_sync = QCheckBox("Auto synchronization")
-        self._auto_sync.setChecked(bool(config.get("sync", "auto_sync", True)))
+        self._auto_sync.setChecked(bool(config.get("sync", "auto_sync", False)))
         fl.addRow(self._auto_sync)
 
         self._sync_interval = QSpinBox()

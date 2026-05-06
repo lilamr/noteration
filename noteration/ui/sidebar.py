@@ -475,6 +475,7 @@ class NotesPanel(QWidget):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(f"# {name.strip()}\n\n", encoding="utf-8")
             self.tree.add_item_to_ui(path)
+            self.note_selected.emit(path)
 
     def _create_new_folder(self, parent_dir: Path) -> None:
         name, ok = QInputDialog.getText(self, "New Folder", "Folder Name:")

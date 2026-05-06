@@ -421,7 +421,7 @@ Noteration can synchronize the vault to a Git repository (e.g., GitHub) both aut
 
 ### Automatic Synchronization
 
-If `auto_sync = true` in `config.toml`, Noteration syncs in the background every 5 minutes (configurable via `sync_interval`). This process does not interrupt the UI — status badges in the toolbar are updated.
+If `auto_sync = true` (disabled by default) in `config.toml`, Noteration syncs in the background every 5 minutes (configurable via `sync_interval`). This process does not interrupt the UI — status badges in the toolbar are updated.
 
 ### Git Status Indicators
 
@@ -601,10 +601,10 @@ default_highlight_color = "#FFEB3B"  # hex color
 library_path = "~/noteration/literature"   # absolute path or ~
 
 [sync]
-auto_sync     = true
+auto_sync     = false
 sync_interval = 300       # seconds (minimum 60 recommended)
 remote        = "origin"
-branch        = "main"
+branch        = ""        # empty = auto-detect active branch
 strategy      = "rebase"  # "rebase", "merge", or "stash"
 
 [ui]

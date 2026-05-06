@@ -61,6 +61,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(900, 560)
 
         self._setup_statusbar()
+        self._setup_actions()
         self._setup_ui()
         self._setup_menu()
         self._setup_toolbar()
@@ -78,6 +79,18 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(800,  self.vault.build_graph)
 
     # ── UI construction ───────────────────────────────────────────────
+
+    def _setup_actions(self) -> None:
+        """Initialize shared actions for menu, toolbar, and shortcuts."""
+        self._act_new = QAction("New Note", self)
+        self._act_new.setShortcut(QKeySequence.StandardKey.New)
+        self._act_new.triggered.connect(self._new_note)
+        self.addAction(self._act_new)  # Ensure shortcut works even when menu is hidden
+
+        self._act_save = QAction("Save", self)
+        self._act_save.setShortcut(QKeySequence.StandardKey.Save)
+        self._act_save.triggered.connect(self._save_current)
+        self.addAction(self._act_save)
 
     def _setup_ui(self) -> None:
         self.tabs = QTabWidget()
@@ -141,12 +154,10 @@ class MainWindow(QMainWindow):
 
         # File Menu
         fm = mb.addMenu("&File")
-        fm.addAction("New Note",  self._new_note,
-                     QKeySequence.StandardKey.New)
+        fm.addAction(self._act_new)
         fm.addAction("Open Vault…",   self._open_vault_dialog)
         fm.addSeparator()
-        fm.addAction("Save",        self._save_current,
-                     QKeySequence.StandardKey.Save)
+        fm.addAction(self._act_save)
         fm.addSeparator()
         fm.addAction("Exit",        self.close,
                      QKeySequence.StandardKey.Quit)
@@ -197,20 +208,14 @@ class MainWindow(QMainWindow):
         self._main_toolbar.setFloatable(False)
         self.addToolBar(self._main_toolbar)
 
-        act_new = self._main_toolbar.addAction("+ Note",  self._new_note)
-        act_new.setShortcut(QKeySequence("Ctrl+N"))
+        self._main_toolbar.addAction(self._act_new)
         self._main_toolbar.addSeparator()
-        self._main_toolbar.addAction("Save",     self._save_current)
+        self._main_toolbar.addAction(self._act_save)
         self._main_toolbar.addAction("Literature",  self._open_literature_tab)
         self._main_toolbar.addAction("Sync",       self._sync)
         self._main_toolbar.addSeparator()
         self._main_toolbar.addAction("Navigator",  self._sidebar_dock.toggleViewAction().trigger)
         self._main_toolbar.addAction("Link Graph",  self._right_dock.toggleViewAction().trigger)
-
-        # Global shortcuts that work even when menus/toolbars are hidden
-        from PySide6.QtGui import QShortcut
-        QShortcut(QKeySequence("Ctrl+N"), self).activated.connect(self._new_note)
-        QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self._save_current)
 
         sp = QWidget()
         sp.setMinimumWidth(8)

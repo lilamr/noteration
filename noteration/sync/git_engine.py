@@ -166,7 +166,15 @@ class GitRepo:
         if not _HAS_GIT:
             raise RuntimeError("gitpython is not installed")
 
-        repo = git.Repo.init(vault_path)
+        # Use 'main' as initial branch if supported, or rename after init
+        try:
+            repo = git.Repo.init(vault_path, initial_branch="main")
+        except Exception:
+            repo = git.Repo.init(vault_path)
+            try:
+                repo.git.branch("-M", "main")
+            except Exception:
+                pass
 
         # .gitignore
         gitignore = vault_path / ".gitignore"
@@ -211,9 +219,13 @@ class GitRepo:
 
         try:
             s.is_dirty = self._repo.is_dirty(untracked_files=True)
-            s.untracked = self._repo.untracked_files[:20]
+            # Filter untracked to only show meaningful files, ignoring things that should be ignored
+            s.untracked = [f for f in self._repo.untracked_files if not f.startswith(".noteration/")]
             s.modified = [d.a_path for d in self._repo.index.diff(None) if d.a_path]
             s.staged = [d.a_path for d in self._repo.index.diff("HEAD") if d.a_path]
+            
+            # Recalculate is_dirty based on our filtered untracked
+            s.is_dirty = bool(s.modified or s.staged or s.untracked)
         except Exception as e:
             logger.debug(f"Failed to get file status: {e}")
 
@@ -249,7 +261,7 @@ class GitRepo:
     def sync(
         self,
         remote: str = "origin",
-        branch: str = "main",
+        branch: str = "",
         strategy: SyncStrategy = SyncStrategy.REBASE,
         commit_message: str = "",
         log_callback=None,
@@ -271,6 +283,13 @@ class GitRepo:
             result.status = SyncStatus.NOT_A_REPO
             result.message = "This directory is not a Git repository"
             return result
+        
+        # Determine branch if not provided
+        if not branch:
+            try:
+                branch = self._repo.active_branch.name
+            except Exception:
+                branch = "main" # Fallback
 
         # Check if stuck in rebase/merge
         if self.is_rebase_in_progress():
@@ -350,6 +369,10 @@ class GitRepo:
                 result.message = f"{len(conflicts)} conflicting files"
                 log(f"  ✗ Conflict: {result.message}")
                 return result
+            elif "couldn't find remote ref" in err or "find remote ref" in err:
+                log(f"  ℹ Remote branch '{branch}' not found. Assuming empty remote.")
+                # If remote is empty, we just skip pull and try to push
+                return self._sync_push(remote, branch, log_callback=log)
             else:
                 result.status = SyncStatus.ERROR
                 result.message = f"Pull failed: {err[:200]}"
@@ -359,11 +382,17 @@ class GitRepo:
         # ── 3. Push ────────────────────────────────────────────────────
         return self._sync_push(remote, branch, log_callback=log)
 
-    def _sync_push(self, remote: str = "origin", branch: str = "main", log_callback=None) -> SyncResult:
+    def _sync_push(self, remote: str = "origin", branch: str = "", log_callback=None) -> SyncResult:
         """Internal helper for push after successful commit/pull."""
         def log(msg: str) -> None:
             if log_callback:
                 log_callback(msg)
+
+        if not branch and self._repo:
+            try:
+                branch = self._repo.active_branch.name
+            except Exception:
+                branch = "main"
 
         result = SyncResult(status=SyncStatus.ERROR)
         log(f"$ git push {remote} {branch}")

@@ -6,6 +6,7 @@ Load and save configuration from config.toml within the vault.
 from __future__ import annotations
 
 import sys
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -43,10 +44,10 @@ _DEFAULTS: dict[str, Any] = {
         "library_path": "",
     },
     "sync": {
-        "auto_sync": True,
+        "auto_sync": False,
         "sync_interval": 300,
         "remote": "origin",
-        "branch": "main",
+        "branch": "",
     },
     "ui": {
         "theme": "system",
@@ -69,7 +70,7 @@ class NoterationConfig:
     # ------------------------------------------------------------------
 
     def _load(self) -> None:
-        self._data = dict(_DEFAULTS)
+        self._data = copy.deepcopy(_DEFAULTS)
         if self._config_path.exists():
             with open(self._config_path, "rb") as f:
                 user_data = tomllib.load(f)

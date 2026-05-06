@@ -67,7 +67,8 @@ class VaultManager(QObject):
         self.papis = PapisBridge(self.config.papis_library)
         self.pdf_index = PdfIndex(vault_path)
         self.graph = LinkGraph(vault_path)
-        self.git_repo = GitRepo(vault_path) if (vault_path / ".git").exists() else None
+        self.git_repo: Optional[GitRepo] = None
+        self.refresh_git_repo()
 
         # Timer for Automatic Synchronization
         self._sync_timer = QTimer(self)
@@ -78,6 +79,14 @@ class VaultManager(QObject):
         """Ensure all required vault subdirectories exist."""
         for sub in [".noteration", "notes", "literature", "annotations", "attachments"]:
             (self.vault_path / sub).mkdir(parents=True, exist_ok=True)
+
+    def refresh_git_repo(self) -> None:
+        """Check for Git repository existence and update the engine instance."""
+        if (self.vault_path / ".git").exists():
+            if not self.git_repo or not self.git_repo.is_valid:
+                self.git_repo = GitRepo(self.vault_path)
+        else:
+            self.git_repo = None
 
     # ------------------------------------------------------------------
     # Engine Accessors
@@ -130,7 +139,7 @@ class VaultManager(QObject):
     def restart_auto_sync(self) -> None:
         """Restart the automatic sync timer based on the latest configuration."""
         self._sync_timer.stop()
-        if self.config.get("sync", "auto_sync", True):
+        if self.config.get("sync", "auto_sync", False):
             interval = int(self.config.get("sync", "sync_interval", 300))
             self._sync_timer.setInterval(interval * 1000)
             self._sync_timer.start()

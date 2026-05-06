@@ -203,10 +203,10 @@ default_highlight_color = "#FFEB3B"
 library_path = "~/noteration/literature"
 
 [sync]
-auto_sync     = true
+auto_sync     = false
 sync_interval = 300              # seconds
 remote        = "origin"
-branch        = "main"
+branch        = ""               # empty = auto-detect active branch
 
 [ui]
 theme           = "system"       # dark / light / system

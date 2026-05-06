@@ -77,8 +77,13 @@ class SyncWorker(QObject):
             return
 
         # Normal sync
-        remote   = self._config.get("sync", "remote",   "origin")
-        branch   = self._config.get("sync", "branch",   "main")
+        remote = self._config.get("sync", "remote", "origin")
+        
+        # We prefer the active branch for "Sync Now". 
+        # If the config has a specific branch, we'll use it, 
+        # but if empty (default), GitRepo will automatically use the active branch.
+        branch = self._config.get("sync", "branch", "")
+
         strat_s  = self._config.get("sync", "strategy", "rebase")
         strategy = {"merge": SyncStrategy.MERGE,
                     "stash": SyncStrategy.STASH
@@ -243,6 +248,7 @@ class SyncTab(QWidget):
     # ── Status ────────────────────────────────────────────────────────
 
     def _refresh_status(self) -> None:
+        self._repo = self.vault.git_repo
         if self._repo is None:
             self._lbl_branch.setText("—")
             self._lbl_remote.setText("Offline")
@@ -375,7 +381,10 @@ class SyncTab(QWidget):
         if self._thread:
             self._thread.quit()
             self._thread.wait()
+        
+        self.vault.refresh_git_repo()
         self._refresh_status()
+        self.vault.request_git_status()
 
         if result.status == SyncStatus.CONFLICT:
             self._pending = result
