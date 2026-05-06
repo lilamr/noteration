@@ -258,7 +258,9 @@ ruff check .
 
 ## Author
 
-Created by **[lilamr](https://github.com/lilamr)**.
+Created by **[lilamr](https://github.com/lilamr)**. 
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/R6R11Z1NDP)
 
 ---
 
