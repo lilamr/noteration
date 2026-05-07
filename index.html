@@ -3,9 +3,58 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Noteration — Research Literature Note-Taking App</title>
-  <meta name="description" content="A desktop app combining Markdown editor, PDF viewer, Papis library, and GitHub sync for researchers." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
+
+  <!-- Primary SEO: title (50–60 chars) + description (150–160 chars) -->
+  <title>Noteration — Free Markdown Note-Taking App for Researchers | PDF, Papis & Git Sync</title>
+  <meta name="description" content="Noteration is a free, open-source desktop app for academic research. Write Markdown notes, annotate PDFs, manage Papis literature, visualise wiki-link graphs, and sync to GitHub — all in one place." />
+
+  <!-- Canonical URL — update to your actual GitHub Pages URL -->
+  <link rel="canonical" href="https://lilamr.github.io/noteration/" />
+
+  <!-- Robots -->
+  <meta name="robots" content="index, follow" />
+
+  <!-- Open Graph (Facebook, LinkedIn previews) -->
+  <meta property="og:type"        content="website" />
+  <meta property="og:url"         content="https://lilamr.github.io/noteration/" />
+  <meta property="og:title"       content="Noteration — Free Markdown Note-Taking App for Researchers" />
+  <meta property="og:description" content="Write Markdown notes, annotate PDFs, manage literature with Papis, explore wiki-link graphs, and sync to GitHub. Free, open-source, cross-platform." />
+  <meta property="og:image"       content="https://lilamr.github.io/noteration/images/screenshot-editor.png" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:title"       content="Noteration — Free Markdown Note-Taking App for Researchers" />
+  <meta name="twitter:description" content="Write Markdown notes, annotate PDFs, manage literature with Papis, explore wiki-link graphs, and sync to GitHub. Free, open-source, cross-platform." />
+  <meta name="twitter:image"       content="https://lilamr.github.io/noteration/images/screenshot-editor.png" />
+
+  <!-- Structured data: SoftwareApplication schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Noteration",
+    "operatingSystem": "Windows, macOS, Linux",
+    "applicationCategory": "ProductivityApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "softwareVersion": "1.1.1",
+    "description": "A free, open-source desktop application for academic researchers. Combines a Markdown editor, PDF viewer with annotations, Papis literature management, interactive wiki-link graph, and GitHub synchronisation in a single cross-platform app.",
+    "url": "https://lilamr.github.io/noteration/",
+    "downloadUrl": "https://github.com/lilamr/noteration/releases",
+    "softwareRequirements": "Python 3.11 or higher",
+    "license": "https://github.com/lilamr/noteration/blob/main/LICENSE",
+    "author": {
+      "@type": "Person",
+      "name": "lilamr",
+      "url": "https://github.com/lilamr"
+    }
+  }
+  </script>
+
+  <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
   <style>
@@ -96,19 +145,57 @@
     .nav-links a:hover { color: var(--ink); }
 
     .nav-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 36px;
+      box-sizing: border-box;
       background: var(--green);
       color: var(--white);
       font-size: 0.7rem;
       font-weight: 500;
       font-family: 'DM Mono', monospace;
-      padding: 0.3rem 0.8rem;
+      padding: 0 1.1rem;
       border-radius: 2px;
       text-decoration: none;
       letter-spacing: 0.05em;
+      text-transform: uppercase;
+      line-height: 1;
       transition: background 0.2s;
     }
 
     .nav-badge:hover { background: var(--green-lt); }
+
+    /* Ko-fi nav wrapper */
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    /* Override Ko-fi widget styles to fit the nav bar */
+    #kofi-nav .kofi-button,
+    #kofi-nav a {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      height: 36px !important;
+      box-sizing: border-box !important;
+      gap: 0.4rem !important;
+      padding: 0 1.1rem !important;
+      border-radius: 2px !important;
+      font-family: 'DM Mono', monospace !important;
+      font-size: 0.7rem !important;
+      font-weight: 500 !important;
+      letter-spacing: 0.05em !important;
+      text-transform: uppercase !important;
+      line-height: 1 !important;
+      white-space: nowrap !important;
+      text-decoration: none !important;
+    }
+
+    /* Hide the Ko-fi logo image — keep it text-only in the nav */
+    #kofi-nav img { display: none !important; }
 
     /* ── HERO ── */
     .hero {
@@ -635,6 +722,142 @@
       line-height: 1.6;
     }
 
+    /* ── SCREENSHOTS ── */
+    /* screenshots: slightly lighter than pure ink so install reads darker */
+    #screenshots { background: #16161a; overflow: hidden; }
+    #screenshots .section-title { color: var(--paper); }
+    #screenshots .section-desc  { color: #7a7a82; }
+
+    .ss-tabs {
+      display: flex;
+      gap: 0;
+      margin-top: 3.5rem;
+      border-bottom: 1px solid #2a2a2e;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .ss-tabs::-webkit-scrollbar { display: none; }
+
+    .ss-tab {
+      flex-shrink: 0;
+      padding: 0.75rem 1.6rem;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #555;
+      cursor: pointer;
+      transition: all 0.22s;
+      margin-bottom: -1px;
+    }
+    .ss-tab:hover { color: #a0a0a8; }
+    .ss-tab.active { color: var(--amber); border-bottom-color: var(--amber); }
+
+    .ss-panels { margin-top: 2.5rem; }
+
+    .ss-panel {
+      display: none;
+      animation: ssFadeIn 0.4s ease both;
+    }
+    .ss-panel.active { display: block; }
+
+    @keyframes ssFadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Figure wrapper */
+    .ss-figure {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* Image wrapper — clips the image and shows placeholder behind it */
+    .ss-img-wrap {
+      position: relative;
+      width: 100%;
+      border: 1px solid #2a2a2e;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #141416;
+      box-shadow: 0 32px 64px rgba(0,0,0,0.55), 0 0 0 1px #1e1e22;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      min-height: 420px;
+      display: flex;
+      align-items: stretch;
+    }
+    .ss-img-wrap:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 44px 80px rgba(0,0,0,0.65), 0 0 0 1px #2a2a2e;
+    }
+
+    /* The real screenshot */
+    .ss-img-wrap img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 9px;
+      object-fit: cover;
+    }
+
+    /* Placeholder shown when image is missing (onerror fires) */
+    .ss-placeholder-inner {
+      position: absolute;
+      inset: 0;
+      display: none;             /* hidden by default; shown when .ss-placeholder class added */
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.8rem;
+      padding: 2rem;
+      pointer-events: none;
+    }
+    .ss-img-wrap.ss-placeholder .ss-placeholder-inner {
+      display: flex;
+    }
+    /* Also show when image hasn't loaded yet (no .ss-placeholder class, img hidden) */
+    .ss-img-wrap:not(.ss-placeholder) .ss-placeholder-inner {
+      display: none;
+    }
+
+    .ss-placeholder-icon {
+      font-size: 3rem;
+      opacity: 0.3;
+    }
+    .ss-placeholder-filename {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.85rem;
+      color: #444;
+      background: #1a1a1d;
+      border: 1px dashed #2a2a2e;
+      border-radius: 4px;
+      padding: 0.5rem 1rem;
+      letter-spacing: 0.04em;
+    }
+    .ss-placeholder-hint {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: #333;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* Caption below each screenshot */
+    .ss-caption {
+      margin-top: 1.2rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: #444;
+      letter-spacing: 0.03em;
+      line-height: 1.6;
+    }
+    .ss-caption strong { color: #7a7a82; font-weight: 400; }
+
     /* ── CHANGELOG ── */
     #changelog { background: var(--cream); }
 
@@ -814,6 +1037,8 @@
       .changelog-layout { grid-template-columns: 1fr; }
       .changelog-nav { display: none; }
 
+      .ss-img-wrap { min-height: 220px; }
+
       footer { padding: 2rem; flex-direction: column; align-items: flex-start; }
     }
 
@@ -831,22 +1056,26 @@
     <ul class="nav-links">
       <li><a href="#features">Features</a></li>
       <li><a href="#workflow">How It Works</a></li>
+      <li><a href="#screenshots">Screenshots</a></li>
       <li><a href="#install">Install</a></li>
       <li><a href="#changelog">Changelog</a></li>
     </ul>
-    <a class="nav-badge" href="https://github.com/lilamr/noteration" target="_blank">GitHub →</a>
+    <div class="nav-actions">
+      <div id="kofi-nav"></div>
+      <a class="nav-badge" href="https://github.com/lilamr/noteration" target="_blank" rel="noopener">GitHub →</a>
+    </div>
   </nav>
 
   <!-- HERO -->
   <section class="hero" style="padding:0;">
     <div class="hero-left">
-      <div class="hero-eyebrow">v1.1.0 · MIT License</div>
+      <div class="hero-eyebrow">v1.1.1 · Free & Open Source · MIT License</div>
       <h1 class="hero-title">
-        Research,<br>
-        <em>organised.</em>
+        Research notes,<br>
+        <em>finally organised.</em>
       </h1>
       <p class="hero-subtitle">
-        A desktop app for researchers who read, annotate, and write. Brings together your Markdown notes, PDF library, literature references, and Git sync — in a single focused environment.
+        Noteration is a free, open-source desktop app for academic researchers. Write in Markdown, annotate PDFs, manage your literature library with Papis, explore your wiki-link graph, and sync everything to GitHub — all without switching apps.
       </p>
       <div class="hero-actions">
         <a class="btn-primary" href="#install">↓ Install Now</a>
@@ -874,7 +1103,7 @@
           <span class="t-line">&nbsp;</span>
           <span class="t-line"><span class="t-info">==> Creating virtual environment...</span></span>
           <span class="t-line"><span class="t-info">==> Installing Noteration...</span></span>
-          <span class="t-line"><span class="t-ok">✓  Noteration v1.1.0 installed!</span></span>
+          <span class="t-line"><span class="t-ok">✓  Noteration v1.1.1 installed!</span></span>
           <span class="t-line">&nbsp;</span>
           <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">noteration</span> <span class="t-cursor"></span></span>
         </div>
@@ -902,66 +1131,66 @@
     <div class="features-header reveal">
       <div>
         <div class="section-label">Features</div>
-        <h2 class="section-title">Every tool a researcher needs</h2>
+        <h2 class="section-title">Every tool a researcher needs, in one desktop app</h2>
       </div>
       <p class="section-desc">
-        Noteration was built around one idea: the research workflow shouldn't be fragmented across five different apps. Notes, papers, citations, and version control — all in one place.
+        Noteration was designed around a single principle: the academic research workflow should not be spread across five different apps. Markdown notes, PDF papers, citations, backlink graphs, and version control — integrated and always in sync.
       </p>
     </div>
 
     <div class="features-grid">
       <div class="feature-card">
         <div class="feature-icon">✎</div>
-        <div class="feature-name">Markdown Editor</div>
-        <p class="feature-desc">Full syntax highlighting, line numbers, auto-indent, and an instant preview mode. Write in raw Markdown or render to HTML with one keypress.</p>
+        <h3 class="feature-name">Markdown Editor</h3>
+        <p class="feature-desc">A distraction-free Markdown editor with full syntax highlighting, line numbers, auto-indent, and a live HTML preview mode. Write academic notes naturally and switch to rendered view with one keypress.</p>
         <span class="feature-tag">Ctrl+Shift+V</span>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🧘</div>
-        <div class="feature-name">Focus Mode</div>
-        <p class="feature-desc">Press F11 for fullscreen, distraction-free writing. The editor centers itself, all UI hides, and Vim keybindings activate for keyboard-only flow.</p>
+        <h3 class="feature-name">Focus Mode</h3>
+        <p class="feature-desc">Press F11 for a fullscreen, distraction-free writing environment. All UI hides, the editor centres itself, and Vim keybindings activate so you never need to leave the keyboard while writing.</p>
         <span class="feature-tag">New in v1.1</span>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🕸️</div>
-        <div class="feature-name">Wiki-links & Graph</div>
-        <p class="feature-desc"><code>[[note-name]]</code> links between notes with Ctrl+Click navigation. An interactive force-directed graph visualises your entire knowledge network.</p>
+        <h3 class="feature-name">Wiki-links & Knowledge Graph</h3>
+        <p class="feature-desc">Connect notes with <code>[[wiki-link]]</code> syntax. Navigate with Ctrl+Click. An interactive force-directed graph visualises your entire knowledge network and highlights orphan notes.</p>
         <span class="feature-tag">NetworkX</span>
       </div>
       <div class="feature-card">
         <div class="feature-icon">📘</div>
-        <div class="feature-name">PDF Viewer</div>
-        <p class="feature-desc">Read PDFs without leaving the app. Highlight text, add sticky notes, and capture image regions — all stored in non-destructive JSON, synced via Git.</p>
+        <h3 class="feature-name">PDF Viewer & Annotations</h3>
+        <p class="feature-desc">Read research papers without leaving the app. Highlight text, add sticky notes, and capture image regions — all stored as non-destructive JSON annotations, synced to GitHub alongside your notes.</p>
         <span class="feature-tag">PyMuPDF</span>
       </div>
       <div class="feature-card">
         <div class="feature-icon">📚</div>
-        <div class="feature-name">Literature Browser</div>
-        <p class="feature-desc">Browse your Papis library. Fetch metadata automatically from DOI, arXiv, or ISBN. Export to BibTeX per-note or for the entire library.</p>
+        <h3 class="feature-name">Literature Management</h3>
+        <p class="feature-desc">Browse your Papis reference library inside Noteration. Auto-fetch metadata from DOI, arXiv, or ISBN. Export BibTeX per-note or for the entire library in one click.</p>
         <span class="feature-tag">Papis</span>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🔍</div>
-        <div class="feature-name">Global Search</div>
-        <p class="feature-desc">One search bar covering all notes, literature metadata, and PDF annotation content simultaneously. Supports regex and case-sensitive filters.</p>
+        <h3 class="feature-name">Global Vault Search</h3>
+        <p class="feature-desc">One search bar that simultaneously covers all Markdown notes, literature metadata, and PDF annotation content. Supports regular expressions and case-sensitive filters for precise results.</p>
         <span class="feature-tag">Vault-wide</span>
       </div>
       <div class="feature-card">
         <div class="feature-icon">☁️</div>
-        <div class="feature-name">Git Sync</div>
-        <p class="feature-desc">Auto-commit, pull, and push to any remote. Three merge strategies — rebase, merge, stash. A visual three-panel conflict resolution dialog is built in.</p>
+        <h3 class="feature-name">GitHub Sync</h3>
+        <p class="feature-desc">Auto-commit, pull, and push your vault to any Git remote. Choose from three merge strategies — rebase, merge, or stash. A built-in three-panel conflict resolution dialog handles merge conflicts visually.</p>
         <span class="feature-tag">GitPython</span>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🎨</div>
-        <div class="feature-name">Dark / Light / System</div>
-        <p class="feature-desc">Full theme engine with light, dark, and OS-adaptive modes. Changes apply live in Settings — press Cancel to revert instantly.</p>
+        <h3 class="feature-name">Dark, Light & System Theme</h3>
+        <p class="feature-desc">A full theme engine with light, dark, and OS-adaptive modes. Theme changes apply live while you adjust settings — press Cancel at any time to instantly revert to the previous theme.</p>
         <span class="feature-tag">PySide6</span>
       </div>
       <div class="feature-card">
         <div class="feature-icon">📖</div>
-        <div class="feature-name">Research Guide</div>
-        <p class="feature-desc">Press F2 for an in-app briefing on academic writing strategies — from critical reading techniques to documentation systems and argumentation.</p>
+        <h3 class="feature-name">Academic Writing Guide</h3>
+        <p class="feature-desc">Press F2 for an in-app briefing on academic writing strategies — critical reading techniques, citation ethics, argumentation across disciplines, and documentation standards.</p>
         <span class="feature-tag">New in v1.1</span>
       </div>
     </div>
@@ -972,35 +1201,35 @@
     <div class="section-label reveal">How It Works</div>
     <div class="workflow-layout">
       <div>
-        <h2 class="section-title reveal">The vault-centric research loop</h2>
-        <p class="section-desc reveal">Everything lives in a single folder — your Vault. It's portable, version-controlled, and readable without Noteration.</p>
+        <h2 class="section-title reveal">How Noteration organises your research workflow</h2>
+        <p class="section-desc reveal">Everything lives in a single, portable folder called a Vault. It is plain text, version-controlled, and fully readable without Noteration — your research data is always yours.</p>
         <div class="workflow-steps" style="margin-top:2.5rem;">
           <div class="workflow-step reveal">
             <div class="step-num">01</div>
             <div>
-              <div class="step-title">Create or open a Vault</div>
-              <p class="step-desc">A Vault is just a directory. Noteration adds <code>.noteration/config.toml</code>, then you populate <code>notes/</code>, <code>literature/</code>, and <code>attachments/</code>.</p>
+              <h3 class="step-title">Create or open a research Vault</h3>
+              <p class="step-desc">A Vault is a plain folder on your computer. Noteration adds <code>.noteration/config.toml</code> for settings, then you populate <code>notes/</code>, <code>literature/</code>, and <code>attachments/</code> as you work.</p>
             </div>
           </div>
           <div class="workflow-step reveal">
             <div class="step-num">02</div>
             <div>
-              <div class="step-title">Read, highlight, and annotate PDFs</div>
-              <p class="step-desc">Open any paper. Highlight passages, add margin notes — none of it touches the original PDF. Annotations are stored as portable JSON.</p>
+              <h3 class="step-title">Read PDFs and create non-destructive annotations</h3>
+              <p class="step-desc">Open any research paper in the built-in PDF viewer. Highlight key passages, add margin notes — none of it modifies the original PDF. All annotations are stored as portable JSON files.</p>
             </div>
           </div>
           <div class="workflow-step reveal">
             <div class="step-num">03</div>
             <div>
-              <div class="step-title">Write with wiki-links and citations</div>
-              <p class="step-desc">In your Markdown note, type <code>[[</code> to link another note, or <code>@</code> to autocomplete a citation key from your Papis library.</p>
+              <h3 class="step-title">Write Markdown notes with wiki-links and citations</h3>
+              <p class="step-desc">In your Markdown note, type <code>[[</code> to link another note, or <code>@</code> to autocomplete a citation key from your Papis library. The backlink graph updates automatically.</p>
             </div>
           </div>
           <div class="workflow-step reveal">
             <div class="step-num">04</div>
             <div>
-              <div class="step-title">Sync to GitHub</div>
-              <p class="step-desc">One click — or auto every 5 minutes. Noteration commits, pulls, and pushes. Your vault is backed up and accessible on any device.</p>
+              <h3 class="step-title">Sync your vault to GitHub automatically</h3>
+              <p class="step-desc">One click — or fully automatic every 5 minutes. Noteration commits, pulls, and pushes. Your entire research vault is backed up and accessible on any device.</p>
             </div>
           </div>
         </div>
@@ -1035,16 +1264,171 @@
     </div>
   </section>
 
+  <!-- SCREENSHOTS -->
+  <section id="screenshots">
+    <div class="section-label reveal" style="color:var(--amber)">Screenshots</div>
+    <h2 class="section-title reveal">See Noteration in action</h2>
+    <p class="section-desc reveal">
+      From the distraction-free Focus Mode with Vim keybindings to the interactive knowledge graph — every panel in Noteration is designed for deep, sustained research work. Click a tab to explore each feature.
+    </p>
+
+    <!-- Tab bar -->
+    <div class="ss-tabs reveal">
+      <button class="ss-tab active" data-panel="editor">✎ Editor</button>
+      <button class="ss-tab" data-panel="focus">🧘 Focus Mode</button>
+      <button class="ss-tab" data-panel="pdf">📘 PDF Viewer</button>
+      <button class="ss-tab" data-panel="graph">🕸️ Graph</button>
+      <button class="ss-tab" data-panel="literature">📚 Literature</button>
+      <button class="ss-tab" data-panel="sync">☁️ Sync</button>
+    </div>
+
+    <div class="ss-panels">
+
+      <!-- EDITOR -->
+      <div class="ss-panel active" id="ss-editor">
+        <figure class="ss-figure">
+          <div class="ss-img-wrap">
+            <img
+              src="images/screenshot-editor.png"
+              alt="Noteration main editor — Markdown editing with sidebar, wiki-links, citations, and backlink panel"
+              loading="lazy"
+              onerror="this.closest('.ss-img-wrap').classList.add('ss-placeholder'); this.style.display='none';"
+            />
+            <div class="ss-placeholder-inner">
+              <div class="ss-placeholder-icon">✎</div>
+              <div class="ss-placeholder-filename">images/screenshot-editor.png</div>
+              <div class="ss-placeholder-hint">Replace with your actual screenshot</div>
+            </div>
+          </div>
+          <figcaption class="ss-caption">
+            Main editor — syntax highlighting, wiki-links <strong>(purple)</strong>, citations <strong>(green)</strong>, backlink panel on the right
+          </figcaption>
+        </figure>
+      </div>
+
+      <!-- FOCUS MODE -->
+      <div class="ss-panel" id="ss-focus">
+        <figure class="ss-figure">
+          <div class="ss-img-wrap">
+            <img
+              src="images/screenshot-focus.png"
+              alt="Focus Mode — fullscreen distraction-free writing with Vim keybindings"
+              loading="lazy"
+              onerror="this.closest('.ss-img-wrap').classList.add('ss-placeholder'); this.style.display='none';"
+            />
+            <div class="ss-placeholder-inner">
+              <div class="ss-placeholder-icon">🧘</div>
+              <div class="ss-placeholder-filename">images/screenshot-focus.png</div>
+              <div class="ss-placeholder-hint">Replace with your actual screenshot</div>
+            </div>
+          </div>
+          <figcaption class="ss-caption">
+            Focus Mode <strong>(F11)</strong> — all UI hidden, centered editor, Vim keybindings active (NORMAL · INSERT · VISUAL · COMMAND)
+          </figcaption>
+        </figure>
+      </div>
+
+      <!-- PDF VIEWER -->
+      <div class="ss-panel" id="ss-pdf">
+        <figure class="ss-figure">
+          <div class="ss-img-wrap">
+            <img
+              src="images/screenshot-pdf.png"
+              alt="PDF Viewer — highlight annotations, reading progress, and annotation panel"
+              loading="lazy"
+              onerror="this.closest('.ss-img-wrap').classList.add('ss-placeholder'); this.style.display='none';"
+            />
+            <div class="ss-placeholder-inner">
+              <div class="ss-placeholder-icon">📘</div>
+              <div class="ss-placeholder-filename">images/screenshot-pdf.png</div>
+              <div class="ss-placeholder-hint">Replace with your actual screenshot</div>
+            </div>
+          </div>
+          <figcaption class="ss-caption">
+            PDF viewer — highlight mode active, non-destructive JSON annotations, reading progress tracker, insert-to-editor button
+          </figcaption>
+        </figure>
+      </div>
+
+      <!-- GRAPH -->
+      <div class="ss-panel" id="ss-graph">
+        <figure class="ss-figure">
+          <div class="ss-img-wrap">
+            <img
+              src="images/screenshot-graph.png"
+              alt="Backlink Graph — interactive force-directed visualization of wiki-link network"
+              loading="lazy"
+              onerror="this.closest('.ss-img-wrap').classList.add('ss-placeholder'); this.style.display='none';"
+            />
+            <div class="ss-placeholder-inner">
+              <div class="ss-placeholder-icon">🕸️</div>
+              <div class="ss-placeholder-filename">images/screenshot-graph.png</div>
+              <div class="ss-placeholder-hint">Replace with your actual screenshot</div>
+            </div>
+          </div>
+          <figcaption class="ss-caption">
+            Interactive backlink graph — <strong style="color:#ff7043;">orange</strong> = active note, <strong style="color:#42a5f5;">blue</strong> = linked notes, <strong style="color:#555;">grey</strong> = orphans
+          </figcaption>
+        </figure>
+      </div>
+
+      <!-- LITERATURE -->
+      <div class="ss-panel" id="ss-literature">
+        <figure class="ss-figure">
+          <div class="ss-img-wrap">
+            <img
+              src="images/screenshot-literature.png"
+              alt="Literature tab — Papis library browser with metadata, tags, and BibTeX export"
+              loading="lazy"
+              onerror="this.closest('.ss-img-wrap').classList.add('ss-placeholder'); this.style.display='none';"
+            />
+            <div class="ss-placeholder-inner">
+              <div class="ss-placeholder-icon">📚</div>
+              <div class="ss-placeholder-filename">images/screenshot-literature.png</div>
+              <div class="ss-placeholder-hint">Replace with your actual screenshot</div>
+            </div>
+          </div>
+          <figcaption class="ss-caption">
+            Literature tab — Papis library browser with search, full metadata detail panel, tag management, and BibTeX preview
+          </figcaption>
+        </figure>
+      </div>
+
+      <!-- SYNC -->
+      <div class="ss-panel" id="ss-sync">
+        <figure class="ss-figure">
+          <div class="ss-img-wrap">
+            <img
+              src="images/screenshot-sync.png"
+              alt="Git Sync — visual conflict resolution and synchronization status"
+              loading="lazy"
+              onerror="this.closest('.ss-img-wrap').classList.add('ss-placeholder'); this.style.display='none';"
+            />
+            <div class="ss-placeholder-inner">
+              <div class="ss-placeholder-icon">☁️</div>
+              <div class="ss-placeholder-filename">images/screenshot-sync.png</div>
+              <div class="ss-placeholder-hint">Replace with your actual screenshot</div>
+            </div>
+          </div>
+          <figcaption class="ss-caption">
+            GitHub Sync — automated commit/pull/push, sync status indicator, and visual three-panel conflict resolution
+          </figcaption>
+        </figure>
+      </div>
+
+    </div><!-- /ss-panels -->
+  </section>
+
   <!-- INSTALL -->
   <section id="install">
     <div class="section-label reveal" style="color:var(--amber)">Installation</div>
-    <h2 class="section-title reveal">Up and running in under a minute</h2>
-    <p class="section-desc reveal">Choose your platform. Each one-liner creates a virtual environment, installs all dependencies, and adds a desktop shortcut.</p>
+    <h2 class="section-title reveal">Install Noteration in under a minute</h2>
+    <p class="section-desc reveal">Choose your platform. Each one-liner creates a virtual environment, installs all Python dependencies, and adds a desktop shortcut. Requires Python 3.11+ and Git.</p>
 
     <div class="install-grid">
       <div class="install-card reveal">
         <div class="install-os">🐧</div>
-        <div class="install-name">Linux</div>
+        <h3 class="install-name">Linux</h3>
         <div class="install-cmd" style="position:relative;">
           <button class="copy-btn" onclick="copyCmd(this, 'curl -fsSL https://raw.githubusercontent.com/lilamr/noteration/main/install.sh | bash')">copy</button>
           curl -fsSL https://raw.githubusercontent.com/lilamr/noteration/main/install.sh | bash
@@ -1053,7 +1437,7 @@
       </div>
       <div class="install-card reveal" style="animation-delay:0.1s">
         <div class="install-os">🍎</div>
-        <div class="install-name">macOS</div>
+        <h3 class="install-name">macOS</h3>
         <div class="install-cmd" style="position:relative;">
           <button class="copy-btn" onclick="copyCmd(this, 'curl -fsSL https://raw.githubusercontent.com/lilamr/noteration/main/install.sh | bash')">copy</button>
           curl -fsSL https://raw.githubusercontent.com/lilamr/noteration/main/install.sh | bash
@@ -1062,7 +1446,7 @@
       </div>
       <div class="install-card reveal" style="animation-delay:0.2s">
         <div class="install-os">🪟</div>
-        <div class="install-name">Windows</div>
+        <h3 class="install-name">Windows</h3>
         <div class="install-cmd" style="position:relative;">
           <button class="copy-btn" onclick="copyCmd(this, 'irm https://raw.githubusercontent.com/lilamr/noteration/main/install.ps1 | iex')">copy</button>
           irm https://raw.githubusercontent.com/lilamr/noteration/main/install.ps1 | iex
@@ -1088,57 +1472,81 @@
   <section id="changelog">
     <div class="section-label reveal">Changelog</div>
     <h2 class="section-title reveal">Release history</h2>
+    <p class="section-desc reveal" style="margin-top:0.5rem;">Noteration follows <a href="https://keepachangelog.com" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:underline;">Keep a Changelog</a>. Every release is tagged on GitHub with a full list of new features, changes, and fixes.</p>
 
     <div class="changelog-layout">
       <div class="changelog-nav reveal">
         <div style="font-family:'DM Mono',monospace;font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;">Versions</div>
-        <button class="cl-version-btn active">v1.1.0 · Latest</button>
+        <button class="cl-version-btn active">v1.1.1 · Latest</button>
+        <button class="cl-version-btn">v1.1.0</button>
         <button class="cl-version-btn">v1.0.0 · Initial</button>
       </div>
 
       <div>
         <div class="changelog-entry reveal">
           <div class="cl-header">
-            <div class="cl-ver">v1.1.0</div>
-            <div class="cl-date">2026-05-04</div>
+            <h3 class="cl-ver">v1.1.1</h3>
+            <div class="cl-date">2026-05-06</div>
             <div class="cl-badge">latest</div>
           </div>
 
-          <div class="cl-section-title">Added</div>
+          <div class="cl-section-title">Fixed</div>
           <ul class="cl-list">
-            <li><strong>Focus Mode (F11)</strong> — fullscreen distraction-free writing with all UI hidden, centered editor at 50% screen width.</li>
-            <li><strong>Vim Keybindings</strong> — Normal, Insert, Visual, and Line-Visual modes in Focus Mode. Command field for <code>:w</code>, <code>:q</code>, <code>:wq</code>.</li>
-            <li><strong>Research &amp; Writing Guide (F2)</strong> — in-app briefing on academic writing, critical reading, citation ethics, and discipline-specific conventions.</li>
-            <li><strong>Check for Updates</strong> — background version check against GitHub; one-click update with auto-restart.</li>
-            <li><strong>One-liner installers</strong> — <code>install.sh</code> (Linux/macOS) and <code>install.ps1</code> (Windows) with desktop integration and icon.</li>
-            <li><strong>App icon assets</strong> — PNG and ICNS at 16, 32, 48, 128, 256, 512px for all platforms.</li>
-            <li><strong>Global <code>Ctrl+N</code> / <code>Ctrl+S</code></strong> — now work in Focus Mode and all contexts.</li>
+            <li><strong>Git Sync</strong> — resolved repository state detection issues and improved robustness when syncing with new/empty remotes.</li>
+            <li><strong>Branch Auto-detection</strong> — fixed branch mismatch by dynamically detecting the active local branch (e.g., <code>master</code>) instead of using hardcoded defaults.</li>
+            <li><strong>UI Performance</strong> — eliminated application lag by removing synchronous network calls from the status bar update logic.</li>
+            <li><strong>Shortcuts</strong> — resolved "Ambiguous shortcut overload" warning for <code>Ctrl+N</code> and <code>Ctrl+S</code>.</li>
+            <li><strong>UX Improvements</strong> — new notes created from the sidebar now open automatically in the editor.</li>
+            <li><strong>Config &amp; Metadata</strong> — refined Git status to ignore internal metadata and fixed a shared state bug in vault settings.</li>
           </ul>
 
           <div class="cl-section-title">Changed</div>
           <ul class="cl-list">
-            <li><strong>HelpDialog refactored</strong> — now generic; accepts any Markdown filename from <code>noteration/docs/</code>.</li>
-            <li><strong>Version bumped</strong> to 1.1.0 in <code>pyproject.toml</code> and <code>noteration/__init__.py</code>.</li>
+            <li><strong>Default Settings</strong> — <code>Auto Sync</code> is now disabled by default to improve performance and give users more control over network activity.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry reveal">
+          <div class="cl-header">
+            <h3 class="cl-ver">v1.1.0</h3>
+            <div class="cl-date">2026-05-04</div>
+          </div>
+
+          <div class="cl-section-title">Added</div>
+          <ul class="cl-list">
+            <li><strong>Focus Mode (F11)</strong> — fullscreen, distraction-free writing environment: all UI panels hide, the Markdown editor centres at 50% screen width for a calm writing experience.</li>
+            <li><strong>Vim Keybindings</strong> — Normal, Insert, Visual, and Line-Visual modes active inside Focus Mode. Command field supports <code>:w</code> (save), <code>:q</code> (exit Focus), and <code>:wq</code> (save and exit).</li>
+            <li><strong>Research &amp; Writing Guide (F2)</strong> — built-in academic writing reference covering critical reading, citation ethics, argumentation, and discipline-specific documentation standards.</li>
+            <li><strong>Check for Updates</strong> — silent background version check against GitHub Releases; one-click update via pip with auto-restart on all platforms.</li>
+            <li><strong>One-liner installers</strong> — <code>install.sh</code> for Linux and macOS (with <code>.desktop</code> entry and app icon), and <code>install.ps1</code> for Windows PowerShell.</li>
+            <li><strong>App icon assets</strong> — PNG and ICNS at 16, 32, 48, 128, 256, and 512 px for cross-platform desktop integration.</li>
+            <li><strong>Global <code>Ctrl+N</code> / <code>Ctrl+S</code></strong> — keyboard shortcuts now work inside Focus Mode and all other contexts.</li>
+          </ul>
+
+          <div class="cl-section-title">Changed</div>
+          <ul class="cl-list">
+            <li><strong>HelpDialog refactored</strong> — now generic; accepts any Markdown filename from <code>noteration/docs/</code>, making it easy to ship new in-app reference guides.</li>
+            <li><strong>Version string</strong> bumped to 1.1.0 in both <code>pyproject.toml</code> and <code>noteration/__init__.py</code>.</li>
           </ul>
         </div>
 
         <div class="changelog-entry reveal" style="animation-delay:0.1s">
           <div class="cl-header">
-            <div class="cl-ver">v1.0.0</div>
+            <h3 class="cl-ver">v1.0.0</h3>
             <div class="cl-date">2026-04-30</div>
           </div>
 
           <div class="cl-section-title">Initial Release</div>
           <ul class="cl-list">
-            <li><strong>Markdown Editor</strong> with syntax highlighting, line numbers, view/edit modes, and auto-indent.</li>
-            <li><strong>Wiki-links</strong> — <code>[[note-name]]</code> navigation with Ctrl+Click and autocomplete.</li>
-            <li><strong>PDF Viewer</strong> — dual backend (QtPDF / PyMuPDF), non-destructive JSON annotations.</li>
-            <li><strong>Papis Bridge</strong> — fetch from DOI / arXiv / ISBN, BibTeX export, tag and collection management.</li>
-            <li><strong>Git Sync</strong> — auto-commit/pull/push, three merge strategies, visual conflict resolution.</li>
-            <li><strong>Backlink Graph</strong> — interactive force-directed visualization with NetworkX.</li>
-            <li><strong>Global Search</strong> — unified search across notes, literature, and annotations.</li>
-            <li><strong>Theming</strong> — Light, Dark, and System-adaptive modes with live preview.</li>
-            <li><strong>Vault Architecture</strong> — portable, self-contained vault directory with TOML config.</li>
+            <li><strong>Markdown Editor</strong> — syntax highlighting, line numbers, Edit/View modes, auto-indent, drag-and-drop image support.</li>
+            <li><strong>Wiki-links</strong> — <code>[[note-name]]</code> navigation with Ctrl+Click, alias syntax, and automatic new-note creation on broken links.</li>
+            <li><strong>PDF Viewer &amp; Annotations</strong> — dual backend (QtPDF / PyMuPDF), non-destructive JSON annotations, reading progress tracking.</li>
+            <li><strong>Papis Literature Bridge</strong> — auto-fetch metadata from DOI, arXiv, and ISBN; BibTeX export; tag and collection management.</li>
+            <li><strong>Git Sync</strong> — auto-commit, pull, and push; rebase, merge, and stash strategies; visual three-panel conflict resolution dialog.</li>
+            <li><strong>Backlink Graph</strong> — interactive force-directed knowledge graph built with NetworkX; orphan detection and graph statistics panel.</li>
+            <li><strong>Global Vault Search</strong> — full-text search across all Markdown notes, Papis literature metadata, and PDF annotation content simultaneously.</li>
+            <li><strong>Light / Dark / System Theme</strong> — OS-adaptive theming with live preview in Settings and instant cancel-to-revert.</li>
+            <li><strong>Portable Vault Architecture</strong> — self-contained folder with TOML configuration; plain text files readable without Noteration.</li>
           </ul>
         </div>
       </div>
@@ -1149,12 +1557,12 @@
   <footer>
     <div class="footer-logo">Note<span>r</span>ation</div>
     <ul class="footer-links">
-      <li><a href="https://github.com/lilamr/noteration" target="_blank">GitHub</a></li>
-      <li><a href="https://github.com/lilamr/noteration/releases" target="_blank">Releases</a></li>
-      <li><a href="https://github.com/lilamr/noteration/issues" target="_blank">Issues</a></li>
-      <li><a href="https://github.com/lilamr/noteration/blob/main/LICENSE" target="_blank">MIT License</a></li>
+      <li><a href="https://github.com/lilamr/noteration" target="_blank" rel="noopener">GitHub Repository</a></li>
+      <li><a href="https://github.com/lilamr/noteration/releases" target="_blank" rel="noopener">Releases</a></li>
+      <li><a href="https://github.com/lilamr/noteration/issues" target="_blank" rel="noopener">Report an Issue</a></li>
+      <li><a href="https://github.com/lilamr/noteration/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
     </ul>
-    <div class="footer-copy">© 2026 lilamr · Built with PySide6, PyMuPDF, GitPython, NetworkX</div>
+    <div class="footer-copy">© 2026 lilamr · Free &amp; open-source · Built with PySide6, PyMuPDF, GitPython, NetworkX</div>
   </footer>
 
   <script>
@@ -1197,12 +1605,30 @@
       });
     });
 
+    // ── Screenshot tabs ──
+    const ssTabs = document.querySelectorAll('.ss-tab');
+    const ssPanels = document.querySelectorAll('.ss-panel');
+
+    ssTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        ssTabs.forEach(t => t.classList.remove('active'));
+        ssPanels.forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        const target = document.getElementById('ss-' + tab.dataset.panel);
+        if (target) target.classList.add('active');
+      });
+    });
+
     // ── Terminal typewriter on load ──
     const cursor = document.querySelector('.t-cursor');
     let visible = true;
     setInterval(() => {
       cursor.style.opacity = (visible = !visible) ? '1' : '0';
     }, 530);
+
+    // ── Ko-fi widget — render into nav slot ──
+    kofiwidget2.init('Support me on Ko-fi', '#f76e25', 'R6R11Z1NDP');
+    document.getElementById('kofi-nav').innerHTML = kofiwidget2.getHTML();
   </script>
 </body>
 </html>
