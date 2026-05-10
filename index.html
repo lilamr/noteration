@@ -40,7 +40,7 @@
       "price": "0",
       "priceCurrency": "USD"
     },
-    "softwareVersion": "1.1.1",
+    "softwareVersion": "1.1.2",
     "description": "A free, open-source desktop application for academic researchers. Combines a Markdown editor, PDF viewer with annotations, Papis literature management, interactive wiki-link graph, and GitHub synchronisation in a single cross-platform app.",
     "url": "https://lilamr.github.io/noteration/",
     "downloadUrl": "https://github.com/lilamr/noteration/releases",
@@ -1069,7 +1069,7 @@
   <!-- HERO -->
   <section class="hero" style="padding:0;">
     <div class="hero-left">
-      <div class="hero-eyebrow">v1.1.1 · Free & Open Source · MIT License</div>
+      <div class="hero-eyebrow">v1.1.2 · Free & Open Source · MIT License</div>
       <h1 class="hero-title">
         Research notes,<br>
         <em>finally organised.</em>
@@ -1103,7 +1103,7 @@
           <span class="t-line">&nbsp;</span>
           <span class="t-line"><span class="t-info">==> Creating virtual environment...</span></span>
           <span class="t-line"><span class="t-info">==> Installing Noteration...</span></span>
-          <span class="t-line"><span class="t-ok">✓  Noteration v1.1.1 installed!</span></span>
+          <span class="t-line"><span class="t-ok">✓  Noteration v1.1.2 installed!</span></span>
           <span class="t-line">&nbsp;</span>
           <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">noteration</span> <span class="t-cursor"></span></span>
         </div>
@@ -1178,7 +1178,7 @@
       <div class="feature-card">
         <div class="feature-icon">☁️</div>
         <h3 class="feature-name">GitHub Sync</h3>
-        <p class="feature-desc">Auto-commit, pull, and push your vault to any Git remote. Choose from three merge strategies — rebase, merge, or stash. A built-in three-panel conflict resolution dialog handles merge conflicts visually.</p>
+        <p class="feature-desc">Commit, pull, and push your vault to any Git remote. Choose from three merge strategies — rebase, merge, or stash. A built-in three-panel conflict resolution dialog handles merge conflicts visually.</p>
         <span class="feature-tag">GitPython</span>
       </div>
       <div class="feature-card">
@@ -1228,8 +1228,8 @@
           <div class="workflow-step reveal">
             <div class="step-num">04</div>
             <div>
-              <h3 class="step-title">Sync your vault to GitHub automatically</h3>
-              <p class="step-desc">One click — or fully automatic every 5 minutes. Noteration commits, pulls, and pushes. Your entire research vault is backed up and accessible on any device.</p>
+              <h3 class="step-title">Sync your vault to GitHub</h3>
+              <p class="step-desc">One click - Noteration commits, pulls, and pushes. Your entire research vault is backed up and accessible on any device.</p>
             </div>
           </div>
         </div>
@@ -1259,7 +1259,6 @@
         <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── diagram.png</span></span>
         <span class="t-line">&nbsp;</span>
         <span class="t-line"><span class="vd-green">✓  git remote: github.com/you/vault</span></span>
-        <span class="t-line"><span class="vd-green">✓  auto-sync every 5 min</span></span>
       </div>
     </div>
   </section>
@@ -1411,7 +1410,7 @@
             </div>
           </div>
           <figcaption class="ss-caption">
-            GitHub Sync — automated commit/pull/push, sync status indicator, and visual three-panel conflict resolution
+            GitHub Sync — one click commit/pull/push, sync status indicator, and visual three-panel conflict resolution
           </figcaption>
         </figure>
       </div>
@@ -1477,7 +1476,8 @@
     <div class="changelog-layout">
       <div class="changelog-nav reveal">
         <div style="font-family:'DM Mono',monospace;font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;">Versions</div>
-        <button class="cl-version-btn active">v1.1.1 · Latest</button>
+        <button class="cl-version-btn active">v1.1.2 · Latest</button>
+        <button class="cl-version-btn">v1.1.1</button>
         <button class="cl-version-btn">v1.1.0</button>
         <button class="cl-version-btn">v1.0.0 · Initial</button>
       </div>
@@ -1485,9 +1485,34 @@
       <div>
         <div class="changelog-entry reveal">
           <div class="cl-header">
+            <h3 class="cl-ver">v1.1.2</h3>
+            <div class="cl-date">2026-05-10</div>
+            <div class="cl-badge">latest</div>
+          </div>
+
+          <div class="cl-section-title">Fixed</div>
+          <ul class="cl-list">
+            <li><strong>Stability</strong> — fixed critical crashes in background thread management using robust object validity checks.</li>
+            <li><strong>Git Sync</strong> — resolved infinite rebase loops by auto-resolving log file conflicts and improving <code>.gitignore</code> enforcement.</li>
+            <li><strong>Git Sync</strong> — fixed Segmentation Fault when handling extremely large conflict files.</li>
+            <li><strong>Performance</strong> — refactored status refreshes to be fully non-blocking, ensuring a smooth UI experience during network calls.</li>
+          </ul>
+
+          <div class="cl-section-title">Added</div>
+          <ul class="cl-list">
+            <li><strong>Sync Indicators</strong> — new visual status labels showing "Ahead" (pending push) and "Behind" (pending pull) commit counts.</li>
+          </ul>
+ 
+          <div class="cl-section-title">Removed</div>
+          <ul class="cl-list">
+            <li><strong>Git Auto-sync</strong> — now git synchronization is fully manual.</li>
+          </ul>          
+        </div>
+
+        <div class="changelog-entry reveal">
+          <div class="cl-header">
             <h3 class="cl-ver">v1.1.1</h3>
             <div class="cl-date">2026-05-06</div>
-            <div class="cl-badge">latest</div>
           </div>
 
           <div class="cl-section-title">Fixed</div>
@@ -1495,7 +1520,6 @@
             <li><strong>Git Sync</strong> — resolved repository state detection issues and improved robustness when syncing with new/empty remotes.</li>
             <li><strong>Branch Auto-detection</strong> — fixed branch mismatch by dynamically detecting the active local branch (e.g., <code>master</code>) instead of using hardcoded defaults.</li>
             <li><strong>UI Performance</strong> — eliminated application lag by removing synchronous network calls from the status bar update logic.</li>
-            <li><strong>Shortcuts</strong> — resolved "Ambiguous shortcut overload" warning for <code>Ctrl+N</code> and <code>Ctrl+S</code>.</li>
             <li><strong>UX Improvements</strong> — new notes created from the sidebar now open automatically in the editor.</li>
             <li><strong>Config &amp; Metadata</strong> — refined Git status to ignore internal metadata and fixed a shared state bug in vault settings.</li>
           </ul>
@@ -1526,7 +1550,6 @@
           <div class="cl-section-title">Changed</div>
           <ul class="cl-list">
             <li><strong>HelpDialog refactored</strong> — now generic; accepts any Markdown filename from <code>noteration/docs/</code>, making it easy to ship new in-app reference guides.</li>
-            <li><strong>Version string</strong> bumped to 1.1.0 in both <code>pyproject.toml</code> and <code>noteration/__init__.py</code>.</li>
           </ul>
         </div>
 
