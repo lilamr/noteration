@@ -5,7 +5,7 @@ NetworkX-based note backlink graph.
 Stored as JSON in .noteration/link_graph.json.
 
 Features:
-  - build_from_vault(): scan entire vault, extract [[wiki-links]]
+  - build_from_vault(): scan entire vault, extract [[wiki-links]] (incremental)
   - backlinks(note): who links to this note?
   - forward_links(note): where does this note link to?
   - orphans(): notes not linked from anywhere
@@ -18,17 +18,29 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-
-try:
-    import networkx as nx        # type: ignore
-    _HAS_NX = True
-except ImportError:
-    _HAS_NX = False
+from typing import Any, Dict
 
 from noteration.editor.wiki_links import parse_wiki_links, resolve_link
+from noteration.logger import get_logger
 
+logger = get_logger(__name__)
 
 _GRAPH_FILE = ".noteration/link_graph.json"
+
+_nx: Any = None
+
+def get_nx() -> Any:
+    global _nx
+    if _nx is None:
+        try:
+            import networkx as nx        # type: ignore
+            _nx = nx
+        except ImportError:
+            pass
+    return _nx
+
+def has_nx() -> bool:
+    return get_nx() is not None
 
 
 class LinkGraph:
@@ -45,8 +57,12 @@ class LinkGraph:
         self._adj:  dict[str, set[str]] = {}   # A → {B, C, ...}
         self._radj: dict[str, set[str]] = {}   # B → {A, ...}  (reverse)
         self._G = None  # nx.DiGraph if available
+        
+        # Incremental tracking: key is relative note ID, value is mtime
+        self._file_mtimes: Dict[str, float] = {}
 
-        if _HAS_NX:
+        nx = get_nx()
+        if nx:
             self._G = nx.DiGraph()
 
     # ── Helpers ───────────────────────────────────────────────────────
@@ -68,60 +84,101 @@ class LinkGraph:
 
     # ── Build ─────────────────────────────────────────────────────────
 
-    def build_from_vault(self, notes_dir: Path | None = None) -> int:
+    def build_from_vault(self, notes_dir: Path | None = None, force: bool = False) -> int:
         """
         Scan all .md files, extract [[wiki-links]], and build the graph.
-        Returns: number of edges (links) found.
+        If not forced, performs an incremental update based on file mtimes.
+        Returns: total number of edges (links) in the graph.
         """
         nd = notes_dir or self._notes_dir
-        self._adj.clear()
-        self._radj.clear()
-        if self._G is not None:
-            self._G.clear()
+        
+        if force:
+            self._adj.clear()
+            self._radj.clear()
+            self._file_mtimes.clear()
+            if self._G is not None:
+                self._G.clear()
 
-        edge_count = 0
-        for md_file in sorted(nd.rglob("*.md")):
-            src = self._get_note_id(md_file)
-            self._ensure_node(src)
+        # Find current files on disk
+        current_md_files = list(nd.rglob("*.md"))
+        current_ids = {self._get_note_id(f) for f in current_md_files}
+        
+        # 1. Remove stale nodes (files that no longer exist)
+        stale_ids = set(self._adj.keys()) - current_ids
+        for stale_id in stale_ids:
+            self._remove_node(stale_id)
+
+        # 2. Process changed or new files
+        for md_file in sorted(current_md_files):
+            src_id = self._get_note_id(md_file)
             try:
-                text = md_file.read_text(encoding="utf-8")
-            except Exception:
+                mtime = md_file.stat().st_mtime
+            except Exception as e:
+                logger.warning(f"Failed to get mtime for {md_file}: {e}")
                 continue
-
-            for link in parse_wiki_links(text):
-                dst = self._resolve_target_to_id(link.target)
-                if dst and dst != src:
-                    self._add_edge(src, dst)
-                    edge_count += 1
+                
+            if not force and self._file_mtimes.get(src_id) == mtime:
+                continue # Skip unchanged file
+            
+            # Update single note incrementally
+            self._process_single_note(md_file, src_id, mtime)
 
         self.save()
-        return edge_count
+        
+        # Return total edge count
+        return sum(len(dsts) for dsts in self._adj.values())
 
     def update_note(self, note_path: Path) -> None:
         """Update the graph for a single changed note (incrementally)."""
-        src = self._get_note_id(note_path)
+        src_id = self._get_note_id(note_path)
+        try:
+            mtime = note_path.stat().st_mtime
+        except Exception:
+            return
+            
+        self._process_single_note(note_path, src_id, mtime)
+        self.save()
 
-        # Remove old edges from src
-        old_targets = set(self._adj.get(src, set()))
+    def _process_single_note(self, note_path: Path, src_id: str, mtime: float) -> None:
+        """Internal helper to parse a note and update its edges."""
+        # Remove old edges from this source
+        old_targets = set(self._adj.get(src_id, set()))
         for dst in old_targets:
-            self._radj.get(dst, set()).discard(src)
-        self._adj[src] = set()
+            self._radj.get(dst, set()).discard(src_id)
+        self._adj[src_id] = set()
         if self._G is not None:
-            if src in self._G:
-                self._G.remove_edges_from(
-                    [(src, dst) for dst in old_targets])
-
+            if src_id in self._G:
+                self._G.remove_edges_from([(src_id, dst) for dst in old_targets])
+        
+        self._ensure_node(src_id)
+        
         # Add new edges
         try:
             text = note_path.read_text(encoding="utf-8")
             for link in parse_wiki_links(text):
-                dst = self._resolve_target_to_id(link.target)  # type: ignore[assignment]
-                if dst and dst != src:
-                    self._add_edge(src, dst)
-        except Exception:
-            pass
+                dst_id = self._resolve_target_to_id(link.target)
+                if dst_id and dst_id != src_id:
+                    self._add_edge(src_id, dst_id)
+            self._file_mtimes[src_id] = mtime
+        except Exception as e:
+            logger.error(f"Failed to process note {note_path}: {e}")
 
-        self.save()
+    def _remove_node(self, node_id: str) -> None:
+        """Completely remove a node and all its incident edges."""
+        # Remove forward edges
+        targets = self._adj.pop(node_id, set())
+        for dst in targets:
+            self._radj.get(dst, set()).discard(node_id)
+            
+        # Remove backward edges
+        sources = self._radj.pop(node_id, set())
+        for src in sources:
+            self._adj.get(src, set()).discard(node_id)
+            
+        self._file_mtimes.pop(node_id, None)
+        
+        if self._G is not None and node_id in self._G:
+            self._G.remove_node(node_id)
 
     # ── Queries ───────────────────────────────────────────────────────
 
@@ -156,7 +213,8 @@ class LinkGraph:
         Calculates the shortest path between two notes.
         Returns None if no path exists or networkx is unavailable.
         """
-        if self._G is None:
+        nx = get_nx()
+        if self._G is None or nx is None:
             return self._bfs_path(src, dst)
         try:
             path = nx.shortest_path(self._G, src, dst)
@@ -168,7 +226,8 @@ class LinkGraph:
         """
         Returns all notes connected (directly or indirectly) to the given note.
         """
-        if self._G is None:
+        nx = get_nx()
+        if self._G is None or nx is None:
             return self._reachable(note_stem)
         try:
             # Use undirected projection for cluster detection
@@ -187,7 +246,8 @@ class LinkGraph:
         hub = top[0][0] if top else ""
 
         extra = {}
-        if self._G is not None and n_nodes > 1:
+        nx = get_nx()
+        if self._G is not None and nx is not None and n_nodes > 1:
             try:
                 ug = self._G.to_undirected()
                 comps = list(nx.connected_components(ug))
@@ -197,8 +257,8 @@ class LinkGraph:
                     extra["avg_path_length"] = round(
                         nx.average_shortest_path_length(
                             self._G.to_undirected()), 2)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to calculate graph stats: {e}")
 
         return {
             "nodes":        n_nodes,
@@ -219,6 +279,7 @@ class LinkGraph:
                 for src, dsts in self._adj.items()
                 for dst in dsts
             ],
+            "file_mtimes": self._file_mtimes
         }
         with open(self._graph_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -237,6 +298,8 @@ class LinkGraph:
         self._radj.clear()
         if self._G is not None:
             self._G.clear()
+        
+        self._file_mtimes = data.get("file_mtimes", {})
 
         for node in data.get("nodes", []):
             self._ensure_node(node)

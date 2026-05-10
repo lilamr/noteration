@@ -5,8 +5,9 @@ Git synchronization tab with status, log, and commit history.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
+import shiboken6
 if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
 
@@ -90,11 +91,16 @@ class SyncWorker(QObject):
                     }.get(strat_s, SyncStrategy.REBASE)
 
         if self._repo:
-            result = self._repo.sync(
-                remote=remote, branch=branch,
-                strategy=strategy, log_callback=log,
-            )
-            self.finished.emit(result)
+            try:
+                result = self._repo.sync(
+                    remote=remote, branch=branch,
+                    strategy=strategy, log_callback=log,
+                )
+                self.finished.emit(result)
+            except Exception as e:
+                log(f"✗ Unexpected error: {e}")
+                self.finished.emit(SyncResult(
+                    status=SyncStatus.ERROR, message=str(e)))
 
 
 # ── Set-remote dialog ─────────────────────────────────────────────────────
@@ -146,7 +152,10 @@ class SyncTab(QWidget):
         self._pending: SyncResult | None = None
 
         self._setup_ui()
-        self._refresh_status()
+        
+        # Reactive status updates
+        self.vault.git_status_updated.connect(self._on_git_status_updated)
+        self._refresh_status(fetch=False)
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -177,6 +186,9 @@ class SyncTab(QWidget):
         self._btn_sync.clicked.connect(self.start_sync)
         self._btn_sync.setStyleSheet("font-weight: bold; padding: 6px;")
         
+        self._btn_refresh = QPushButton("Refresh Status")
+        self._btn_refresh.clicked.connect(lambda: self._refresh_status(fetch=True))
+
         self._btn_abort = QPushButton("Abort Sync")
         self._btn_abort.clicked.connect(self._abort_sync)
         self._btn_abort.setVisible(False)
@@ -194,6 +206,7 @@ class SyncTab(QWidget):
         self._btn_init.setVisible(False)
 
         btn_layout.addWidget(self._btn_sync)
+        btn_layout.addWidget(self._btn_refresh)
         btn_layout.addWidget(self._btn_resolve)
         btn_layout.addWidget(self._btn_abort)
         btn_layout.addStretch()
@@ -247,7 +260,49 @@ class SyncTab(QWidget):
 
     # ── Status ────────────────────────────────────────────────────────
 
-    def _refresh_status(self) -> None:
+    def _on_git_status_updated(self, st: object | None) -> None:
+        """Slot to update the UI when VaultManager finishes a background status check."""
+        if not st:
+            self._lbl_status.setText("○ offline")
+            self._lbl_status.setStyleSheet("color:gray;")
+            return
+
+        from noteration.sync.git_engine import RepoStatus
+        st = cast("RepoStatus", st)
+        self._repo = self.vault.git_repo
+        
+        self._lbl_branch.setText(st.branch or "—")
+        self._lbl_remote.setText(", ".join(st.remotes) or "None")
+
+        is_stuck = self._repo.is_rebase_in_progress() if self._repo else False
+        is_stuck = is_stuck or (self._repo.is_merge_in_progress() if self._repo else False)
+        self._btn_abort.setVisible(is_stuck)
+
+        if is_stuck:
+            self._lbl_status.setText("⚠ Rebase/Merge Conflict")
+            self._lbl_status.setStyleSheet("color:#C62828;font-weight:bold;")
+            conflicts = self._repo._detect_conflicts() if self._repo else []
+            if conflicts:
+                self._btn_resolve.setVisible(True)
+                self._pending = SyncResult(status=SyncStatus.CONFLICT, conflicts=conflicts)
+        elif st.is_dirty:
+            n = len(st.modified) + len(st.untracked)
+            self._lbl_status.setText(f"● {n} local changes")
+            self._lbl_status.setStyleSheet("color:#E65100;font-weight:bold;")
+        elif st.behind > 0:
+            self._lbl_status.setText(f"↓ {st.behind} commits behind (needs pull)")
+            self._lbl_status.setStyleSheet("color:#1976D2;font-weight:bold;")
+        elif st.ahead > 0:
+            self._lbl_status.setText(f"↑ {st.ahead} commits ahead (needs push)")
+            self._lbl_status.setStyleSheet("color:#388E3C;font-weight:bold;")
+        else:
+            self._lbl_status.setText("✓ Up to date")
+            self._lbl_status.setStyleSheet("color:#4CAF50;font-weight:bold;")
+
+        self._refresh_history()
+
+    def _refresh_status(self, fetch: bool = False) -> None:
+        """Trigger a background status refresh via VaultManager."""
         self._repo = self.vault.git_repo
         if self._repo is None:
             self._lbl_branch.setText("—")
@@ -256,54 +311,21 @@ class SyncTab(QWidget):
             self._lbl_status.setStyleSheet("color:#C62828;font-weight:bold;")
             self._btn_abort.setVisible(False)
             self._btn_sync.setEnabled(False)
+            self._btn_refresh.setEnabled(False)
             self._btn_remote.setEnabled(False)
             self._btn_init.setVisible(True)
             return
 
         self._btn_init.setVisible(False)
-        st = self._repo.status()
-
-        self._lbl_branch.setText(st.branch or "—")
-        self._lbl_remote.setText(", ".join(st.remotes) or "None")
-
-        # Detect stuck state
-        is_stuck = self._repo.is_rebase_in_progress() or self._repo.is_merge_in_progress()
-        self._btn_abort.setVisible(is_stuck)
-
-        if not st.is_repo:
-            self._lbl_status.setText("✗ Not a Git repo")
-            self._lbl_status.setStyleSheet(
-                "color:#C62828;font-weight:bold;border:none;background:transparent;")
-        elif is_stuck:
-            self._lbl_status.setText("⚠ Rebase/Merge Conflict")
-            self._lbl_status.setStyleSheet(
-                "color:#C62828;font-weight:bold;border:none;background:transparent;")
-            # Show resolve button if unmerged conflicts exist
-            conflicts = self._repo._detect_conflicts()
-            if conflicts:
-                self._btn_resolve.setVisible(True)
-                self._pending = SyncResult(status=SyncStatus.CONFLICT, conflicts=conflicts)
-        elif st.is_dirty:
-            n = len(st.modified) + len(st.untracked)
-            self._lbl_status.setText(f"● {n} local changes")
-            self._lbl_status.setStyleSheet(
-                "color:#E65100;font-weight:bold;border:none;background:transparent;")
-        elif st.ahead > 0:
-            self._lbl_status.setText(f"● {st.ahead} commits ahead (not pushed)")
-            self._lbl_status.setStyleSheet(
-                "color:#1565C0;font-weight:bold;border:none;background:transparent;")
-        elif st.behind > 0:
-            self._lbl_status.setText(f"● {st.behind} commits behind (not pulled)")
-            self._lbl_status.setStyleSheet(
-                "color:#6A1B9A;font-weight:bold;border:none;background:transparent;")
-        else:
-            self._lbl_status.setText("✓ Synced")
-            self._lbl_status.setStyleSheet(
-                "color:#2E7D32;font-weight:bold;border:none;background:transparent;")
-
+        self._btn_refresh.setEnabled(True)
         self._btn_sync.setEnabled(True)
         self._btn_remote.setEnabled(True)
-        self._refresh_history()
+
+        if fetch:
+            self._lbl_status.setText("Fetching status...")
+            self._lbl_status.setStyleSheet("color:#666666;")
+        
+        self.vault.request_git_status(fetch=fetch)
 
     # ── History ──────────────────────────────────────────────────────
 
@@ -335,11 +357,15 @@ class SyncTab(QWidget):
             QMessageBox.information(self, "Git Inactive", "This vault is not a Git repository.")
             return
 
+        if self.vault.is_syncing:
+            self._append_log("⚠ Synchronization already in progress...", "warn")
+            return
+
         if self._thread and self._thread.isRunning():
             return
 
-        # If rebase is in progress, continue
-        if self._repo.is_rebase_in_progress():
+        # If rebase or merge is in progress, continue
+        if self._repo.is_rebase_in_progress() or self._repo.is_merge_in_progress():
             self._run_worker("continue")
         else:
             self._run_worker("sync")
@@ -357,9 +383,13 @@ class SyncTab(QWidget):
             self._run_worker("init")
 
     def _run_worker(self, op: str) -> None:
+        if self._thread and shiboken6.isValid(self._thread) and self._thread.isRunning():
+            return
+
         self._log.clear()
         self._append_log(f"--- Operation: {op.upper()} ---", "info")
         
+        self.vault.is_syncing = True
         self._btn_sync.setEnabled(False)
         self._btn_init.setEnabled(False)
         self._btn_abort.setEnabled(False)
@@ -375,13 +405,20 @@ class SyncTab(QWidget):
         self._thread.start()
 
     def _on_finished(self, result: SyncResult) -> None:
+        self.vault.is_syncing = False
         self._btn_sync.setEnabled(True)
         self._btn_init.setEnabled(True)
         self._btn_abort.setEnabled(True)
-        if self._thread:
+        if self._thread and shiboken6.isValid(self._thread):
             self._thread.quit()
             self._thread.wait()
-        
+            self._thread.deleteLater()
+            self._thread = None
+
+        if self._worker:
+            self._worker.deleteLater()
+            self._worker = None
+
         self.vault.refresh_git_repo()
         self._refresh_status()
         self.vault.request_git_status()
@@ -392,6 +429,8 @@ class SyncTab(QWidget):
             self._append_log(
                 f"\n⚠  {len(result.conflicts)} conflicting files — "
                 "click 'Resolve Conflicts' to resolve", "warn")
+            # Automatically open dialog if it's a fresh conflict
+            self._open_conflict_dialog()
         elif result.ok:
             self._append_log(f"\n✓  {result.message}", "ok")
         else:
@@ -402,27 +441,36 @@ class SyncTab(QWidget):
     def _open_conflict_dialog(self) -> None:
         if not self._pending:
             return
-        
+
         self._resolve_conflicts()
 
     def _resolve_conflicts(self) -> None:
         if self._pending is None or self._repo is None:
             return
 
-        from noteration.dialogs.conflict_dialog import ConflictResolutionDialog
-        dlg = ConflictResolutionDialog(self._pending.conflicts, self)
-        if dlg.exec():
-            res = dlg.get_resolutions()
-            for path, content in res.items():
-                self._repo.resolve_conflict(path, content)
-            
-            self._append_log(
-                f"✓ {len(res)} files resolved — continuing rebase…", "ok")
-            self._btn_resolve.setVisible(False)
-            self._pending = None
-            # Automatically trigger continue rebase
-            QTimer.singleShot(600, self.start_sync)
+        try:
+            from noteration.dialogs.conflict_dialog import ConflictResolutionDialog
+            dlg = ConflictResolutionDialog(self._pending.conflicts, self)
+            if dlg.exec():
+                res = dlg.get_resolutions()
+                success_count = 0
+                for path, content in res.items():
+                    if self._repo.resolve_conflict(path, content):
+                        success_count += 1
 
+                if success_count > 0:
+                    self._append_log(
+                        f"✓ {success_count} files resolved — continuing...", "ok")
+                    self._btn_resolve.setVisible(False)
+                    self._pending = None
+                    # Automatically trigger continue
+                    QTimer.singleShot(600, self.start_sync)
+                else:
+                    self._append_log("✗ Failed to resolve any conflicts.", "error")
+        except Exception as e:
+            self._append_log(f"✗ Error during conflict resolution: {e}", "error")
+            from noteration.logger import get_logger
+            get_logger(__name__).exception("Conflict resolution failed")
     # ── Remote ────────────────────────────────────────────────────────
 
     def _set_remote(self) -> None:

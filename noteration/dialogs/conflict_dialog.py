@@ -222,12 +222,19 @@ class ConflictResolutionDialog(QDialog):
         root.addLayout(btn_row)
 
     def _apply(self) -> None:
-        resolutions = {
-            panel.path: panel.resolved_content()
-            for panel in self._panels
-        }
-        self.resolutions_applied.emit(resolutions)
-        self.accept()
+        try:
+            resolutions = {
+                panel.path: panel.resolved_content()
+                for panel in self._panels
+            }
+            # We emit the signal for potential external listeners, 
+            # though SyncTab currently uses get_resolutions() after exec().
+            self.resolutions_applied.emit(resolutions)
+            self.accept()
+        except Exception as e:
+            from noteration.logger import get_logger
+            get_logger(__name__).error(f"Error applying resolutions in dialog: {e}")
+            self.reject()
 
     def get_resolutions(self) -> dict[str, str]:
         return {

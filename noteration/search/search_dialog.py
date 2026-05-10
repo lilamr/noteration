@@ -8,15 +8,61 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+import shiboken6
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLineEdit,
     QTreeWidget, QTreeWidgetItem, QLabel, QPushButton,
-    QCheckBox, QGroupBox, QRadioButton,
+    QCheckBox, QGroupBox, QRadioButton, QProgressBar,
 )
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, Signal, QObject, QThread
 from PySide6.QtGui import QKeySequence, QShortcut
 
 from noteration.search.vault_search import VaultSearch, SearchResult
+
+
+class SearchWorker(QObject):
+    """Worker to perform search in a background thread."""
+    results_ready = Signal(list)
+    finished = Signal()
+
+    def __init__(
+        self,
+        searcher: VaultSearch,
+        query: str,
+        case_sensitive: bool,
+        use_regex: bool,
+        scope: str,
+    ) -> None:
+        super().__init__()
+        self.searcher = searcher
+        self.query = query
+        self.case_sensitive = case_sensitive
+        self.use_regex = use_regex
+        self.scope = scope
+
+    def run(self) -> None:
+        try:
+            all_results = self.searcher.search(
+                self.query, self.case_sensitive, self.use_regex
+            )
+
+            # Filter based on scope if not "all"
+            if self.scope != "all":
+                type_map = {
+                    "notes": "note",
+                    "literature": "literature",
+                    "annotations": "annotation"
+                }
+                target_type = type_map.get(self.scope)
+                if target_type:
+                    all_results = [r for r in all_results if r.type == target_type]
+            
+            self.results_ready.emit(all_results)
+        except Exception as e:
+            print(f"[SearchWorker] Error: {e}")
+            self.results_ready.emit([])
+        finally:
+            self.finished.emit()
 
 
 class SearchDialog(QDialog):
@@ -38,6 +84,10 @@ class SearchDialog(QDialog):
         self._searcher = VaultSearch(vault_path, papis_bridge)
         self._results: list[SearchResult] = []
         self._current_index = -1
+        
+        # Threading members
+        self._search_thread: Optional[QThread] = None
+        self._search_worker: Optional[SearchWorker] = None
 
         self.setWindowTitle("Search Vault")
         self.setMinimumSize(700, 500)
@@ -96,6 +146,14 @@ class SearchDialog(QDialog):
         scope_layout.addStretch()
 
         layout.addWidget(scope_group)
+
+        # Progress bar (hidden by default)
+        self._progress = QProgressBar()
+        self._progress.setRange(0, 0) # Indeterminate
+        self._progress.setFixedHeight(4)
+        self._progress.setTextVisible(False)
+        self._progress.hide()
+        layout.addWidget(self._progress)
 
         # Results tree
         self._results_tree = QTreeWidget()
@@ -172,6 +230,7 @@ class SearchDialog(QDialog):
         if len(text) >= 2:
             self._debounce_timer.start()
         elif len(text) == 0:
+            self._abort_search()
             self._results_tree.clear()
             self._status_label.setText("Type at least 2 characters to search")
             self._update_nav_buttons()
@@ -180,31 +239,64 @@ class SearchDialog(QDialog):
         self._debounce_timer.stop()
         self._perform_search()
 
+    def _abort_search(self) -> None:
+        """Stop current background search if running."""
+        if self._search_thread and shiboken6.isValid(self._search_thread):
+            if self._search_thread.isRunning():
+                self._search_thread.quit()
+                self._search_thread.wait()
+            self._search_thread.deleteLater()
+            self._search_thread = None
+        
+        if self._search_worker and shiboken6.isValid(self._search_worker):
+            self._search_worker.deleteLater()
+            self._search_worker = None
+            
+        self._progress.hide()
+
     def _perform_search(self) -> None:
         query = self._search_input.text().strip()
         if len(query) < 2:
+            self._abort_search()
             self._results_tree.clear()
             self._status_label.setText("Type at least 2 characters to search")
             self._update_nav_buttons()
             return
 
+        self._abort_search()
+
         case_sensitive = self._case_cb.isChecked()
         use_regex = self._regex_cb.isChecked()
         scope = self._get_scope()
 
-        # Perform the search using the searcher engine
-        all_results = self._searcher.search(query, case_sensitive, use_regex)
+        self._status_label.setText("Searching...")
+        self._progress.show()
 
-        # Filter based on scope if not "all"
-        if scope != "all":
-            type_map = {"notes": "note", "literature": "literature", "annotations": "annotation"}
-            target_type = type_map.get(scope)
-            if target_type:
-                all_results = [r for r in all_results if r.type == target_type]
+        # Create worker and thread
+        self._search_thread = QThread()
+        self._search_worker = SearchWorker(
+            self._searcher, query, case_sensitive, use_regex, scope
+        )
+        self._search_worker.moveToThread(self._search_thread)
 
-        self._results = all_results
+        # Connect signals
+        self._search_thread.started.connect(self._search_worker.run)
+        self._search_worker.results_ready.connect(self._on_results_ready)
+        self._search_worker.finished.connect(self._search_thread.quit)
+        self._search_worker.finished.connect(self._clear_search_thread)
+        self._search_thread.finished.connect(self._search_thread.deleteLater)
+        self._search_thread.finished.connect(lambda: self._progress.hide())
+
+        self._search_thread.start()
+
+    def _clear_search_thread(self) -> None:
+        self._search_thread = None
+        self._search_worker = None
+
+    def _on_results_ready(self, results: list[SearchResult]) -> None:
+        self._results = results
         self._current_index = -1
-        self._populate_tree(all_results)
+        self._populate_tree(results)
 
     def _populate_tree(self, results: list[SearchResult]) -> None:
         self._results_tree.clear()
@@ -322,3 +414,7 @@ class SearchDialog(QDialog):
         """Set initial query and search immediately."""
         self._search_input.setText(text)
         self._perform_search()
+
+    def closeEvent(self, event) -> None:
+        self._abort_search()
+        super().closeEvent(event)

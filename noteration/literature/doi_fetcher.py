@@ -51,11 +51,13 @@ def _strip_html(text: str) -> str:
 
 
 def _get_json(url: str, timeout: int = 10) -> dict | None:
+    if not url.startswith(("http://", "https://")):
+        return None
     req = urllib.request.Request(
         url, headers={"User-Agent": _USER_AGENT, "Accept": "application/json"}
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec S310
             return json.load(resp)
     except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError,
             OSError, TimeoutError):
@@ -175,9 +177,11 @@ def _extract_arxiv_id(text: str) -> str:
 
 
 def _get_xml(url: str, timeout: int = 10) -> str | None:
+    if not url.startswith(("http://", "https://")):
+        return None
     req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec S310
             return resp.read().decode("utf-8")
     except (urllib.error.URLError, OSError, TimeoutError):
         return None

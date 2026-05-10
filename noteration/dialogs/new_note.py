@@ -50,5 +50,6 @@ class NewNoteDialog(QDialog):
             return
 
     def result_path(self) -> Path:
-        assert self._path is not None
+        if self._path is None:
+            raise RuntimeError("New note path requested before dialog completion.")
         return self._path

@@ -16,15 +16,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Tuple
+from collections import OrderedDict
 
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtCore import QRectF
 
-try:
-    import fitz  # type: ignore   # pymupdf
-    _HAS_FITZ = True
-except ImportError:
-    _HAS_FITZ = False
+_fitz: Any = None
+
+def get_fitz() -> Any:
+    global _fitz
+    if _fitz is None:
+        try:
+            import fitz  # type: ignore
+            _fitz = fitz
+        except ImportError:
+            pass
+    return _fitz
+
+def has_fitz() -> bool:
+    return get_fitz() is not None
 
 
 @dataclass
@@ -42,6 +53,31 @@ class PageInfo:
     page_index: int
 
 
+class RenderCache:
+    """Simple LRU cache for QPixmap renders."""
+    def __init__(self, max_size: int = 15) -> None:
+        self.max_size = max_size
+        self._cache: OrderedDict[Tuple[int, float], QPixmap] = OrderedDict()
+
+    def get(self, page_idx: int, zoom: float) -> QPixmap | None:
+        key = (page_idx, round(zoom, 2))
+        if key in self._cache:
+            self._cache.move_to_end(key)
+            return self._cache[key]
+        return None
+
+    def set(self, page_idx: int, zoom: float, pixmap: QPixmap) -> None:
+        key = (page_idx, round(zoom, 2))
+        if key in self._cache:
+            self._cache.move_to_end(key)
+        self._cache[key] = pixmap
+        if len(self._cache) > self.max_size:
+            self._cache.popitem(last=False)
+
+    def clear(self) -> None:
+        self._cache.clear()
+
+
 class PdfReader:
     """
     PyMuPDF wrapper for PDF rendering & text extraction.
@@ -51,8 +87,10 @@ class PdfReader:
     def __init__(self, pdf_path: Path) -> None:
         self.pdf_path = pdf_path
         self._doc = None
+        self._render_cache = RenderCache(max_size=15)
 
-        if not _HAS_FITZ:
+        fitz = get_fitz()
+        if not fitz:
             return
         if not pdf_path.exists():
             return
@@ -91,7 +129,14 @@ class PdfReader:
         """
         if not self._doc or page_idx >= self.page_count:
             return None
+            
+        # Check cache first
+        cached = self._render_cache.get(page_idx, zoom)
+        if cached:
+            return cached
+            
         try:
+            fitz = get_fitz()
             page = self._doc[page_idx]
             mat = fitz.Matrix(zoom * 2.0, zoom * 2.0)   # 2× = ~144 dpi baseline
             pix = page.get_pixmap(matrix=mat, alpha=False)
@@ -103,7 +148,12 @@ class PdfReader:
                 pix.stride,
                 QImage.Format.Format_RGB888,
             )
-            return QPixmap.fromImage(img)
+            pixmap = QPixmap.fromImage(img)
+            
+            # Save to cache
+            self._render_cache.set(page_idx, zoom, pixmap)
+            
+            return pixmap
         except Exception as e:
             print(f"[PdfReader] render_page failed on page {page_idx}: {e}")
             return None
@@ -122,6 +172,7 @@ class PdfReader:
         if not self._doc or page_idx >= self.page_count:
             return []
         try:
+            fitz = get_fitz()
             page = self._doc[page_idx]
             blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)["blocks"]
             spans: list[TextSpan] = []
@@ -202,6 +253,7 @@ class PdfReader:
         if self._doc:
             self._doc.close()
             self._doc = None
+        self._render_cache.clear()
 
     def __del__(self) -> None:
         self.close()

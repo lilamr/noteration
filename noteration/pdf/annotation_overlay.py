@@ -24,6 +24,9 @@ from PySide6.QtGui import (
 import fitz
 
 from noteration.pdf.annotations import Annotation, AnnotationStore
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class AnnotationOverlay(QWidget):
@@ -456,8 +459,8 @@ class AnnotationOverlay(QWidget):
             )
             self.update()
             self.annotation_created.emit(ann)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Failed to create annotation: {e}")
 
     def _add_image_highlight(self, rect_pts: list[float]) -> None:
         if self._fitz_page is None:
@@ -485,8 +488,8 @@ class AnnotationOverlay(QWidget):
             self._store.save(self.papis_key)
             self.update()
             self.annotation_created.emit(ann)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Failed to create annotation: {e}")
 
     def _add_comment(self, x_pts: float, y_pts: float) -> None:
         dlg = CommentDialog(self)

@@ -396,7 +396,7 @@ An interactive graph that displays all notes as nodes and wiki-links as edges.
 
 ## 10. Git Synchronization
 
-Noteration can synchronize the vault to a Git repository (e.g., GitHub) both automatically and manually.
+Noteration can synchronize the vault to a Git repository (e.g., GitHub).
 
 ### Requirements
 
@@ -414,14 +414,11 @@ Noteration can synchronize the vault to a Git repository (e.g., GitHub) both aut
 4. Click **Save Remote**.
 5. Click **Sync Now** for the first push.
 
-### Manual Synchronization
+### Synchronization
 
 - **Ctrl+Shift+S** or toolbar **Sync** or **Tools › Synchronize Now**.
 - Process logs appear in the Synchronization tab in real-time.
-
-### Automatic Synchronization
-
-If `auto_sync = true` (disabled by default) in `config.toml`, Noteration syncs in the background every 5 minutes (configurable via `sync_interval`). This process does not interrupt the UI — status badges in the toolbar are updated.
+- Use the **Refresh Status** button to check for remote updates without performing a full sync.
 
 ### Git Status Indicators
 
@@ -487,8 +484,6 @@ Open via **Tools › Settings** or `Ctrl+,`.
 
 | Setting | Description |
 |-----------|-----------|
-| **Auto Sync** | Enable background sync |
-| **Sync Interval** | Delay between auto-syncs (default: 300 seconds) |
 | **Remote** | Git remote name (default: `origin`) |
 | **Branch** | Synchronized branch (default: `main`) |
 | **Strategy** | `rebase` (default), `merge`, or `stash` |
@@ -601,8 +596,6 @@ default_highlight_color = "#FFEB3B"  # hex color
 library_path = "~/noteration/literature"   # absolute path or ~
 
 [sync]
-auto_sync     = false
-sync_interval = 300       # seconds (minimum 60 recommended)
 remote        = "origin"
 branch        = ""        # empty = auto-detect active branch
 strategy      = "rebase"  # "rebase", "merge", or "stash"
@@ -652,8 +645,8 @@ sidebar_visible = true
 | `notes/**/*.md` | `literature/**/*.pdf` (large) |
 | `annotations/*.json` | `.noteration/db.sqlite` (cache) |
 | `attachments/*` | `__pycache__/` |
-| `docs/` | `.DS_Store`, `Thumbs.db` |
-| `.noteration/config.toml` | |
+| `literature/**/*.yaml` | `.DS_Store`, `Thumbs.db` |
+| `.noteration/config.toml` |`.noteration/*.log` |
 
 ---
 
@@ -673,9 +666,6 @@ The easiest way: move all Obsidian .md files to the `notes/` subfolder within th
 **Q: My annotations disappeared after moving a PDF file.**
 A: Annotations are stored based on the SHA-256 hash of the PDF content, not by file path. If the PDF content doesn't change, annotations can still be found even if the path changes.
 
-**Q: Auto-sync failed without notification.**
-A: Background auto-sync is _silent_ (no error messages displayed). Open the **Synchronization** tab to see detailed error logs, or run a manual sync with **Ctrl+Shift+S**.
-
 **Q: How do I backup my vault?**
 A: The easiest way is with Git — pushing to GitHub makes GitHub your automatic backup. Alternatively, copy the entire vault folder to another location. Make sure to include the `.noteration/` subfolder as it stores `config.toml` and `link_graph.json`.
 
@@ -687,5 +677,5 @@ A: Yes, so your vault notes are only accessible and synchronized on your own dev
 
 ---
 
-*This guide applies to Noteration v1.1.0*
+*This guide applies to Noteration v1.1.2*
 

@@ -44,8 +44,6 @@ _DEFAULTS: dict[str, Any] = {
         "library_path": "",
     },
     "sync": {
-        "auto_sync": False,
-        "sync_interval": 300,
         "remote": "origin",
         "branch": "",
     },

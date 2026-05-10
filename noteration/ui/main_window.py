@@ -5,8 +5,9 @@ Noteration main window.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast, TYPE_CHECKING
+from typing import cast, TYPE_CHECKING, Optional
 
+import shiboken6
 if TYPE_CHECKING:
     from noteration.sync.git_engine import RepoStatus
 
@@ -50,6 +51,7 @@ class MainWindow(QMainWindow):
         self._git_repo  = self.vault.git_repo
 
         self._focus_mode_active = False
+        self._update_thread: Optional[CheckUpdateThread] = None
 
         # Graph view components
         self._graph_view: GraphView | None = None
@@ -575,7 +577,6 @@ class MainWindow(QMainWindow):
             self._apply_settings_ui()
             self.theme_change_requested.emit(dlg.selected_theme)
             self._restart_autosave()
-            self._restart_auto_sync()
         else:
             # Revert to original theme on cancel
             saved = self.config.get("ui", "theme", "system")
@@ -590,6 +591,9 @@ class MainWindow(QMainWindow):
                     self.config.get("editor", "show_line_numbers", True))
 
     def _check_for_updates(self, silent: bool = False) -> None:
+        if self._update_thread and shiboken6.isValid(self._update_thread) and self._update_thread.isRunning():
+            return
+
         self._update_silent = silent
         if not silent:
             self.statusBar().showMessage("Checking for updates...")
@@ -597,7 +601,11 @@ class MainWindow(QMainWindow):
         self._update_thread = CheckUpdateThread(self)
         self._update_thread.finished.connect(self._on_update_check_finished)
         self._update_thread.error.connect(self._on_update_check_error)
+        self._update_thread.finished.connect(self._clear_update_thread)
         self._update_thread.start()
+
+    def _clear_update_thread(self) -> None:
+        self._update_thread = None
 
     def _on_update_check_finished(self, available: bool, version: str) -> None:
         if available:
@@ -682,9 +690,6 @@ class MainWindow(QMainWindow):
             self._autosave_timer.stop()
         self._setup_autosave()
 
-    def _restart_auto_sync(self) -> None:
-        self.vault.restart_auto_sync()
-
     # ── BibTeX export ─────────────────────────────────────────────────
 
     def _export_bibtex_all(self) -> None:
@@ -694,8 +699,8 @@ class MainWindow(QMainWindow):
             "BibTeX Files (*.bib)",
         )
         if path:
-            from noteration.literature.bibtex_export import BibTeXExporter
-            n = BibTeXExporter(self._papis).export_all(Path(path))
+            from noteration.literature.bibtex_export import BibtexExporter
+            n = BibtexExporter(self._papis).export_all(Path(path))
             QMessageBox.information(
                 self, "Export Finished", f"{n} entries → {path}")
 
@@ -711,8 +716,8 @@ class MainWindow(QMainWindow):
             "BibTeX Files (*.bib)",
         )
         if path:
-            from noteration.literature.bibtex_export import BibTeXExporter
-            n = BibTeXExporter(self._papis).export_from_note(
+            from noteration.literature.bibtex_export import BibtexExporter
+            n = BibtexExporter(self._papis).export_from_note(
                 w.file_path, Path(path))
             QMessageBox.information(
                 self, "Export Finished",
@@ -783,7 +788,7 @@ class MainWindow(QMainWindow):
             self._st_git.setText("○ offline")
             self._st_git.setStyleSheet("color:gray;")
             return
-        
+
         st = cast("RepoStatus", st)
         if st.is_dirty or st.untracked:
             self._sync_badge.setText("Git: modified")

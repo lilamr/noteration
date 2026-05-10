@@ -14,6 +14,10 @@ def setup_logging(vault_path: Path | None = None):
     logger = logging.getLogger("noteration")
     logger.setLevel(logging.DEBUG)
     
+    # Avoid duplicate handlers if setup_logging is called multiple times
+    if logger.hasHandlers():
+        logger.handlers.clear()
+    
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )

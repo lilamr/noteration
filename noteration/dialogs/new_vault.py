@@ -57,5 +57,6 @@ class NewVaultDialog(QDialog):
         self.accept()
 
     def result_vault(self) -> tuple[Path, str]:
-        assert self._vault is not None
+        if self._vault is None:
+            raise RuntimeError("Vault result requested before dialog completion.")
         return self._vault

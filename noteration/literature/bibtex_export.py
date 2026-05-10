@@ -18,8 +18,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from noteration.logger import get_logger
 from noteration.literature.papis_bridge import LiteratureEntry, PapisBridge
 from noteration.editor.wiki_links import parse_citations
+
+logger = get_logger(__name__)
 
 
 # ── BibTeX Types ──────────────────────────────────────────────────────────
@@ -161,7 +164,8 @@ def entry_to_bibtex(
 
 # ── BibTeXExporter ────────────────────────────────────────────────────────
 
-class BibTeXExporter:
+class BibtexExporter:
+
     """Export Papis library to a .bib file."""
 
     def __init__(self, bridge: PapisBridge) -> None:
@@ -206,8 +210,8 @@ class BibTeXExporter:
                 text = md_file.read_text(encoding="utf-8")
                 for c in parse_citations(text):
                     cited_keys.add(c.key)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to parse citations for vault export: {e}")
         return self.export_keys(list(cited_keys), output_path)
 
     def get_bibtex_string(self, key: str) -> str | None:

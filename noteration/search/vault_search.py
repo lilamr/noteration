@@ -9,10 +9,15 @@ import re
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Dict, Tuple
+
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
+
 class SearchResult:
     """A single search result."""
     type: Literal["note", "literature", "annotation"]
@@ -46,6 +51,10 @@ class VaultSearch:
         self.papis = papis_bridge
         self._notes_dir = vault_path / "notes"
         self._annotations_dir = vault_path / "annotations"
+        
+        # Cache for note contents to speed up repeated searches
+        # key: str(path), value: (mtime, content)
+        self._note_cache: Dict[str, Tuple[float, str]] = {}
 
     def search(
         self,
@@ -56,12 +65,20 @@ class VaultSearch:
     ) -> list[SearchResult]:
         """Search across the entire vault: notes, literature, annotations."""
         results: list[SearchResult] = []
+        
+        if not query.strip():
+            return results
+
         flags = 0 if case_sensitive else re.IGNORECASE
-        if not use_regex:
-            # Escape regex special chars
-            query_re = re.compile(re.escape(query), flags)
-        else:
-            query_re = re.compile(query, flags)
+        try:
+            if not use_regex:
+                # Escape regex special chars
+                query_re = re.compile(re.escape(query), flags)
+            else:
+                query_re = re.compile(query, flags)
+        except re.error:
+            # Invalid regex, return empty results
+            return []
 
         # 1. Search notes
         results.extend(self._search_notes(query_re))
@@ -74,6 +91,22 @@ class VaultSearch:
         results.sort(key=lambda r: r.score, reverse=True)
         return results[:max_results]
 
+    def _get_note_content(self, md_file: Path) -> str | None:
+        """Get note content with caching based on mtime."""
+        path_str = str(md_file)
+        try:
+            mtime = md_file.stat().st_mtime
+            if path_str in self._note_cache:
+                cached_mtime, content = self._note_cache[path_str]
+                if mtime == cached_mtime:
+                    return content
+            
+            content = md_file.read_text(encoding="utf-8")
+            self._note_cache[path_str] = (mtime, content)
+            return content
+        except Exception:
+            return None
+
     def _search_notes(self, pattern: re.Pattern) -> list[SearchResult]:
         """Search all .md files in the notes/ folder."""
         results: list[SearchResult] = []
@@ -81,9 +114,8 @@ class VaultSearch:
             return results
 
         for md_file in self._notes_dir.rglob("*.md"):
-            try:
-                text = md_file.read_text(encoding="utf-8")
-            except Exception:
+            text = self._get_note_content(md_file)
+            if text is None:
                 continue
 
             matches = list(pattern.finditer(text))
@@ -129,9 +161,6 @@ class VaultSearch:
 
         try:
             entries = self.papis.all_entries()
-        except AttributeError as e:
-            print(f"[ERROR] Method all_entries() not found: {e}")
-            return results
         except Exception as e:
             print(f"[ERROR] Failed to load literature entries: {e}")
             return results
@@ -198,7 +227,8 @@ class VaultSearch:
             try:
                 with open(json_file) as f:
                     data = json.load(f)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Failed to read annotation file {json_file}: {e}")
                 continue
 
             papis_key = data.get("papis_key", json_file.stem)

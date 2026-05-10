@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-05-10
+
+### Fixed
+- **Stability**: Fixed a critical crash caused by premature destruction of background threads (`QThread`) using robust validity checks and explicit reference clearing.
+- **Git Sync**: Resolved a Segmentation Fault when handling large conflict files by implementing a memory safety limit (128KB) for file previews.
+- **Git Sync**: Fixed an infinite rebase loop on `.noteration/*.log` files by implementing automatic conflict resolution for log files and better `.gitignore` enforcement.
+- **Git Sync**: Automatically untracks accidentally committed log files and metadata from Git to maintain a clean vault state.
+- **UI Performance**: Refactored the Sync tab to use non-blocking background status refreshes, preventing interface freezes during network operations.
+
+### Added
+- **Git Sync**: Enhanced status reporting with clear "Ahead" and "Behind" indicators and color-coded feedback for better visibility into remote changes.
+
+### Removed
+- Git auto-sync feature.
+
 ## [1.1.1] - 2026-05-06
 
 ### Fixed

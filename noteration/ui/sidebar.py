@@ -21,6 +21,11 @@ from PySide6.QtCore import (
     QAbstractItemModel, QAbstractListModel, QPersistentModelIndex,
 )
 
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
+
+
 if TYPE_CHECKING:
     from noteration.config import NoterationConfig
 
@@ -519,6 +524,16 @@ class PapisPanel(QWidget):
         self.tree.setIndentation(0)
         self.tree.itemDoubleClicked.connect(self._on_double_clicked)
         layout.addWidget(self.tree)
+        
+        self._dirty = True
+
+    def mark_dirty(self) -> None:
+        self._dirty = True
+
+    def ensure_populated(self) -> None:
+        if self._dirty:
+            self.populate()
+            self._dirty = False
 
     def populate(self) -> None:
         """Scan the Papis library and build the tree UI."""
@@ -527,6 +542,12 @@ class PapisPanel(QWidget):
         if not lit_dir.exists():
             return
         
+        # Lazy import yaml
+        try:
+            import yaml  # type: ignore
+        except ImportError:
+            yaml = None
+
         all_collections = set()
         
         # 1. Direct PDFs in library root
@@ -539,7 +560,8 @@ class PapisPanel(QWidget):
             if not entry_dir.is_dir() or not (entry_dir / "info.yaml").exists():
                 continue
             try:
-                import yaml  # type: ignore
+                if yaml is None:
+                    continue
                 with open(entry_dir / "info.yaml") as f:
                     info = yaml.safe_load(f)
                 title = info.get("title", entry_dir.name)[:40]
@@ -549,8 +571,8 @@ class PapisPanel(QWidget):
                 pdf = list(entry_dir.glob("*.pdf"))
                 item = QTreeWidgetItem(self.tree, [f"{'📘' if pdf else '📂'} {title}"])
                 item.setData(0, Qt.ItemDataRole.UserRole, {"key": entry_dir.name, "pdf": pdf[0] if pdf else None, "collections": [str(c) for c in colls]})
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to process Papis entry directory {entry_dir}: {e}")
 
         # Update collection filter dropdown
         curr = self.combo.currentText()
@@ -680,7 +702,12 @@ class SidebarWidget(QWidget):
         self.tabs.addTab(self.citations_panel, "Citations")
         
         layout.addWidget(self.tabs)
+        self.tabs.currentChanged.connect(self._on_tab_changed)
         self.papis_panel.populate()
+
+    def _on_tab_changed(self, index: int) -> None:
+        if self.tabs.widget(index) == self.papis_panel:
+            self.papis_panel.ensure_populated()
 
     def update_outline(self, headings: list[tuple[int, str]]) -> None:
         self.outline_panel.update_outline(headings)
@@ -696,4 +723,7 @@ class SidebarWidget(QWidget):
 
     def refresh(self) -> None:
         self.notes_panel.tree.populate()
-        self.papis_panel.populate()
+        self.papis_panel.mark_dirty()
+        # Only populate immediately if it's the current tab
+        if self.tabs.currentWidget() == self.papis_panel:
+            self.papis_panel.ensure_populated()

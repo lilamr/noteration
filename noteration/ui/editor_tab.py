@@ -12,9 +12,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from enum import Enum
 
-if TYPE_CHECKING:
-    from noteration.vault_manager import VaultManager
-
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QPlainTextEdit, QTextEdit,
     QApplication, QStackedWidget, QToolBar, QSizePolicy, QFileDialog,
@@ -25,6 +22,20 @@ from PySide6.QtGui import (
     QFont, QPainter, QColor, QTextFormat, QTextDocument, QTextCursor,
     QPalette, QMouseEvent, QKeyEvent, QDragEnterEvent, QDropEvent, QImage,
 )
+
+from noteration.config import NoterationConfig
+from noteration.editor.syntax_highlighter import MarkdownHighlighter
+from noteration.editor.wiki_links import (
+    parse_wiki_links, parse_citations, extract_headings,
+)
+from noteration.editor.find_replace import FindReplaceDialog
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
+
+if TYPE_CHECKING:
+    from noteration.vault_manager import VaultManager
+
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
     from PySide6.QtWebEngineCore import QWebEnginePage
@@ -32,19 +43,12 @@ try:
 except ImportError:
     _HAS_WEBENGINE = False
 
-from noteration.editor.find_replace import FindReplaceDialog
-
 try:
     import markdown as _markdown_lib  # type: ignore[import-untyped]
     _HAS_MARKDOWN = True
 except ImportError:
     _HAS_MARKDOWN = False
 
-from noteration.config import NoterationConfig
-from noteration.editor.syntax_highlighter import MarkdownHighlighter
-from noteration.editor.wiki_links import (
-    parse_wiki_links, parse_citations, extract_headings,
-)
 
 class VimMode(Enum):
     NORMAL = "NORMAL"
@@ -869,7 +873,10 @@ if _HAS_WEBENGINE:
 
             if scheme in ("http", "https", "ftp"):
                 import subprocess
-                subprocess.Popen(["xdg-open", url_str])
+                import shutil
+                xdg_open = shutil.which("xdg-open")
+                if xdg_open:
+                    subprocess.Popen([xdg_open, url_str])  # nosec S603
                 return False
 
             return False
@@ -954,7 +961,10 @@ class MarkdownPreview(QWidget):
             self.link_clicked.emit(url.path().lstrip("/"))
         elif scheme in ("http", "https"):
             import subprocess
-            subprocess.Popen(["xdg-open", url.toString()])
+            import shutil
+            xdg_open = shutil.which("xdg-open")
+            if xdg_open:
+                subprocess.Popen([xdg_open, url.toString()])  # nosec S603
 
     def set_content(self, markdown_text: str, base_path: Path | None = None, theme: str = "light") -> None:
         """Update the displayed content."""
@@ -1004,6 +1014,9 @@ class EditorTab(QWidget):
         self.config      = vault.config
         self.is_modified = False
         self._is_focus_mode = False
+        
+        # Performance cache
+        self._last_parsed_hash = 0
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -1108,9 +1121,8 @@ class EditorTab(QWidget):
             try:
                 from noteration.editor.citation_completer import CitationCompleter
                 self._completer = CitationCompleter(self._editor, self.vault.papis, self)
-            except Exception:
-                pass
-
+            except Exception as e:
+                logger.warning(f"Citation completer initialization failed: {e}")
         # Global shortcut for mode toggling
         from PySide6.QtGui import QKeySequence, QShortcut
         _sc = QShortcut(QKeySequence("Ctrl+Shift+V"), self)
@@ -1495,7 +1507,14 @@ class EditorTab(QWidget):
         self._update_focus_status()
 
     def _emit_parsed_signals(self) -> None:
-        """Emit signals for sidebar and status bar updates."""
+        """Emit signals for sidebar and status bar updates with hash caching."""
+        text = self._editor.toPlainText()
+        current_hash = hash(text)
+        
+        if current_hash == self._last_parsed_hash:
+            return
+            
+        self._last_parsed_hash = current_hash
         self.headings_changed.emit(self.headings())
         self.citations_changed.emit(self.citation_keys())
         self.word_count_changed.emit(self.word_count())

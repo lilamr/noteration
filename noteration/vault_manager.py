@@ -9,7 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, Signal, QTimer, QThread
+import shiboken6
+from PySide6.QtCore import QObject, Signal, QThread
 
 from noteration.config import NoterationConfig
 from noteration.literature.papis_bridge import PapisBridge
@@ -21,21 +22,22 @@ from noteration.logger import setup_logging, get_logger
 logger = get_logger(__name__)
 
 
-class _SyncWorker(QObject):
-    """Simple worker to run Git synchronization in a background thread."""
-    done = Signal()
+class _StatusWorker(QObject):
+    """Worker to check Git status in a background thread."""
+    done = Signal(object)
 
-    def __init__(self, repo: GitRepo) -> None:
+    def __init__(self, repo: GitRepo, fetch: bool = False) -> None:
         super().__init__()
         self.repo = repo
+        self.fetch = fetch
 
     def run(self) -> None:
         try:
-            # Run synchronization without log callbacks for background mode
-            self.repo.sync(log_callback=lambda _: None)
+            status = self.repo.status(fetch=self.fetch)
+            self.done.emit(status)
         except Exception as e:
-            logger.error(f"Background sync failed: {e}")
-        self.done.emit()
+            logger.error(f"Background status check failed: {e}")
+            self.done.emit(None)
 
 
 class VaultManager(QObject):
@@ -70,10 +72,9 @@ class VaultManager(QObject):
         self.git_repo: Optional[GitRepo] = None
         self.refresh_git_repo()
 
-        # Timer for Automatic Synchronization
-        self._sync_timer = QTimer(self)
-        self._sync_timer.timeout.connect(self.perform_auto_sync)
-        self.restart_auto_sync()
+        self._is_syncing = False
+        self._status_thread: Optional[QThread] = None
+        self._status_worker: Optional[_StatusWorker] = None
 
     def _init_directories(self) -> None:
         """Ensure all required vault subdirectories exist."""
@@ -85,8 +86,19 @@ class VaultManager(QObject):
         if (self.vault_path / ".git").exists():
             if not self.git_repo or not self.git_repo.is_valid:
                 self.git_repo = GitRepo(self.vault_path)
+                # Automatically fix tracking of junk files (logs, etc.)
+                self.git_repo.ensure_ignored()
         else:
             self.git_repo = None
+
+    @property
+    def is_syncing(self) -> bool:
+        """Check if a synchronization operation is currently in progress."""
+        return self._is_syncing
+
+    @is_syncing.setter
+    def is_syncing(self, value: bool) -> None:
+        self._is_syncing = value
 
     # ------------------------------------------------------------------
     # Engine Accessors
@@ -126,46 +138,33 @@ class VaultManager(QObject):
     # Git & Sync Operations
     # ------------------------------------------------------------------
 
-    def request_git_status(self) -> None:
-        """Trigger a Git status update for the UI."""
+    def request_git_status(self, fetch: bool = False) -> None:
+        """Trigger a Git status update for the UI in a background thread."""
         if not self.git_repo or not self.git_repo.is_valid:
             self.git_status_updated.emit(None)
             return
         
-        # In a real implementation, this could be run in a separate thread
-        status = self.git_repo.status()
-        self.git_status_updated.emit(status)
-
-    def restart_auto_sync(self) -> None:
-        """Restart the automatic sync timer based on the latest configuration."""
-        self._sync_timer.stop()
-        if self.config.get("sync", "auto_sync", False):
-            interval = int(self.config.get("sync", "sync_interval", 300))
-            self._sync_timer.setInterval(interval * 1000)
-            self._sync_timer.start()
-
-    def perform_auto_sync(self) -> None:
-        """Run Git synchronization in the background if necessary."""
-        if not self.git_repo or not self.git_repo.is_valid:
-            return
-            
-        status = self.git_repo.status()
-        if not status.is_dirty or not status.remotes:
+        # Avoid overlapping status checks
+        if self._status_thread and shiboken6.isValid(self._status_thread) and self._status_thread.isRunning():
             return
 
-        self.status_message.emit("Git: performing automatic synchronization...", 2000)
+        # Run status check in a background thread to avoid UI stutters
+        self._status_thread = QThread()
+        self._status_worker = _StatusWorker(self.git_repo, fetch=fetch)
+        self._status_worker.moveToThread(self._status_thread)
         
-        # Run in a background thread
-        self._bg_thread = QThread()
-        self._bg_worker = _SyncWorker(self.git_repo)
-        self._bg_worker.moveToThread(self._bg_thread)
+        self._status_worker.done.connect(self._status_thread.quit)
+        self._status_worker.done.connect(self.git_status_updated)
         
-        self._bg_worker.done.connect(self._bg_thread.quit)
-        self._bg_worker.done.connect(self._on_sync_finished)
-        self._bg_thread.started.connect(self._bg_worker.run)
+        # Cleanup
+        self._status_worker.done.connect(self._status_worker.deleteLater)
+        self._status_thread.started.connect(self._status_worker.run)
+        self._status_thread.finished.connect(self._status_thread.deleteLater)
+        self._status_thread.finished.connect(self._clear_status_thread)
         
-        self._bg_thread.start()
+        self._status_thread.start()
 
-    def _on_sync_finished(self) -> None:
-        self.request_git_status()
-        self.status_message.emit("Git: synchronization complete.", 3000)
+    def _clear_status_thread(self) -> None:
+        """Clear references to the status thread and worker."""
+        self._status_thread = None
+        self._status_worker = None

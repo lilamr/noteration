@@ -221,17 +221,6 @@ class _SyncTab(QWidget):
         self._strategy.setCurrentText(config.get("sync", "strategy", "rebase"))
         fl.addRow("Pull strategy:", self._strategy)
 
-        self._auto_sync = QCheckBox("Auto synchronization")
-        self._auto_sync.setChecked(bool(config.get("sync", "auto_sync", False)))
-        fl.addRow(self._auto_sync)
-
-        self._sync_interval = QSpinBox()
-        self._sync_interval.setRange(30, 3600)
-        self._sync_interval.setSuffix(" seconds")
-        self._sync_interval.setValue(
-            int(config.get("sync", "sync_interval", 300)))
-        fl.addRow("Auto-sync interval:", self._sync_interval)
-
         lay.addWidget(grp)
 
         tip = QLabel(
@@ -247,10 +236,9 @@ class _SyncTab(QWidget):
 
     def apply(self) -> None:
         self._config.set("sync", "remote",        self._remote.text().strip())
-        self._config.set("sync", "branch",        self._branch.text().strip())
+        self._branch_text = self._branch.text().strip()
+        self._config.set("sync", "branch",        self._branch_text)
         self._config.set("sync", "strategy",      self._strategy.currentText())
-        self._config.set("sync", "auto_sync",     self._auto_sync.isChecked())
-        self._config.set("sync", "sync_interval", self._sync_interval.value())
 
 
 class _UITab(QWidget):

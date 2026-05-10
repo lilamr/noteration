@@ -218,5 +218,6 @@ class VaultPickerDialog(QDialog):
     # ------------------------------------------------------------------
 
     def selected_vault(self) -> Path:
-        assert self._selected_vault is not None
+        if self._selected_vault is None:
+            raise RuntimeError("Selected vault requested before dialog completion.")
         return self._selected_vault

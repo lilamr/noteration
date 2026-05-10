@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lilamr/noteration/releases/tag/v1.1.0"><img src="https://img.shields.io/github/v/release/lilamr/noteration?label=version&color=4CAF50" alt="Release"/></a>
+  <a href="https://github.com/lilamr/noteration/releases/tag/v1.1.2"><img src="https://img.shields.io/github/v/release/lilamr/noteration?label=version&color=4CAF50" alt="Release"/></a>
   <a href="https://github.com/lilamr/noteration/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"/></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python"/></a>
   <a href="https://github.com/lilamr/noteration/actions"><img src="https://img.shields.io/github/actions/workflow/status/lilamr/noteration/ci.yml?label=CI" alt="CI"/></a>
@@ -29,7 +29,7 @@ noteration/
 ├── 📚  Literature browser via Papis
 ├── 🔍  Global vault search
 ├── 🕸️  Interactive backlink graph between notes
-└── ☁️  Automated synchronization via GitHub
+└── ☁️  Synchronization via GitHub
 ```
 
 ---
@@ -46,7 +46,7 @@ noteration/
 | **PDF Viewer** | Render via QtPDF or PyMuPDF, highlight & JSON annotations |
 | **Backlink Graph** | Visualization of note network, interactive |
 | **Papis Bridge** | Browse, import, and export BibTeX from Papis library |
-| **Git Sync** | Automated commit, pull, push; visual conflict resolution |
+| **Git Sync** | Manual commit, pull, push; visual conflict resolution |
 | **Dark Mode** | Light / Dark / System — automatically follows OS theme |
 
 ---
@@ -203,8 +203,6 @@ default_highlight_color = "#FFEB3B"
 library_path = "~/noteration/literature"
 
 [sync]
-auto_sync     = false
-sync_interval = 300              # seconds
 remote        = "origin"
 branch        = ""               # empty = auto-detect active branch
 

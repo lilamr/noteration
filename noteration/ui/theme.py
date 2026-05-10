@@ -16,6 +16,10 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtCore import Qt, QObject, Signal, QTimer
 
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class ThemeMode(str, Enum):
     LIGHT  = "light"
@@ -228,15 +232,17 @@ def _system_is_dark() -> bool:
         app = QApplication.instance()
         if app and hasattr(app, 'styleHints'):
             scheme = app.styleHints().colorScheme()  # type: ignore[attr-defined]
-            return scheme == Qt.ColorScheme.Dark  # type: ignore[attr-defined]
-    except Exception:
-        pass
+            res = scheme == Qt.ColorScheme.Dark  # type: ignore[attr-defined]
+            return res
+    except Exception as e:
+        logger.debug(f"System dark mode detection failed, falling back to palette: {e}")
 
     # Fallback: check palette
     app = QApplication.instance()
     if app and hasattr(app, 'palette'):
         bg = app.palette().color(QPalette.ColorRole.Window)  # type: ignore[attr-defined]
-        return bg.lightness() < 128
+        res = bg.lightness() < 128
+        return res
 
     return False
 

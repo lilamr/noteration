@@ -19,18 +19,35 @@ from noteration.logger import get_logger
 
 logger = get_logger(__name__)
 
-try:
-    import papis.api          # type: ignore
-    import papis.config       # type: ignore
-    _HAS_PAPIS = True
-except ImportError:
-    _HAS_PAPIS = False
+_papis: Any = None
+_yaml: Any = None
 
-try:
-    import yaml               # type: ignore
-    _HAS_YAML = True
-except ImportError:
-    _HAS_YAML = False
+def get_papis() -> Any:
+    global _papis
+    if _papis is None:
+        try:
+            import papis.api
+            import papis.config
+            _papis = papis
+        except ImportError:
+            pass
+    return _papis
+
+def has_papis() -> bool:
+    return get_papis() is not None
+
+def get_yaml() -> Any:
+    global _yaml
+    if _yaml is None:
+        try:
+            import yaml
+            _yaml = yaml
+        except ImportError:
+            pass
+    return _yaml
+
+def has_yaml() -> bool:
+    return get_yaml() is not None
 
 
 # ── Data model ────────────────────────────────────────────────────────────
@@ -95,7 +112,8 @@ def _parse_tags(raw_tags: Any) -> list[str]:
 
 def _save_yaml(info_path: Path, data: dict[str, Any]) -> None:
     """Overwrite info.yaml with provided data."""
-    if not _HAS_YAML:
+    yaml = get_yaml()
+    if not yaml:
         raise RuntimeError("pyyaml is not installed; cannot save info.yaml")
     with open(info_path, "w", encoding="utf-8") as f:
         yaml.dump(data, f, allow_unicode=True,
@@ -135,7 +153,7 @@ class PapisBridge:
         self._entries: list[LiteratureEntry] | None = None
         self._papis_ok = False
 
-        if _HAS_PAPIS and library_path.exists():
+        if has_papis() and library_path.exists():
             self._papis_ok = self._init_papis_lib(library_path)
 
     # ── Papis API Initialization ─────────────────────────────────────
@@ -147,6 +165,9 @@ class PapisBridge:
         as the library name and the absolute path as "dir".
         Returns True if successful.
         """
+        papis = get_papis()
+        if not papis:
+            return False
         try:
             lib_name = library_path.name
             cfg = papis.config.get_configuration()
@@ -384,7 +405,7 @@ class PapisBridge:
         if not self.library_path.exists():
             return
         # Always prefer YAML loading for reliability
-        if _HAS_YAML:
+        if has_yaml():
             yield from self._load_via_yaml()
         elif self._papis_ok:
             yield from self._load_via_papis()
@@ -392,6 +413,10 @@ class PapisBridge:
             yield from self._load_directory_only()
 
     def _load_via_papis(self) -> Iterator[LiteratureEntry]:
+        papis = get_papis()
+        if not papis:
+            yield from self._load_via_yaml()
+            return
         try:
             docs = papis.api.get_all_documents_in_lib()
             for doc in docs:
@@ -417,6 +442,9 @@ class PapisBridge:
             yield from self._load_via_yaml()
 
     def _load_via_yaml(self) -> Iterator[LiteratureEntry]:
+        yaml = get_yaml()
+        if not yaml:
+            return
         for info_yaml in sorted(self.library_path.rglob("info.yaml")):
             entry_dir = info_yaml.parent
             try:
@@ -507,7 +535,7 @@ class PapisBridge:
         Library path is passed via --lib.
         """
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec S603
                 [
                     sys.executable, "-m", "papis", "add",
                     "--lib", str(self.library_path),
@@ -529,7 +557,7 @@ class PapisBridge:
         if not dirs:
             return None
         newest = max(dirs, key=lambda d: d.stat().st_mtime)
-        if _HAS_YAML:
+        if has_yaml():
             for e in self._load_via_yaml():
                 if e.key == newest.name:
                     return e

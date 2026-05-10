@@ -28,7 +28,10 @@ class CheckUpdateThread(QThread):
             import urllib.request
             import re
 
-            with urllib.request.urlopen(REMOTE_PYPROJECT_URL, timeout=10) as response:
+            if not REMOTE_PYPROJECT_URL.startswith(("http://", "https://")):
+                raise ValueError("Invalid URL scheme")
+
+            with urllib.request.urlopen(REMOTE_PYPROJECT_URL, timeout=10) as response:  # nosec S310
                 content = response.read().decode('utf-8')
                 
                 # Simple regex to find version in pyproject.toml
@@ -67,7 +70,7 @@ def run_update_process() -> bool:
             return _run_windows_update(install_cmd)
         else:
             # Linux/macOS can usually update in-place
-            subprocess.Popen(install_cmd)
+            subprocess.Popen(install_cmd)  # nosec S603
             return True
     except Exception:
         return False
@@ -99,5 +102,5 @@ def _run_windows_update(install_cmd: list[str]) -> bool:
         f.write("del \"%~f0\"\n")
         batch_path = f.name
 
-    subprocess.Popen(["cmd.exe", "/c", "start", "/min", batch_path], shell=True)
+    subprocess.Popen(["cmd.exe", "/c", "start", "/min", batch_path], shell=True)  # nosec S602 S603 S607
     return True
