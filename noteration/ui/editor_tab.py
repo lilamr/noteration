@@ -966,6 +966,39 @@ class MarkdownPreview(QWidget):
             if xdg_open:
                 subprocess.Popen([xdg_open, url.toString()])  # nosec S603
 
+    def shutdown(self) -> None:
+        """Explicitly cleanup WebEngine resources to avoid profile release warnings."""
+        if self._use_webengine:
+            import shiboken6
+            
+            # 1. Detach and hide the view
+            if hasattr(self, "_view") and self._view:
+                self._view.hide()
+                self._view.setPage(None)  # type: ignore[arg-type]
+            
+            # 2. Forcefully delete the page first
+            if hasattr(self, "_page") and self._page:
+                self._page.setParent(None)
+                try:
+                    shiboken6.delete(self._page)
+                except Exception as e:
+                    logger.debug(f"Shiboken delete _page failed: {e}")
+                self._page = None # type: ignore
+            
+            # 3. Forcefully delete the view
+            if hasattr(self, "_view") and self._view:
+                self._view.setParent(None)
+                try:
+                    shiboken6.delete(self._view)
+                except Exception as e:
+                    logger.debug(f"Shiboken delete _view failed: {e}")
+                self._view = None # type: ignore
+            
+            # 4. Process any remaining events
+            from PySide6.QtWidgets import QApplication
+            for _ in range(5):
+                QApplication.processEvents()
+
     def set_content(self, markdown_text: str, base_path: Path | None = None, theme: str = "light") -> None:
         """Update the displayed content."""
         base_url = QUrl()
@@ -1272,6 +1305,14 @@ class EditorTab(QWidget):
         self._focus_status.setText(text)
         self._focus_status.setStyleSheet("color: palette(window-text); font-size: 11px; margin-top: 10px;")
         self._update_focus_status()
+
+    def shutdown(self) -> None:
+        """Stop timers and cleanup resources."""
+        if hasattr(self, "_debounce") and self._debounce:
+            self._debounce.stop()
+        if hasattr(self, "_preview") and self._preview:
+            self._preview.shutdown()
+
     # ── Mode switching ────────────────────────────────────────────────
 
     def set_view_mode(self, enabled: bool) -> None:

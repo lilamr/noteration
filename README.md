@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lilamr/noteration/releases/tag/v1.1.2"><img src="https://img.shields.io/github/v/release/lilamr/noteration?label=version&color=4CAF50" alt="Release"/></a>
+  <a href="https://github.com/lilamr/noteration/releases/tag/v1.2.0"><img src="https://img.shields.io/github/v/release/lilamr/noteration?label=version&color=4CAF50" alt="Release"/></a>
   <a href="https://github.com/lilamr/noteration/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"/></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python"/></a>
   <a href="https://github.com/lilamr/noteration/actions"><img src="https://img.shields.io/github/actions/workflow/status/lilamr/noteration/ci.yml?label=CI" alt="CI"/></a>
@@ -178,6 +178,9 @@ Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Noteration.lnk" 
 ├── annotations/             # PDF annotations (JSON, synced via Git)
 └── attachments/             # Images and attachments
 ```
+
+> [!TIP]
+> **Git Synchronization:** Noteration automatically ignores large binary files (PDFs) and internal caches (`db.sqlite`, `link_graph.json`) to prevent merge conflicts and repository bloat. Only your notes, metadata, and annotations are synchronized.
 
 ---
 

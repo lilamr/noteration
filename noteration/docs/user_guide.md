@@ -644,9 +644,9 @@ sidebar_visible = true
 |---------------|---------------------|
 | `notes/**/*.md` | `literature/**/*.pdf` (large) |
 | `annotations/*.json` | `.noteration/db.sqlite` (cache) |
-| `attachments/*` | `__pycache__/` |
-| `literature/**/*.yaml` | `.DS_Store`, `Thumbs.db` |
-| `.noteration/config.toml` |`.noteration/*.log` |
+| `attachments/*` | `.noteration/link_graph.json` (graph cache) |
+| `literature/**/*.yaml` | `.noteration/*.log` (logs) |
+| `.noteration/config.toml` | `__pycache__`, `.DS_Store`, `Thumbs.db` |
 
 ---
 
@@ -677,5 +677,5 @@ A: Yes, so your vault notes are only accessible and synchronized on your own dev
 
 ---
 
-*This guide applies to Noteration v1.1.2*
+*This guide applies to Noteration v1.2.0*
 

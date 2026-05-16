@@ -10,14 +10,28 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum, auto
 from pathlib import Path
-
-import git  # type: ignore
+from typing import Any
 
 from noteration.logger import get_logger
 
 logger = get_logger(__name__)
 
-_HAS_GIT = True
+_git_mod: Any = None
+_HAS_GIT: bool | None = None
+
+def get_git() -> Any:
+    global _git_mod, _HAS_GIT
+    if _HAS_GIT is None:
+        try:
+            import git as _g
+            _git_mod = _g
+            _HAS_GIT = True
+        except ImportError:
+            _HAS_GIT = False
+    return _git_mod
+
+def has_git() -> bool:
+    return get_git() is not None
 
 # ── Data models ───────────────────────────────────────────────────────────
 
@@ -83,10 +97,10 @@ class GitRepo:
 
     def __init__(self, vault_path: Path) -> None:
         self.vault_path = vault_path
-        self._repo: git.Repo | None = None
+        self._repo: Any = None
         self._lock = threading.RLock()
 
-        if not _HAS_GIT:
+        if not has_git():
             return
         self._ensure_repo()
 
@@ -95,10 +109,13 @@ class GitRepo:
         if self._repo is not None:
             return True
         try:
-            self._repo = git.Repo(self.vault_path)
+            self._repo = get_git().Repo(self.vault_path)
             return True
+        except (get_git().InvalidGitRepositoryError, get_git().NoSuchPathError):
+            logger.debug(f"Not a Git repository or path does not exist: {self.vault_path}")
+            return False
         except Exception as e:
-            logger.debug(f"Not a Git repository: {self.vault_path} ({e})")
+            logger.exception(f"Unexpected error opening Git repository: {e}")
             return False
 
     @property
@@ -132,8 +149,11 @@ class GitRepo:
                 elif self.is_merge_in_progress():
                     self._repo.git.merge("--abort")
                 return True
+            except get_git().GitCommandError as e:
+                logger.error(f"Git command failed during abort: {e}")
+                return False
             except Exception as e:
-                logger.error(f"Failed to abort synchronization: {e}")
+                logger.exception(f"Unexpected error during synchronization abort: {e}")
                 return False
 
     def continue_sync(self, log_callback=None) -> SyncResult:
@@ -155,8 +175,10 @@ class GitRepo:
                         log(f"  i Auto-resolving conflict in log file: {path_str}")
                         # Take the current file on disk (which was likely updated by the logger)
                         self._repo.index.add([path_str])
+            except (get_git().GitCommandError, IOError, OSError) as e:
+                logger.debug(f"Auto-resolve logs failed (expected if non-critical): {e}")
             except Exception as e:
-                logger.debug(f"Auto-resolve logs failed: {e}")
+                logger.exception(f"Unexpected error during log auto-resolution: {e}")
 
             is_rebase = self.is_rebase_in_progress()
             is_merge = self.is_merge_in_progress()
@@ -170,8 +192,8 @@ class GitRepo:
                 if is_rebase:
                     log("$ git rebase --continue")
                     env["GIT_EDITOR"] = "true"
-                    # Use the rebase wrapper with environment variables
-                    self._repo.git.rebase("--continue", with_env=env)
+                    # Correct keyword is 'env', not 'with_env'
+                    self._repo.git.rebase("--continue", env=env)
                 else:
                     log("$ git commit (to finish merge)")
                     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
@@ -179,7 +201,7 @@ class GitRepo:
                 
                 log("  ✓ Conflict resolution finished")
                 return self._sync_push(log_callback=log_callback)
-            except git.GitCommandError as e:
+            except get_git().GitCommandError as e:
                 err = str(e)
                 # rebase --continue returns success if there are no more commits to replay, 
                 # but might throw if it's already finished or if there are still conflicts.
@@ -244,8 +266,8 @@ class GitRepo:
                             behind = list(repo.iter_commits(f"{branch.name}..{tracking.name}"))
                             s.ahead = len(ahead)
                             s.behind = len(behind)
-                    except Exception as e:
-                        logger.debug(f"Failed to get ahead/behind counts: {e}")
+                    except (get_git().GitCommandError, TypeError, ValueError, AttributeError) as e:
+                        logger.debug(f"Failed to get ahead/behind counts (likely detached head or no tracking): {e}")
 
                 try:
                     last = repo.head.commit
@@ -254,10 +276,12 @@ class GitRepo:
                     s.last_commit_msg = msg.splitlines()[0]
                     s.last_commit_time = datetime.fromtimestamp(
                         last.committed_date, timezone.utc).strftime("%Y-%m-%d %H:%M")
-                except Exception as e:
+                except (get_git().GitCommandError, AttributeError, ValueError) as e:
                     logger.debug(f"Failed to get last commit info: {e}")
+            except get_git().GitCommandError as e:
+                logger.error(f"Git status command failed: {e}")
             except Exception as e:
-                logger.debug(f"Status check failed: {e}")
+                logger.exception(f"Unexpected error during status check: {e}")
 
         return s
 
@@ -302,7 +326,7 @@ class GitRepo:
                     else:
                         repo.git.pull(remote, branch, env=env)
                     log("  ✓ Pull complete")
-                except git.GitCommandError as e:
+                except get_git().GitCommandError as e:
                     err = str(e)
                     if "CONFLICT" in err or "conflict" in err:
                         conflicts = self._detect_conflicts()
@@ -320,9 +344,13 @@ class GitRepo:
 
                 # 3. Push to remote
                 return self._sync_push(remote, branch, log_callback=log_callback)
+            except get_git().GitCommandError as e:
+                err_msg = str(e.stderr).strip() or str(e)
+                logger.error(f"Git sync command failed: {err_msg}")
+                return SyncResult(status=SyncStatus.ERROR, message=f"Git error: {err_msg[:200]}")
             except Exception as e:
-                logger.error(f"Sync failed: {e}")
-                return SyncResult(status=SyncStatus.ERROR, message=str(e))
+                logger.exception(f"Unexpected error during sync: {e}")
+                return SyncResult(status=SyncStatus.ERROR, message=f"Unexpected error: {str(e)}")
 
     def _sync_push(self, remote: str = "origin", branch: str = "", log_callback=None) -> SyncResult:
         def log(msg: str) -> None:
@@ -347,9 +375,9 @@ class GitRepo:
                 push_info = origin.push(branch, env=self._get_env())
                 for info in push_info:
                     if info.flags & info.ERROR:
-                        raise git.GitCommandError("push", info.summary)
+                        raise get_git().GitCommandError("push", info.summary)
                 log("  ✓ Push complete")
-            except git.GitCommandError as e:
+            except get_git().GitCommandError as e:
                 err_msg = str(e.stderr).strip() or str(e)
                 result.status = SyncStatus.ERROR
                 result.message = f"Push failed: {err_msg[:200]}"
@@ -389,21 +417,26 @@ class GitRepo:
                                 content = "[File too large for preview, please resolve manually]"
                             else:
                                 content = raw.decode("utf-8", errors="replace")
-                        except Exception:
+                        except (IOError, OSError, UnicodeDecodeError):
                             content = "[binary or unreadable]"
+                        except Exception as e:
+                            logger.debug(f"Unexpected error reading blob for conflict preview: {e}")
+                            content = "[error reading content]"
                             
-                        if stage == 2:
-                            our_content = content
-                        elif stage == 3:
-                            their_content = content
+                    if stage == 2:
+                        our_content = content
+                    elif stage == 3:
+                        their_content = content
                             
                     conflicts.append(ConflictInfo(
                         path=path_str, 
                         our_content=our_content, 
                         their_content=their_content
                     ))
+            except get_git().GitCommandError as e:
+                logger.error(f"Failed to detect conflicts (Git error): {e}")
             except Exception as e:
-                logger.error(f"Failed to detect conflicts: {e}")
+                logger.exception(f"Unexpected error during conflict detection: {e}")
         return conflicts
 
     def resolve_conflict(self, path: str, resolved_content: str) -> bool:
@@ -415,8 +448,14 @@ class GitRepo:
                 full_path.write_text(resolved_content, encoding="utf-8")
                 self._repo.index.add([path])
                 return True
+            except (IOError, OSError) as e:
+                logger.error(f"Failed to write resolved content to {path}: {e}")
+                return False
+            except get_git().GitCommandError as e:
+                logger.error(f"Failed to add resolved file {path} to Git: {e}")
+                return False
             except Exception as e:
-                logger.error(f"Failed to resolve conflict for {path}: {e}")
+                logger.exception(f"Unexpected error resolving conflict for {path}: {e}")
                 return False
 
     # ── Remote & History ───────────────────────────────────────────────
@@ -476,6 +515,7 @@ class GitRepo:
                 "*.log",
                 "noteration.log",
                 ".noteration/db.sqlite",
+                ".noteration/link_graph.json",
                 "literature/**/*.pdf",
                 "__pycache__/",
                 ".DS_Store",
@@ -488,31 +528,39 @@ class GitRepo:
                     modified = True
             
             if modified:
-                gitignore_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                # Atomic write for .gitignore
+                tmp_path = gitignore_path.with_suffix(".tmp")
                 try:
+                    tmp_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                    tmp_path.replace(gitignore_path)
                     self._repo.index.add([".gitignore"])
                 except Exception as e:
-                    logger.debug(f"Failed to add .gitignore to index: {e}")
+                    logger.debug(f"Failed to update .gitignore: {e}")
+                    if tmp_path.exists():
+                        tmp_path.unlink()
             
-            # Attempt to untrack log files if they were accidentally committed
+            # Attempt to untrack log and cache files if they were accidentally committed
             try:
                 # Use --ignore-unmatch to avoid errors if files aren't tracked
                 self._repo.git.rm("--cached", ".noteration/noteration.log", "--ignore-unmatch")
                 self._repo.git.rm("--cached", "noteration.log", "--ignore-unmatch")
+                self._repo.git.rm("--cached", ".noteration/db.sqlite", "--ignore-unmatch")
+                self._repo.git.rm("--cached", ".noteration/link_graph.json", "--ignore-unmatch")
             except Exception as e:
-                logger.debug(f"Failed to untrack log files: {e}")
+                logger.debug(f"Failed to untrack generated files: {e}")
 
     @classmethod
     def init(cls, vault_path: Path, remote_url: str = "") -> "GitRepo":
         if not (vault_path / ".git").exists():
-            repo = git.Repo.init(vault_path)
+            repo = get_git().Repo.init(vault_path)
             # Default gitignore
             gitignore = vault_path / ".gitignore"
             if not gitignore.exists():
                 gitignore.write_text(
-                    "# Noteration — do not sync binary PDFs or logs\n"
+                    "# Noteration — do not sync binary PDFs, cache or logs\n"
                     "literature/**/*.pdf\n"
                     ".noteration/db.sqlite\n"
+                    ".noteration/link_graph.json\n"
                     ".noteration/*.log\n"
                     "*.log\n"
                     "__pycache__/\n"

@@ -23,6 +23,7 @@ from noteration.search.vault_search import VaultSearch, SearchResult
 class SearchWorker(QObject):
     """Worker to perform search in a background thread."""
     results_ready = Signal(list)
+    error = Signal(str)
     finished = Signal()
 
     def __init__(
@@ -56,14 +57,15 @@ class SearchWorker(QObject):
                 target_type = type_map.get(self.scope)
                 if target_type:
                     all_results = [r for r in all_results if r.type == target_type]
-            
+
             self.results_ready.emit(all_results)
         except Exception as e:
-            print(f"[SearchWorker] Error: {e}")
+            from noteration.logger import get_logger
+            get_logger(__name__).exception(f"Background search failed: {e}")
+            self.error.emit(f"Search failed: {str(e)}")
             self.results_ready.emit([])
         finally:
             self.finished.emit()
-
 
 class SearchDialog(QDialog):
     """Dialog for global vault search."""
@@ -282,6 +284,7 @@ class SearchDialog(QDialog):
         # Connect signals
         self._search_thread.started.connect(self._search_worker.run)
         self._search_worker.results_ready.connect(self._on_results_ready)
+        self._search_worker.error.connect(self._on_search_error)
         self._search_worker.finished.connect(self._search_thread.quit)
         self._search_worker.finished.connect(self._clear_search_thread)
         self._search_thread.finished.connect(self._search_thread.deleteLater)
@@ -294,9 +297,15 @@ class SearchDialog(QDialog):
         self._search_worker = None
 
     def _on_results_ready(self, results: list[SearchResult]) -> None:
+        self._status_label.setStyleSheet("") # Reset style
         self._results = results
         self._current_index = -1
         self._populate_tree(results)
+        self._status_label.setText(f"Found {len(results)} results")
+
+    def _on_search_error(self, message: str) -> None:
+        self._status_label.setText(f"Error: {message}")
+        self._status_label.setStyleSheet("color: #c0392b;") # Red color
 
     def _populate_tree(self, results: list[SearchResult]) -> None:
         self._results_tree.clear()

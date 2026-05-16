@@ -45,10 +45,14 @@ def _save_vault(vault_path: Path, name: str) -> None:
         vaults.append({"name": name, "path": str(vault_path)})
     try:
         import tomli_w
-        with open(_VAULTS_FILE, "wb") as f:
+        # Atomic write
+        tmp_path = _VAULTS_FILE.with_suffix(".tmp")
+        with open(tmp_path, "wb") as f:
             tomli_w.dump({"vaults": vaults}, f)
-    except ImportError:
-        pass
+        tmp_path.replace(_VAULTS_FILE)
+    except Exception as e:
+        from noteration.logger import get_logger
+        get_logger(__name__).debug(f"Failed to persist known vaults list: {e}")
 
 
 def _remove_vault(vault_path: Path) -> None:
@@ -58,10 +62,14 @@ def _remove_vault(vault_path: Path) -> None:
     vaults = [v for v in vaults if v.get("path") != str(vault_path)]
     try:
         import tomli_w
-        with open(_VAULTS_FILE, "wb") as f:
+        # Atomic write
+        tmp_path = _VAULTS_FILE.with_suffix(".tmp")
+        with open(tmp_path, "wb") as f:
             tomli_w.dump({"vaults": vaults}, f)
-    except ImportError:
-        pass
+        tmp_path.replace(_VAULTS_FILE)
+    except Exception as e:
+        from noteration.logger import get_logger
+        get_logger(__name__).debug(f"Failed to persist known vaults list: {e}")
 
 
 class VaultPickerDialog(QDialog):

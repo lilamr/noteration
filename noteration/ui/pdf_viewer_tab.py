@@ -7,8 +7,9 @@ PDF viewer tab with annotations, sidebar, and reading progress.
 from __future__ import annotations
 
 import uuid
+import collections
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
@@ -24,6 +25,9 @@ from PySide6.QtGui import QShortcut, QKeySequence, QImage, QPixmap, QColor
 
 from noteration.pdf.annotations import AnnotationStore, Annotation, hash_pdf
 from noteration.pdf.annotation_overlay import AnnotationOverlay
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
 
 # ── backend detection ─────────────────────────────────────────────────────
 
@@ -34,14 +38,92 @@ try:
 except ImportError:
     _HAS_QTPDF = False
 
-try:
-    import fitz  # type: ignore
-    _HAS_FITZ = True
-except ImportError:
-    _HAS_FITZ = False
+_fitz: Any = None
+_HAS_FITZ: bool | None = None
+
+def _get_fitz() -> Any:
+    global _fitz, _HAS_FITZ
+    if _HAS_FITZ is None:
+        try:
+            import fitz as _f
+            _fitz = _f
+            _HAS_FITZ = True
+            # Silence MuPDF warnings/errors
+            try:
+                _fitz.TOOLS.mupdf_display_errors(False)
+            except Exception as e:
+                logger.debug(f"Could not silence MuPDF errors: {e}")
+
+        except ImportError:
+            _HAS_FITZ = False
+    return _fitz
+
+def _has_fitz() -> bool:
+    _get_fitz()
+    return bool(_HAS_FITZ)
 
 
-# ── MuPDF page widget ─────────────────────────────────────────────────────
+# ── Global Cache ──────────────────────────────────────────────────────────
+
+class _GlobalRenderCache:
+    """
+    Cost-based LRU cache for PDF page pixmaps shared across all viewer tabs.
+    Prevents memory bloat by evicting based on estimated memory usage (250MB limit).
+    """
+    _instance: _GlobalRenderCache | None = None
+    _cache: collections.OrderedDict[tuple[str, int, float], tuple[QPixmap, int]]
+    _MAX_COST: int
+    _current_cost: int
+    
+    def __new__(cls) -> _GlobalRenderCache:
+        if cls._instance is None:
+            cls._instance = super(_GlobalRenderCache, cls).__new__(cls)
+            cls._instance._cache = collections.OrderedDict()
+            # 250 MB limit. ARGB32 pixmaps can be huge.
+            cls._instance._MAX_COST = 250 * 1024 * 1024 
+            cls._instance._current_cost = 0
+        return cls._instance
+
+    def get(self, pdf_path: str, page_idx: int, zoom: float) -> QPixmap | None:
+        key = (pdf_path, page_idx, round(zoom, 2))
+        if key in self._cache:
+            self._cache.move_to_end(key)
+            return self._cache[key][0]
+        return None
+
+    def set(self, pdf_path: str, page_idx: int, zoom: float, pixmap: QPixmap) -> None:
+        key = (pdf_path, page_idx, round(zoom, 2))
+        # Estimate cost in bytes: width * height * (depth / 8)
+        cost = pixmap.width() * pixmap.height() * (pixmap.depth() // 8)
+        
+        if key in self._cache:
+            self._current_cost -= self._cache[key][1]
+        
+        # Evict until we have enough space for the new pixmap
+        while self._current_cost + cost > self._MAX_COST and self._cache:
+            _, (_, old_cost) = self._cache.popitem(last=False)
+            self._current_cost -= old_cost
+            
+        self._cache[key] = (pixmap, cost)
+        self._current_cost += cost
+        self._cache.move_to_end(key)
+
+    def clear(self, pdf_path: str | None = None) -> None:
+        if pdf_path:
+            keys_to_del = [k for k in self._cache if k[0] == pdf_path]
+            for k in keys_to_del:
+                val = self._cache.pop(k, None)
+                if val:
+                    self._current_cost -= val[1]
+        else:
+            self._cache.clear()
+            self._current_cost = 0
+
+_RENDER_CACHE = _GlobalRenderCache()
+
+
+# ── MuPdf page widget ─────────────────────────────────────────────────────
+
 
 class MuPdfPageWidget(QWidget):
     """
@@ -49,12 +131,14 @@ class MuPdfPageWidget(QWidget):
     """
 
     def __init__(self, doc, page_idx: int, zoom: float,
-                 overlay: AnnotationOverlay, parent=None) -> None:
+                 overlay: AnnotationOverlay, pdf_path: str, parent=None) -> None:
         super().__init__(parent)
         self._doc      = doc
         self._page_idx = page_idx
         self._zoom     = zoom
         self._overlay  = overlay
+        self._pdf_path = pdf_path
+        self._rendered = False
 
         # Container for stacking image and overlay
         self._container = QWidget(self)
@@ -71,31 +155,82 @@ class MuPdfPageWidget(QWidget):
         layout.addWidget(self._container, 0, Qt.AlignmentFlag.AlignCenter)
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._render()
+        self._setup_placeholder()
 
-    def _render(self) -> None:
+    def _setup_placeholder(self) -> None:
+        """Set fixed size before rendering based on PDF page rect."""
+        if not self._doc:
+            return
+            
         try:
             page = self._doc[self._page_idx]
+            r = page.rect
+            w = int(r.width * self._zoom * 2.0)
+            h = int(r.height * self._zoom * 2.0)
+            self._img_label.setFixedSize(w, h)
+            self._container.setFixedSize(w, h)
+            self._overlay.setGeometry(0, 0, w, h)
+            self.updateGeometry()
+        except (AttributeError, ValueError, IndexError) as e:
+            logger.error(f"Failed to setup placeholder for page {self._page_idx}: {e}")
+        except Exception as e:
+            logger.exception(f"Unexpected error in _setup_placeholder for page {self._page_idx}: {e}")
+
+    def render_if_needed(self) -> None:
+        """Trigger render if not already rendered."""
+        if not self._rendered:
+            self._render()
+            self._rendered = True
+
+    def _render(self) -> None:
+        # Check global cache first
+        cached = _RENDER_CACHE.get(self._pdf_path, self._page_idx, self._zoom)
+        if cached:
+            self._img_label.setPixmap(cached)
+            self._img_label.setFixedSize(cached.size())
+            self._container.setFixedSize(cached.size())
+            self._overlay.setGeometry(0, 0, cached.width(), cached.height())
+            self._overlay.raise_()
+            self.updateGeometry()
+            return
+
+        if not self._doc:
+            return
+
+        try:
+            fitz = _get_fitz()
+            page = self._doc[self._page_idx]
             # Render at 2x zoom for sharp baseline, then scale to target zoom
-            # PyMuPDF Matrix uses (scale_x, scale_y)
             mat  = fitz.Matrix(self._zoom * 2.0, self._zoom * 2.0)
             pix  = page.get_pixmap(matrix=mat, alpha=False)
             img  = QImage(pix.samples, pix.width, pix.height,
                           pix.stride, QImage.Format.Format_RGB888)
             qpix = QPixmap.fromImage(img)
             
+            # Store in global cache
+            _RENDER_CACHE.set(self._pdf_path, self._page_idx, self._zoom, qpix)
+
             self._img_label.setPixmap(qpix)
             self._img_label.setFixedSize(qpix.size())
             self._container.setFixedSize(qpix.size())
             self._overlay.setGeometry(0, 0, qpix.width(), qpix.height())
             self._overlay.raise_()
             self.updateGeometry()
+        except (AttributeError, ValueError, IndexError) as e:
+             self._img_label.setText(f"[Page data error: {e}]")
+             logger.error(f"Render data error for page {self._page_idx}: {e}")
         except Exception as e:
-            self._img_label.setText(f"[Failed to render page {self._page_idx}: {e}]")
+            self._img_label.setText(f"[Render failed: {e}]")
+            logger.exception(f"Unexpected render failure for page {self._page_idx}: {e}")
 
     def update_zoom(self, zoom: float) -> None:
         self._zoom = zoom
-        self._render()
+        self._rendered = False
+        if self.isVisible():
+            self._render()
+            self._rendered = True
+        else:
+            self._setup_placeholder()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -124,6 +259,7 @@ class MuPdfViewer(QWidget):
         self._overlays: list[AnnotationOverlay] = []
         self._page_widgets: list[MuPdfPageWidget] = []
 
+        fitz = _get_fitz()
         self._doc = fitz.open(str(pdf_path))
 
         root = QVBoxLayout(self)
@@ -164,6 +300,10 @@ class MuPdfViewer(QWidget):
     def overlays(self) -> list[AnnotationOverlay]:
         return self._overlays
 
+    def invalidate_render_cache(self) -> None:
+        """Clear the pixmap cache for this PDF."""
+        _RENDER_CACHE.clear(str(self.pdf_path))
+
     def _build_pages(self) -> None:
         self._overlays.clear()
         self._page_widgets.clear()
@@ -181,22 +321,32 @@ class MuPdfViewer(QWidget):
             overlay.set_fitz_page(self._doc[i])
             self._overlays.append(overlay)
 
-            pw = MuPdfPageWidget(self._doc, i, self._zoom, overlay)
+            pw = MuPdfPageWidget(self._doc, i, self._zoom, overlay, pdf_path=str(self.pdf_path))
             self._page_widgets.append(pw)
             self._layout.addWidget(pw)
 
         self._container.adjustSize()
+        # Initial render of visible pages
+        QTimer.singleShot(100, self._render_visible_pages)
 
     def set_zoom(self, zoom: float) -> None:
+        old_zoom = self._zoom
         self._zoom = zoom
+        # Invalidate cache if zoom level changed significantly
+        if round(old_zoom, 2) != round(zoom, 2):
+            self.invalidate_render_cache()
+            
         for pw in self._page_widgets:
             pw.update_zoom(zoom)
         self._container.adjustSize()
+        self._render_visible_pages()
 
     def scroll_to_page(self, page_idx: int) -> None:
         if 0 <= page_idx < len(self._page_widgets):
             pw = self._page_widgets[page_idx]
             self._scroll.ensureWidgetVisible(pw, 0, 0)
+            # Immediate render of the target page
+            pw.render_if_needed()
 
     def set_annotation_mode(self, mode: str) -> None:
         for ov in self._overlays:
@@ -213,10 +363,35 @@ class MuPdfViewer(QWidget):
                 results.append((i, (rect.x0, rect.y0, rect.x1, rect.y1)))
         return results
 
-    # ── Scroll-based page detection ───────────────────────────────────
+    # ── Scroll-based page detection & virtual rendering ───────────────
 
     def _on_scroll(self, _value: int) -> None:
         self._scroll_timer.start()
+        self._render_visible_pages()
+
+    def _render_visible_pages(self) -> None:
+        """Render only pages that are currently visible in the viewport plus a buffer."""
+        viewport_rect = self._scroll.viewport().rect()
+        scroll_y = self._scroll.verticalScrollBar().value()
+        
+        for pw in self._page_widgets:
+            # Map widget position to container coordinates
+            pw_pos = pw.mapTo(self._container, pw.rect().topLeft())
+            
+            # Create a rect for the page in the viewport's coordinate system
+            pw_rect_in_viewport = QRect(
+                pw_pos.x(), 
+                pw_pos.y() - scroll_y,
+                pw.width(), 
+                pw.height()
+            )
+            
+            # Render if visible or within 1 page height buffer (above or below)
+            buffer = pw.height()
+            expanded_viewport = viewport_rect.adjusted(0, -buffer, 0, buffer)
+            
+            if expanded_viewport.intersects(pw_rect_in_viewport):
+                pw.render_if_needed()
 
     def _detect_visible_page(self) -> None:
         """Find the page most visible in the viewport."""
@@ -246,8 +421,17 @@ class MuPdfViewer(QWidget):
             self.page_changed.emit(best_page)
 
     def closeEvent(self, event) -> None:
+        """Explicitly release PDF resources to prevent file locking."""
         if self._doc:
-            self._doc.close()
+            try:
+                # Clear references in children to avoid use-after-close
+                for pw in self._page_widgets:
+                    pw._doc = None
+                self._doc.close()
+            except Exception as e:
+                logger.error(f"Error closing PDF document: {e}")
+            finally:
+                self._doc = None
         super().closeEvent(event)
 
 
@@ -390,7 +574,7 @@ class PdfViewerTab(QWidget):
 
         lay.addStretch()
 
-        be = "QtPdf" if _HAS_QTPDF else ("PyMuPDF" if _HAS_FITZ else "—")
+        be = "QtPdf" if _HAS_QTPDF else ("PyMuPDF" if _has_fitz() else "—")
         lbl_be = QLabel(f"[{be}]")
         lbl_be.setStyleSheet("color:#bbb;font-size:10px;")
         lay.addWidget(lbl_be)
@@ -524,7 +708,7 @@ class PdfViewerTab(QWidget):
             self._doc_ann.pdf_hash = hash_pdf(self.pdf_path)
             self._store.save(self.papis_key)
 
-        if _HAS_FITZ:
+        if _has_fitz():
             self._load_mupdf()
         elif _HAS_QTPDF:
             self._load_qtpdf()
@@ -674,8 +858,7 @@ class PdfViewerTab(QWidget):
             position=[0.0, 0.0],
             note=f"Bookmark page {self._current_page + 1}",
         )
-        self._doc_ann.add(ann)
-        self._store.save(self.papis_key)
+        self._store.add_annotation(self.papis_key, ann)
         self._refresh_annot_list()
 
     # ── Search ────────────────────────────────────────────────────────
@@ -836,8 +1019,7 @@ class PdfViewerTab(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            self._doc_ann.remove(ann.id)
-            self._store.save(self.papis_key)
+            self._store.remove_annotation(self.papis_key, ann.id)
             self._refresh_annot_list()
             if self._mupdf_viewer:
                 self._mupdf_viewer.refresh_overlays()
@@ -859,6 +1041,16 @@ class PdfViewerTab(QWidget):
         mw = QApplication.activeWindow()
         if hasattr(mw, "_follow_wiki_link"):
             mw._follow_wiki_link(Path(note_path).stem)  # type: ignore[union-attr]
+
+    def closeEvent(self, event) -> None:
+        """Clear cache and shutdown viewer when tab is closed."""
+        if self._mupdf_viewer:
+            self._mupdf_viewer.close()
+        
+        # Explicitly clear cache for this PDF
+        _RENDER_CACHE.clear(str(self.pdf_path))
+        
+        super().closeEvent(event)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────

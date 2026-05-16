@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import hashlib
 import uuid
+import threading
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -122,6 +123,7 @@ class AnnotationStore:
         self._images_dir = self._annotations_dir / "images"
         self._images_dir.mkdir(parents=True, exist_ok=True)
         self._cache: dict[str, DocumentAnnotations] = {}
+        self._lock = threading.RLock()
 
     # ------------------------------------------------------------------
     # Load / Save
@@ -131,35 +133,76 @@ class AnnotationStore:
         return self._annotations_dir / f"{papis_key}.json"
 
     def load(self, papis_key: str, force_reload: bool = False) -> DocumentAnnotations:
-        if papis_key in self._cache and not force_reload:
-            return self._cache[papis_key]
+        with self._lock:
+            if papis_key in self._cache and not force_reload:
+                return self._cache[papis_key]
 
-        json_path = self._json_path(papis_key)
-        if json_path.exists():
-            with open(json_path) as f:
-                data = json.load(f)
-            doc = DocumentAnnotations.from_dict(data)
-        else:
-            doc = DocumentAnnotations(
-                papis_key=papis_key,
-                pdf_hash="",
-                pdf_path_relative="",
-            )
+            json_path = self._json_path(papis_key)
+            if json_path.exists():
+                with open(json_path) as f:
+                    data = json.load(f)
+                doc = DocumentAnnotations.from_dict(data)
+            else:
+                doc = DocumentAnnotations(
+                    papis_key=papis_key,
+                    pdf_hash="",
+                    pdf_path_relative="",
+                )
 
-        self._cache[papis_key] = doc
-        return doc
+            self._cache[papis_key] = doc
+            return doc
 
     def save(self, papis_key: str) -> None:
-        if papis_key not in self._cache:
-            return
-        doc = self._cache[papis_key]
-        json_path = self._json_path(papis_key)
-        with open(json_path, "w") as f:
-            json.dump(doc.to_dict(), f, indent=2, ensure_ascii=False)
+        with self._lock:
+            if papis_key not in self._cache:
+                return
+            doc = self._cache[papis_key]
+            json_path = self._json_path(papis_key)
+            # Atomic write: save to temp then rename
+            tmp_path = json_path.with_suffix(".tmp")
+            try:
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    json.dump(doc.to_dict(), f, indent=2, ensure_ascii=False)
+                tmp_path.replace(json_path)
+            except Exception as e:
+                from noteration.logger import get_logger
+                get_logger(__name__).error(f"Failed to save annotations for {papis_key}: {e}")
+                if tmp_path.exists():
+                    tmp_path.unlink()
 
     def save_all(self) -> None:
-        for key in self._cache:
-            self.save(key)
+        with self._lock:
+            for key in list(self._cache.keys()):
+                self.save(key)
+
+    def remove_annotation(self, papis_key: str, ann_id: str) -> bool:
+        with self._lock:
+            doc = self.load(papis_key)
+            if doc.remove(ann_id):
+                self.save(papis_key)
+                return True
+            return False
+
+    def update_annotation(self, papis_key: str, ann_id: str, **kwargs) -> bool:
+        with self._lock:
+            doc = self.load(papis_key)
+            if doc.update(ann_id, **kwargs):
+                self.save(papis_key)
+                return True
+            return False
+
+    def add_annotation(self, papis_key: str, annotation: Annotation) -> None:
+        with self._lock:
+            doc = self.load(papis_key)
+            doc.add(annotation)
+            self.save(papis_key)
+
+    def update_metadata(self, papis_key: str, last_page: int, reading_progress: float) -> None:
+        with self._lock:
+            doc = self.load(papis_key)
+            doc.last_page = last_page
+            doc.reading_progress = reading_progress
+            self.save(papis_key)
 
     # ------------------------------------------------------------------
     # Helper: create new highlight
@@ -178,22 +221,23 @@ class AnnotationStore:
         type_: AnnotationType = "highlight",
         quads: list[list[float]] | None = None,
     ) -> Annotation:
-        ann = Annotation(
-            id=f"ann-{uuid.uuid4().hex[:8]}",
-            type=type_,
-            page=page,
-            rect=rect,
-            quads=quads,
-            text_content=text_content,
-            image_path=image_path,
-            color=color,
-            note=note,
-            tags=tags or [],
-        )
-        doc = self.load(papis_key)
-        doc.add(ann)
-        self.save(papis_key)
-        return ann
+        with self._lock:
+            ann = Annotation(
+                id=f"ann-{uuid.uuid4().hex[:8]}",
+                type=type_,
+                page=page,
+                rect=rect,
+                quads=quads,
+                text_content=text_content,
+                image_path=image_path,
+                color=color,
+                note=note,
+                tags=tags or [],
+            )
+            doc = self.load(papis_key)
+            doc.add(ann)
+            self.save(papis_key)
+            return ann
 
     def new_comment(
         self,
@@ -203,18 +247,19 @@ class AnnotationStore:
         note: str,
         tags: list[str] | None = None,
     ) -> Annotation:
-        ann = Annotation(
-            id=f"ann-{uuid.uuid4().hex[:8]}",
-            type="comment",
-            page=page,
-            position=position,
-            note=note,
-            tags=tags or [],
-        )
-        doc = self.load(papis_key)
-        doc.add(ann)
-        self.save(papis_key)
-        return ann
+        with self._lock:
+            ann = Annotation(
+                id=f"ann-{uuid.uuid4().hex[:8]}",
+                type="comment",
+                page=page,
+                position=position,
+                note=note,
+                tags=tags or [],
+            )
+            doc = self.load(papis_key)
+            doc.add(ann)
+            self.save(papis_key)
+            return ann
 
     # ------------------------------------------------------------------
     # Image Helpers
@@ -225,11 +270,12 @@ class AnnotationStore:
         return self._images_dir
 
     def save_image(self, papis_key: str, ann_id: str, image_bytes: bytes) -> str:
-        filename = f"{papis_key}_{ann_id}.png"
-        image_path = self._images_dir / filename
-        with open(image_path, "wb") as f:
-            f.write(image_bytes)
-        return str(image_path)
+        with self._lock:
+            filename = f"{papis_key}_{ann_id}.png"
+            image_path = self._images_dir / filename
+            with open(image_path, "wb") as f:
+                f.write(image_bytes)
+            return str(image_path)
 
 
 # ------------------------------------------------------------------

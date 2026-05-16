@@ -19,9 +19,48 @@ from PySide6.QtWidgets import (
     QFileDialog, QInputDialog, QMessageBox, QMenu, QApplication,
     QComboBox,
 )
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal, QTimer, QAbstractListModel, QModelIndex
 
-from noteration.literature.papis_bridge import PapisBridge, LiteratureEntry
+from noteration.literature.papis_bridge import LiteratureEntry, get_yaml
+
+
+# ── Data Model ──────────────────────────────────────────────────────────
+
+class LiteratureModel(QAbstractListModel):
+    """Efficient model for literature entries to handle large libraries."""
+    def __init__(self, entries: list[LiteratureEntry] | None = None, parent=None):
+        super().__init__(parent)
+        self._entries = entries or []
+
+    def rowCount(self, parent=QModelIndex()):
+        return len(self._entries)
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid() or not (0 <= index.row() < len(self._entries)):
+            return None
+        
+        entry = self._entries[index.row()]
+        
+        if role == Qt.ItemDataRole.DisplayRole:
+            coll_str = f" [{', '.join(entry.collections)}]" if entry.collections else ""
+            return (f"@{entry.key}{coll_str}\n"
+                    f"{entry.title[:55]}\n"
+                    f"{entry.author[:35]} · {entry.year}")
+        
+        elif role == Qt.ItemDataRole.UserRole:
+            return entry
+            
+        return None
+
+    def set_entries(self, entries: list[LiteratureEntry]):
+        self.beginResetModel()
+        self._entries = entries
+        self.endResetModel()
+
+    def get_entry(self, row: int) -> LiteratureEntry | None:
+        if 0 <= row < len(self._entries):
+            return self._entries[row]
+        return None
 
 
 # ── Dialog: Add Document ────────────────────────────────────────────────
@@ -337,9 +376,20 @@ class LiteratureTab(QWidget):
         self._bridge    = vault.papis
         self._entries:  list[LiteratureEntry] = []
         self._current:  LiteratureEntry | None = None
+        self._library   = vault.library
 
         self._setup_ui()
+        
+        # Connect shared controller signals once
+        self._library.entries_loaded.connect(self._on_entries_loaded)
+        self._library.error_occurred.connect(self._on_load_error)
+        
         QTimer.singleShot(100, self._load_entries)
+
+    def shutdown(self) -> None:
+        """Stop background threads handled by controllers."""
+        # No longer manages its own thread
+        pass
 
     def refresh(self) -> None:
         """Public method to refresh the list - called when tab becomes visible."""
@@ -532,11 +582,29 @@ class LiteratureTab(QWidget):
         scroll.setWidget(container)
         return scroll
 
-    # ── Data loading ──────────────────────────────────────────────────
+# ── Data loading ──────────────────────────────────────────────────
 
     def _load_entries(self, force: bool = False) -> None:
-        self._bridge = PapisBridge(self.config.papis_library)
-        self._entries = self._bridge.all_entries(force_reload=force)
+        """Load Papis entries using the specialized library controller."""
+        # Use the shared controller from vault manager
+        self._library = self.vault.library
+        self._bridge = self._library.bridge
+        
+        # Show loading indicator in list
+        self._entry_list.clear()
+        loading_item = QListWidgetItem("Loading library...")
+        loading_item.setFlags(loading_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+        self._entry_list.addItem(loading_item)
+        
+        # Disable collection combo during load
+        self._collection_combo.setEnabled(False)
+        
+        # Trigger load
+        self._library.load_entries(force=force)
+
+    def _on_entries_loaded(self, entries: list[LiteratureEntry]) -> None:
+        self._entries = entries
+        self._collection_combo.setEnabled(True)
         
         # Collect all unique collections
         all_collections = set()
@@ -559,6 +627,13 @@ class LiteratureTab(QWidget):
         self._collection_combo.blockSignals(False)
         
         self._filter_and_populate()
+
+    def _on_load_error(self, message: str) -> None:
+        """Handle library loading error and notify user."""
+        self._entry_list.clear()
+        self._entry_list.addItem(f"Error: {message}")
+        self._collection_combo.setEnabled(True)
+        QMessageBox.critical(self, "Library Load Error", message)
 
     def _filter_and_populate(self) -> None:
         collection_filter = self._collection_combo.currentText()
@@ -603,8 +678,10 @@ class LiteratureTab(QWidget):
     def _on_entry_selected(self, current: QListWidgetItem, _prev) -> None:
         if not current:
             return
-        self._current = current.data(Qt.ItemDataRole.UserRole)
-        self._show_detail(self._current)
+        data = current.data(Qt.ItemDataRole.UserRole)
+        if isinstance(data, LiteratureEntry):
+            self._current = data
+            self._show_detail(self._current)
 
     def _show_detail(self, e: LiteratureEntry) -> None:
         self._detail_title.setText(e.title or e.key)
@@ -682,7 +759,6 @@ class LiteratureTab(QWidget):
 
     def _on_copy_key(self) -> None:
         if self._current:
-            from PySide6.QtWidgets import QApplication
             QApplication.clipboard().setText(f"@{self._current.key}")
 
     def _on_create_note(self) -> None:
@@ -811,7 +887,9 @@ class LiteratureTab(QWidget):
         entry.collections.append(collection)
         entry._raw["collections"] = entry.collections
         try:
-            import yaml  # type: ignore[import-untyped]
+            yaml = get_yaml()
+            if not yaml:
+                return False
             with open(entry.info_path, "w") as f:
                 yaml.dump(entry._raw, f)
             return True
@@ -844,7 +922,9 @@ class LiteratureTab(QWidget):
         entry.collections.remove(collection)
         entry._raw["collections"] = entry.collections
         try:
-            import yaml  # type: ignore[import-untyped]
+            yaml = get_yaml()
+            if not yaml:
+                return False
             with open(entry.info_path, "w") as f:
                 yaml.dump(entry._raw, f)
             return True
@@ -901,14 +981,15 @@ class LiteratureTab(QWidget):
         item = self._entry_list.itemAt(pos)
         if not item:
             return
-        entry: LiteratureEntry | None = item.data(Qt.ItemDataRole.UserRole)
-        if not entry:
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(data, LiteratureEntry):
             return
+        entry: LiteratureEntry = data
 
         menu = QMenu(self)
 
         # Remove tag submenu
-        if entry and entry.tags:
+        if entry.tags:
             tag_menu = menu.addMenu("Delete Tag")
             for tag in entry.tags:
                 act = tag_menu.addAction(tag)
@@ -916,7 +997,7 @@ class LiteratureTab(QWidget):
                     lambda checked=False, t=tag: self._on_remove_tag(t))
 
         # Remove collection submenu
-        if entry and entry.collections:
+        if entry.collections:
             coll_menu = menu.addMenu("Delete Collection")
             for coll in entry.collections:
                 act = coll_menu.addAction(coll)
@@ -940,8 +1021,8 @@ class LiteratureTab(QWidget):
         """Update list item text without full reload."""
         for i in range(self._entry_list.count()):
             item = self._entry_list.item(i)
-            e: LiteratureEntry = item.data(Qt.ItemDataRole.UserRole)
-            if e.key == entry.key:
+            e = item.data(Qt.ItemDataRole.UserRole)
+            if isinstance(e, LiteratureEntry) and e.key == entry.key:
                 label = (f"@{entry.key}\n{entry.title[:55]}\n"
                          f"{entry.author[:35]} · {entry.year}")
                 item.setText(label)

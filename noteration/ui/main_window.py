@@ -30,6 +30,9 @@ from noteration.ui.graph_view import GraphView
 from noteration.search.search_dialog import SearchDialog
 
 from noteration.vault_manager import VaultManager
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -45,10 +48,8 @@ class MainWindow(QMainWindow):
         # Shortcuts for MainWindow accessibility
         self.vault_path = self.vault.vault_path
         self.config     = self.vault.config
-        self._papis     = self.vault.papis
         self._pdf_index = self.vault.pdf_index
         self._graph     = self.vault.graph
-        self._git_repo  = self.vault.git_repo
 
         self._focus_mode_active = False
         self._update_thread: Optional[CheckUpdateThread] = None
@@ -402,7 +403,7 @@ class MainWindow(QMainWindow):
         """Open the global vault search dialog."""
         current = self.tabs.currentWidget()
 
-        dlg = SearchDialog(self.vault_path, self._papis, self)
+        dlg = SearchDialog(self.vault_path, self.vault.papis, self)
         dlg.note_requested.connect(self._open_note)
         dlg.literature_requested.connect(self._open_literature_by_key)
         dlg.annotation_requested.connect(self._open_pdf_by_key)
@@ -426,9 +427,9 @@ class MainWindow(QMainWindow):
 
     def _open_pdf_by_key(self, papis_key: str, page: int) -> None:
         """Open the PDF viewer at a specific page."""
-        if not self._papis:
+        if not self.vault.papis:
             return
-        entry = self._papis.get(papis_key)
+        entry = self.vault.papis.get(papis_key)
         if entry and entry.pdf_path and entry.pdf_path.exists():
             self._open_pdf(entry.pdf_path, papis_key)
             # Navigate to the target page (page parameter is 1-indexed)
@@ -700,7 +701,7 @@ class MainWindow(QMainWindow):
         )
         if path:
             from noteration.literature.bibtex_export import BibtexExporter
-            n = BibtexExporter(self._papis).export_all(Path(path))
+            n = BibtexExporter(self.vault.papis).export_all(Path(path))
             QMessageBox.information(
                 self, "Export Finished", f"{n} entries → {path}")
 
@@ -717,7 +718,7 @@ class MainWindow(QMainWindow):
         )
         if path:
             from noteration.literature.bibtex_export import BibtexExporter
-            n = BibtexExporter(self._papis).export_from_note(
+            n = BibtexExporter(self.vault.papis).export_from_note(
                 w.file_path, Path(path))
             QMessageBox.information(
                 self, "Export Finished",
@@ -819,11 +820,30 @@ class MainWindow(QMainWindow):
     # ── Close ─────────────────────────────────────────────────────────
 
     def closeEvent(self, event) -> None:
-        # Ensure all unsaved changes are committed
+        """Ensure all resources are cleaned up before closing."""
+        logger.info("Main window closing...")
+        
+        # 1. Stop update thread if running
+        if self._update_thread and self._update_thread.isRunning():
+            self._update_thread.quit()
+            if not self._update_thread.wait(1000):
+                self._update_thread.terminate()
+            self._update_thread = None
+
+        # 2. Stop tab threads (e.g., Literature loading) and save modified notes
         for i in range(self.tabs.count()):
             w = self.tabs.widget(i)
-            if isinstance(w, EditorTab) and w.is_modified:
-                w.save()
-        # Persist engine state via the manager
-        self.vault.save_all()
+            if w is not None:
+                # First save if it's an editor tab
+                from noteration.ui.editor_tab import EditorTab
+                if isinstance(w, EditorTab) and w.is_modified:
+                    w.save()
+                
+                # Then call shutdown if available
+                if hasattr(w, "shutdown"):
+                    w.shutdown()
+        
+        # 3. Shutdown vault manager (stops background threads + performs final save_all)
+        self.vault.shutdown()
+        
         super().closeEvent(event)

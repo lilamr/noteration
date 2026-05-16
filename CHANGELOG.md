@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-05-16
+
+### Added
+- **Thread Safety**: Implemented global `RLock` across all data engines (`LinkGraph`, `PdfIndex`, `AnnotationStore`, `NoterationConfig`) to prevent race conditions during background operations.
+- **Data Integrity**: Added Atomic Write pattern ("Write-to-Temp-then-Rename") for all JSON and TOML storage to prevent file corruption.
+- **Advanced Memory Management**: Replaced static PDF caching with a Cost-Based LRU Cache (250MB limit), automatically managing RAM usage for high-resolution renders.
+- **Robust Shutdown**: Improved shutdown orchestration with a blocking wait mechanism and early-exit support for long-running background tasks.
+- **Structured Logging**: Enhanced observability with detailed tracebacks in logs and visual error notifications in the UI status bar and dialogs.
+
+### Changed
+- **Architecture**: Decoupled `VaultManager` into specialized controllers (`IndexController`, `SyncController`, `LibraryController`) for better maintainability.
+- **Papis Integration**: Standardized the Papis interface to use direct YAML parsing for reads and a robust CLI wrapper for writes, removing unstable Python API dependencies.
+- **PDF Viewer**: Explicit resource release on tab closure to prevent file handle leaks.
+
 ## [1.1.2] - 2026-05-10
 
 ### Fixed

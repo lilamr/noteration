@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import sys
 import copy
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +61,7 @@ class NoterationConfig:
     def __init__(self, vault_path: Path) -> None:
         self.vault_path = vault_path
         self._config_path = vault_path / ".noteration" / "config.toml"
+        self._lock = threading.RLock()
         self._data: dict[str, Any] = {}
         self._load()
 
@@ -68,33 +70,50 @@ class NoterationConfig:
     # ------------------------------------------------------------------
 
     def _load(self) -> None:
-        self._data = copy.deepcopy(_DEFAULTS)
-        if self._config_path.exists():
-            with open(self._config_path, "rb") as f:
-                user_data = tomllib.load(f)
-            # deep merge
-            for section, values in user_data.items():
-                if section in self._data and isinstance(self._data[section], dict):
-                    self._data[section] = {**self._data[section], **values}
-                else:
-                    self._data[section] = values
+        with self._lock:
+            self._data = copy.deepcopy(_DEFAULTS)
+            if self._config_path.exists():
+                try:
+                    with open(self._config_path, "rb") as f:
+                        user_data = tomllib.load(f)
+                    # deep merge
+                    for section, values in user_data.items():
+                        if section in self._data and isinstance(self._data[section], dict):
+                            self._data[section] = {**self._data[section], **values}
+                        else:
+                            self._data[section] = values
+                except Exception as e:
+                    import logging
+                    logging.getLogger("noteration").error(f"Failed to load config: {e}")
 
     def save(self) -> None:
         if not _HAS_TOMLI_W:
             return
-        self._config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._config_path, "wb") as f:
-            tomli_w.dump(self._data, f)
+        with self._lock:
+            self._config_path.parent.mkdir(parents=True, exist_ok=True)
+            # Atomic write: save to temp then rename
+            tmp_path = self._config_path.with_suffix(".tmp")
+            try:
+                with open(tmp_path, "wb") as f:
+                    tomli_w.dump(self._data, f)
+                tmp_path.replace(self._config_path)
+            except Exception as e:
+                import logging
+                logging.getLogger("noteration").error(f"Failed to save config: {e}")
+                if tmp_path.exists():
+                    tmp_path.unlink()
 
     # ------------------------------------------------------------------
     # Typed accessors
     # ------------------------------------------------------------------
 
     def get(self, section: str, key: str, default: Any = None) -> Any:
-        return self._data.get(section, {}).get(key, default)
+        with self._lock:
+            return self._data.get(section, {}).get(key, default)
 
     def set(self, section: str, key: str, value: Any) -> None:
-        self._data.setdefault(section, {})[key] = value
+        with self._lock:
+            self._data.setdefault(section, {})[key] = value
 
     # Convenience properties
     @property

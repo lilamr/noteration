@@ -21,12 +21,30 @@ from PySide6.QtGui import (
     QPainter, QColor, QPen, QBrush, QMouseEvent, QPaintEvent,
     QFont, QPainterPath, QPolygonF,
 )
-import fitz
+from typing import Any
 
 from noteration.pdf.annotations import Annotation, AnnotationStore
 from noteration.logger import get_logger
 
 logger = get_logger(__name__)
+
+_fitz: Any = None
+_HAS_FITZ: bool | None = None
+
+def _get_fitz() -> Any:
+    global _fitz, _HAS_FITZ
+    if _HAS_FITZ is None:
+        try:
+            import fitz as _f
+            _fitz = _f
+            _HAS_FITZ = True
+        except ImportError:
+            _HAS_FITZ = False
+    return _fitz
+
+def _has_fitz() -> bool:
+    _get_fitz()
+    return bool(_HAS_FITZ)
 
 
 class AnnotationOverlay(QWidget):
@@ -80,9 +98,10 @@ class AnnotationOverlay(QWidget):
             self._page_words = []
 
     def _extract_text_from_rect(self, rect_pts: list[float]) -> str:
-        if self._fitz_page is None:
+        if self._fitz_page is None or not _has_fitz():
             return ""
         try:
+            fitz = _get_fitz()
             x0, y0, x1, y1 = rect_pts
             r = fitz.Rect(x0, y0, x1, y1)
             text = self._fitz_page.get_text("text", clip=r)
@@ -416,7 +435,10 @@ class AnnotationOverlay(QWidget):
     # ------------------------------------------------------------------
 
     def _add_highlight(self, rect_pts: list[float]) -> None:
+        if not _has_fitz():
+            return
         try:
+            fitz = _get_fitz()
             x0, y0, x1, y1 = rect_pts
             fitz_rect = fitz.Rect(x0, y0, x1, y1)
             
@@ -463,10 +485,11 @@ class AnnotationOverlay(QWidget):
             logger.error(f"Failed to create annotation: {e}")
 
     def _add_image_highlight(self, rect_pts: list[float]) -> None:
-        if self._fitz_page is None:
+        if self._fitz_page is None or not _has_fitz():
             return
 
         try:
+            fitz = _get_fitz()
             x0, y0, x1, y1 = rect_pts
 
             mat = fitz.Matrix(2.0, 2.0)
@@ -572,8 +595,7 @@ class AnnotationOverlay(QWidget):
         if dlg.exec():
             new_note = dlg.get_note()
             if new_note != ann.note:
-                self._store.load(self.papis_key).update(ann.id, note=new_note)
-                self._store.save(self.papis_key)
+                self._store.update_annotation(self.papis_key, ann.id, note=new_note)
                 self.update()
                 self.annotation_edited.emit(ann)
 

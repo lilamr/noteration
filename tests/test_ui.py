@@ -13,6 +13,7 @@ def test_main_window_init(qtbot, temp_vault):
     qtbot.addWidget(window)
     assert temp_vault.name in window.windowTitle()
     assert window.tabs.count() == 0
+    window.close()
 
 def test_editor_tab_word_count(qtbot, temp_vault):
     """Test word count logic in EditorTab."""
@@ -29,3 +30,5 @@ def test_editor_tab_word_count(qtbot, temp_vault):
     # "Hello", "This", "is", "a", "test" = 5 words
     # Frontmatter and code block should be excluded
     assert tab.word_count() == 5
+    tab.shutdown()
+    vault.shutdown()

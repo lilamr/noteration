@@ -22,6 +22,7 @@ from PySide6.QtCore import (
 )
 
 from noteration.logger import get_logger
+from noteration.literature.papis_bridge import get_yaml
 
 logger = get_logger(__name__)
 
@@ -542,11 +543,7 @@ class PapisPanel(QWidget):
         if not lit_dir.exists():
             return
         
-        # Lazy import yaml
-        try:
-            import yaml  # type: ignore
-        except ImportError:
-            yaml = None
+        yaml = get_yaml()
 
         all_collections = set()
         

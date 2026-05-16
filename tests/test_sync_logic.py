@@ -16,16 +16,18 @@ def test_vault_manager_no_auto_sync(temp_vault):
     vm = VaultManager(temp_vault)
     # Check that _sync_timer doesn't exist or is not started
     assert not hasattr(vm, "_sync_timer") or not vm._sync_timer.isActive()
+    vm.shutdown()
 
 def test_vault_manager_is_syncing_flag(temp_vault, mock_repo):
     """Verify that is_syncing flag can be set and read."""
-    with patch("noteration.vault_manager.GitRepo", return_value=mock_repo):
+    with patch("noteration.controllers.sync_controller.GitRepo", return_value=mock_repo):
         vm = VaultManager(temp_vault)
         assert vm.is_syncing is False
         vm.is_syncing = True
         assert vm.is_syncing is True
         vm.is_syncing = False
         assert vm.is_syncing is False
+        vm.shutdown()
 
 def test_git_repo_status_fetch(temp_vault):
     """Verify that GitRepo.status accepts and uses the fetch parameter."""

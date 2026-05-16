@@ -30,6 +30,11 @@ def get_fitz() -> Any:
         try:
             import fitz  # type: ignore
             _fitz = fitz
+            # Silence MuPDF warnings/errors which can be noisy
+            try:
+                _fitz.TOOLS.mupdf_display_errors(False)
+            except Exception as e:
+                print(f"[DEBUG] Could not silence MuPDF errors: {e}")
         except ImportError:
             pass
     return _fitz

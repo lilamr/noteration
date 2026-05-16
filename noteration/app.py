@@ -4,20 +4,7 @@ Noteration application bootstrap.
 
 from __future__ import annotations
 
-import os
 import sys
-import platform
-
-if platform.system() == "Linux":
-    os.environ.setdefault("LIBVA_DRIVER_NAME", "mesa")
-    os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
-    # Disable portal to avoid registration errors and delays
-    # This must be set before QApplication is created
-    os.environ["QT_XDG_NO_PORTAL"] = "1"
-    os.environ["QT_NO_XDG_DESKTOP_PORTAL"] = "1"
-    # Silence the warning logging itself
-    os.environ["QT_LOGGING_RULES"] = "qt.qpa.services.warning=false"
-
 from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
@@ -63,15 +50,15 @@ def main() -> int:
     setup_logging()
     
     # ── QApplication ──────────────────────────────────────────────────
-    # Set metadata before creating the app instance
+    app = QApplication(sys.argv)
+
+    # Set metadata after creating the app instance
     QApplication.setApplicationName("Noteration")
     QApplication.setApplicationDisplayName("Noteration")
     QApplication.setApplicationVersion(__version__)
     QApplication.setOrganizationName("Noteration")
     QApplication.setOrganizationDomain("noteration.org")
     QApplication.setDesktopFileName("noteration")
-
-    app = QApplication(sys.argv)
 
     # HiDPI support
     try:
