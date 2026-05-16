@@ -40,7 +40,7 @@
       "price": "0",
       "priceCurrency": "USD"
     },
-    "softwareVersion": "1.1.2",
+    "softwareVersion": "1.2.0",
     "description": "A free, open-source desktop application for academic researchers. Combines a Markdown editor, PDF viewer with annotations, Papis literature management, interactive wiki-link graph, and GitHub synchronisation in a single cross-platform app.",
     "url": "https://lilamr.github.io/noteration/",
     "downloadUrl": "https://github.com/lilamr/noteration/releases",
@@ -440,8 +440,7 @@
     .ui-bar {
       background: #222226;
       padding: 0.4rem 0.8rem;
-      border-bottom: 1px solid #2a2a2e;
-      display: flex;
+      border-bottom: 1px solid #2a2a2e;      display: flex;
       gap: 1rem;
       color: #666;
     }
@@ -1069,7 +1068,7 @@
   <!-- HERO -->
   <section class="hero" style="padding:0;">
     <div class="hero-left">
-      <div class="hero-eyebrow">v1.1.2 · Free & Open Source · MIT License</div>
+      <div class="hero-eyebrow">v1.2.0 · Free & Open Source · MIT License</div>
       <h1 class="hero-title">
         Research notes,<br>
         <em>finally organised.</em>
@@ -1103,7 +1102,7 @@
           <span class="t-line">&nbsp;</span>
           <span class="t-line"><span class="t-info">==> Creating virtual environment...</span></span>
           <span class="t-line"><span class="t-info">==> Installing Noteration...</span></span>
-          <span class="t-line"><span class="t-ok">✓  Noteration v1.1.2 installed!</span></span>
+          <span class="t-line"><span class="t-ok">✓  Noteration v1.2.0 installed!</span></span>
           <span class="t-line">&nbsp;</span>
           <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">noteration</span> <span class="t-cursor"></span></span>
         </div>
@@ -1238,10 +1237,11 @@
       <div class="vault-diagram reveal" style="animation-delay:0.2s">
         <div class="vd-title">~/research-vault/</div>
         <span class="t-line"><span class="vd-dir">├── .noteration/</span></span>
-        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">├── config.toml</span>   <span class="vd-comment"># your settings</span></span>
-        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── link_graph.json</span> <span class="vd-comment"># backlink cache</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">├── config.toml</span>   <span class="vd-comment"># settings (synced ✓)</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">├── link_graph.json</span> <span class="vd-comment"># cache (local only)</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── db.sqlite</span>      <span class="vd-comment"># index (local only)</span></span>
         <span class="t-line">&nbsp;</span>
-        <span class="t-line"><span class="vd-dir">├── notes/</span>           <span class="vd-comment"># Markdown files</span></span>
+        <span class="t-line"><span class="vd-dir">├── notes/</span>           <span class="vd-comment"># Markdown (synced ✓)</span></span>
         <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">├── index.md</span></span>
         <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">├── methodology.md</span></span>
         <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── results/</span></span>
@@ -1249,13 +1249,13 @@
         <span class="t-line">&nbsp;</span>
         <span class="t-line"><span class="vd-dir">├── literature/</span>      <span class="vd-comment"># Papis library</span></span>
         <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── creswell2014/</span></span>
-        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">├── info.yaml</span></span>
-        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── creswell2014.pdf</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">├── info.yaml</span>   <span class="vd-comment"># metadata (synced ✓)</span></span>
+        <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── creswell2014.pdf</span> <span class="vd-comment"># large (local only)</span></span>
         <span class="t-line">&nbsp;</span>
-        <span class="t-line"><span class="vd-dir">├── annotations/</span>     <span class="vd-comment"># JSON, synced ✓</span></span>
+        <span class="t-line"><span class="vd-dir">├── annotations/</span>     <span class="vd-comment"># JSON (synced ✓)</span></span>
         <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── &lt;sha256&gt;.json</span></span>
         <span class="t-line">&nbsp;</span>
-        <span class="t-line"><span class="vd-dir">└── attachments/</span>     <span class="vd-comment"># images, files</span></span>
+        <span class="t-line"><span class="vd-dir">└── attachments/</span>     <span class="vd-comment"># assets (synced ✓)</span></span>
         <span class="t-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="vd-file">└── diagram.png</span></span>
         <span class="t-line">&nbsp;</span>
         <span class="t-line"><span class="vd-green">✓  git remote: github.com/you/vault</span></span>
@@ -1476,7 +1476,8 @@
     <div class="changelog-layout">
       <div class="changelog-nav reveal">
         <div style="font-family:'DM Mono',monospace;font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;">Versions</div>
-        <button class="cl-version-btn active">v1.1.2 · Latest</button>
+        <button class="cl-version-btn active">v1.2.0 · Latest</button>
+        <button class="cl-version-btn">v1.1.2</button>
         <button class="cl-version-btn">v1.1.1</button>
         <button class="cl-version-btn">v1.1.0</button>
         <button class="cl-version-btn">v1.0.0 · Initial</button>
@@ -1485,9 +1486,30 @@
       <div>
         <div class="changelog-entry reveal">
           <div class="cl-header">
+            <h3 class="cl-ver">v1.2.0</h3>
+            <div class="cl-date">2026-05-16</div>
+            <div class="cl-badge">latest</div>
+          </div>
+
+          <div class="cl-section-title">Added</div>
+          <ul class="cl-list">
+            <li><strong>Thread Safety</strong> — implemented global <code>RLock</code> across all data engines to prevent race conditions.</li>
+            <li><strong>Data Integrity</strong> — added Atomic Write pattern for all JSON and TOML storage.</li>
+            <li><strong>Memory Management</strong> — new Cost-Based LRU Cache (250MB limit) for high-resolution PDF rendering.</li>
+            <li><strong>Robust Shutdown</strong> — improved orchestration with blocking wait and early-exit support.</li>
+          </ul>
+
+          <div class="cl-section-title">Changed</div>
+          <ul class="cl-list">
+            <li><strong>Architecture</strong> — decoupled <code>VaultManager</code> into specialized controllers for better maintainability.</li>
+            <li><strong>Papis Integration</strong> — standardized YAML-read/CLI-write path, removing unstable Python API dependencies.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry reveal">
+          <div class="cl-header">
             <h3 class="cl-ver">v1.1.2</h3>
             <div class="cl-date">2026-05-10</div>
-            <div class="cl-badge">latest</div>
           </div>
 
           <div class="cl-section-title">Fixed</div>
