@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="noteration/assets/icon_256.png" width="96" alt="Noteration icon"/>
+  <img src="noteration/assets/logo.png" width="128" alt="Noteration icon"/>
 </p>
 
 <h1 align="center">Noteration: Note-Literature-Synchronization</h1>
