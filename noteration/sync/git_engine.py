@@ -302,8 +302,8 @@ class GitRepo:
                                             current_h = calculate_file_hash(full_p)
                                             if current_h != session_hashes[f]:
                                                 modified_session.append(f)
-                                        except Exception:
-                                            pass
+                                        except Exception as e:
+                                            logger.debug(f"Failed to hash session file {f}: {e}")
                                 else:
                                     # Truly new file (not in initial session)
                                     added_session.append(f)
@@ -334,7 +334,8 @@ class GitRepo:
 
                 try:
                     s.staged = repo.git.diff("--cached", name_only=True, env=env_storage).splitlines()[:500]
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Failed to get staged files: {e}")
                     s.staged = []
 
                 if repo.remotes:
@@ -344,8 +345,8 @@ class GitRepo:
                         if tracking:
                             s.ahead = int(repo.git.rev_list("--count", f"{tracking.name}..{branch.name}", env=env_storage))
                             s.behind = int(repo.git.rev_list("--count", f"{branch.name}..{tracking.name}", env=env_storage))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Failed to get ahead/behind counts: {e}")
 
                 try:
                     last = repo.head.commit
@@ -353,8 +354,8 @@ class GitRepo:
                     msg = last.message if isinstance(last.message, str) else last.message.decode("utf-8")
                     s.last_commit_msg = msg.splitlines()[0]
                     s.last_commit_time = datetime.fromtimestamp(last.committed_date, timezone.utc).strftime("%Y-%m-%d %H:%M")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to get last commit info: {e}")
             except Exception as e:
                 logger.exception(f"Unexpected error during status check: {e}")
 
@@ -757,8 +758,8 @@ class GitRepo:
                     for sub in ["notes", "literature", "annotations", "attachments"]:
                         try:
                             self._repo.git.rm("--cached", f"{sub}/**/*.md", f"{sub}/**/*.json", "--ignore-unmatch", env=env)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug(f"Proactive untrack failed for {sub}: {e}")
 
                 self._repo.git.rm("--cached", *to_untrack, "--ignore-unmatch", env=env)
             except Exception as e:
