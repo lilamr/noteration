@@ -8,7 +8,7 @@
   <title>Noteration — Free Markdown Note-Taking App for Researchers | PDF, Papis & Git Sync</title>
   <meta name="description" content="Noteration is a free, open-source desktop app for academic research. Write Markdown notes, annotate PDFs, manage Papis literature, visualise wiki-link graphs, and sync to GitHub — all in one place." />
 
-  <!-- Canonical URL — update to your actual GitHub Pages URL -->
+  <!-- Canonical URL -->
   <link rel="canonical" href="https://lilamr.github.io/noteration/" />
 
   <!-- Robots -->
@@ -40,7 +40,7 @@
       "price": "0",
       "priceCurrency": "USD"
     },
-    "softwareVersion": "1.2.0",
+    "softwareVersion": "2.0.0",
     "description": "A free, open-source desktop application for academic researchers. Combines a Markdown editor, PDF viewer with annotations, Papis literature management, interactive wiki-link graph, and GitHub synchronisation in a single cross-platform app.",
     "url": "https://lilamr.github.io/noteration/",
     "downloadUrl": "https://github.com/lilamr/noteration/releases",
@@ -57,995 +57,7 @@
   <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --ink:      #0e0e0f;
-      --paper:    #f5f2eb;
-      --cream:    #ede9df;
-      --amber:    #c8852a;
-      --amber-lt: #e8a84a;
-      --green:    #2d6a4f;
-      --green-lt: #52b788;
-      --muted:    #7a7060;
-      --rule:     #c9c3b4;
-      --code-bg:  #1a1a1d;
-      --code-fg:  #e8e4da;
-      --white:    #ffffff;
-    }
-
-    html { scroll-behavior: smooth; font-size: 16px; }
-
-    body {
-      background: var(--paper);
-      color: var(--ink);
-      font-family: 'DM Sans', sans-serif;
-      font-weight: 300;
-      line-height: 1.7;
-      overflow-x: hidden;
-    }
-
-    /* ── NOISE TEXTURE OVERLAY ── */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-      pointer-events: none;
-      z-index: 1000;
-      opacity: 0.5;
-    }
-
-    /* ── TYPOGRAPHY ── */
-    h1, h2, h3 { font-family: 'Playfair Display', Georgia, serif; }
-    code, .mono { font-family: 'DM Mono', 'Courier New', monospace; }
-
-    /* ── NAV ── */
-    nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 1.2rem 3rem;
-      background: rgba(245, 242, 235, 0.88);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--rule);
-    }
-
-    .nav-logo {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: var(--ink);
-      text-decoration: none;
-      letter-spacing: -0.02em;
-    }
-
-    .nav-logo span { color: var(--amber); }
-
-    .nav-links {
-      display: flex;
-      gap: 2rem;
-      list-style: none;
-    }
-
-    .nav-links a {
-      color: var(--muted);
-      text-decoration: none;
-      font-size: 0.85rem;
-      font-weight: 400;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      transition: color 0.2s;
-    }
-
-    .nav-links a:hover { color: var(--ink); }
-
-    .nav-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      height: 36px;
-      box-sizing: border-box;
-      background: var(--green);
-      color: var(--white);
-      font-size: 0.7rem;
-      font-weight: 500;
-      font-family: 'DM Mono', monospace;
-      padding: 0 1.1rem;
-      border-radius: 2px;
-      text-decoration: none;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      line-height: 1;
-      transition: background 0.2s;
-    }
-
-    .nav-badge:hover { background: var(--green-lt); }
-
-    /* Ko-fi nav wrapper */
-    .nav-actions {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    /* Override Ko-fi widget styles to fit the nav bar */
-    #kofi-nav .kofi-button,
-    #kofi-nav a {
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      height: 36px !important;
-      box-sizing: border-box !important;
-      gap: 0.4rem !important;
-      padding: 0 1.1rem !important;
-      border-radius: 2px !important;
-      font-family: 'DM Mono', monospace !important;
-      font-size: 0.7rem !important;
-      font-weight: 500 !important;
-      letter-spacing: 0.05em !important;
-      text-transform: uppercase !important;
-      line-height: 1 !important;
-      white-space: nowrap !important;
-      text-decoration: none !important;
-    }
-
-    /* Hide the Ko-fi logo image — keep it text-only in the nav */
-    #kofi-nav img { display: none !important; }
-
-    /* ── HERO ── */
-    .hero {
-      min-height: 100vh;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      align-items: center;
-      gap: 0;
-      padding-top: 5rem;
-    }
-
-    .hero-left {
-      padding: 6rem 4rem 6rem 6rem;
-      display: flex;
-      flex-direction: column;
-      gap: 2rem;
-    }
-
-    .hero-eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.6rem;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.75rem;
-      color: var(--amber);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .hero-eyebrow::before {
-      content: '';
-      display: inline-block;
-      width: 2rem;
-      height: 1px;
-      background: var(--amber);
-    }
-
-    .hero-title {
-      font-size: clamp(3rem, 5vw, 5rem);
-      font-weight: 900;
-      line-height: 1.0;
-      letter-spacing: -0.03em;
-      color: var(--ink);
-    }
-
-    .hero-title em {
-      font-style: italic;
-      color: var(--amber);
-    }
-
-    .hero-subtitle {
-      font-size: 1.05rem;
-      color: var(--muted);
-      max-width: 38ch;
-      line-height: 1.8;
-      font-weight: 300;
-    }
-
-    .hero-actions {
-      display: flex;
-      gap: 1rem;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .btn-primary {
-      background: var(--ink);
-      color: var(--paper);
-      padding: 0.9rem 2rem;
-      border: none;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.8rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      text-decoration: none;
-      cursor: pointer;
-      transition: all 0.2s;
-      border-radius: 2px;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .btn-primary:hover {
-      background: var(--amber);
-      transform: translateY(-2px);
-    }
-
-    .btn-ghost {
-      background: transparent;
-      color: var(--muted);
-      padding: 0.9rem 1.5rem;
-      border: 1px solid var(--rule);
-      font-family: 'DM Mono', monospace;
-      font-size: 0.8rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      text-decoration: none;
-      cursor: pointer;
-      transition: all 0.2s;
-      border-radius: 2px;
-    }
-
-    .btn-ghost:hover {
-      border-color: var(--ink);
-      color: var(--ink);
-    }
-
-    .hero-meta {
-      display: flex;
-      gap: 1.5rem;
-      flex-wrap: wrap;
-    }
-
-    .hero-meta-item {
-      font-family: 'DM Mono', monospace;
-      font-size: 0.7rem;
-      color: var(--muted);
-      letter-spacing: 0.05em;
-    }
-
-    .hero-meta-item strong {
-      color: var(--green);
-      font-weight: 500;
-    }
-
-    /* ── HERO RIGHT — terminal mockup ── */
-    .hero-right {
-      background: var(--ink);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 5rem 3rem;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .hero-right::before {
-      content: '';
-      position: absolute;
-      top: -30%;
-      right: -20%;
-      width: 500px;
-      height: 500px;
-      background: radial-gradient(circle, rgba(200, 133, 42, 0.12) 0%, transparent 70%);
-      border-radius: 50%;
-    }
-
-    .hero-right::after {
-      content: '';
-      position: absolute;
-      bottom: -20%;
-      left: -10%;
-      width: 400px;
-      height: 400px;
-      background: radial-gradient(circle, rgba(45, 106, 79, 0.15) 0%, transparent 70%);
-      border-radius: 50%;
-    }
-
-    .terminal {
-      background: #141416;
-      border: 1px solid #2a2a2e;
-      border-radius: 8px;
-      width: 100%;
-      max-width: 480px;
-      box-shadow: 0 40px 80px rgba(0,0,0,0.6);
-      position: relative;
-      z-index: 2;
-      animation: floatUp 0.8s ease-out both;
-    }
-
-    @keyframes floatUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .terminal-bar {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.9rem 1rem;
-      border-bottom: 1px solid #2a2a2e;
-    }
-
-    .terminal-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-    }
-
-    .td-r { background: #ff5f57; }
-    .td-y { background: #febc2e; }
-    .td-g { background: #28c840; }
-
-    .terminal-title {
-      flex: 1;
-      text-align: center;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.7rem;
-      color: #555;
-      letter-spacing: 0.05em;
-    }
-
-    .terminal-body {
-      padding: 1.5rem;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.78rem;
-      line-height: 1.9;
-      color: #a0a0a8;
-    }
-
-    .t-prompt { color: #28c840; }
-    .t-cmd { color: #e8e4da; }
-    .t-comment { color: #4a4a52; }
-    .t-info { color: #c8852a; }
-    .t-ok { color: #52b788; }
-    .t-cursor {
-      display: inline-block;
-      width: 8px;
-      height: 1em;
-      background: #52b788;
-      vertical-align: text-bottom;
-      animation: blink 1s step-end infinite;
-    }
-
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0; }
-    }
-
-    .t-line { display: block; }
-
-    .mockup-ui {
-      margin-top: 2rem;
-      background: #1a1a1d;
-      border: 1px solid #2a2a2e;
-      border-radius: 6px;
-      overflow: hidden;
-      font-size: 0.7rem;
-    }
-
-    .ui-bar {
-      background: #222226;
-      padding: 0.4rem 0.8rem;
-      border-bottom: 1px solid #2a2a2e;      display: flex;
-      gap: 1rem;
-      color: #666;
-    }
-
-    .ui-tab-active {
-      color: #e8e4da;
-      border-bottom: 2px solid #c8852a;
-      padding-bottom: 0.2rem;
-    }
-
-    .ui-editor {
-      padding: 1rem;
-      line-height: 2;
-    }
-
-    .md-h1 { color: #7eb8f7; font-weight: 500; }
-    .md-wiki { background: rgba(149, 117, 205, 0.2); color: #b39ddb; padding: 0 3px; border-radius: 2px; }
-    .md-cite { background: rgba(82, 183, 136, 0.15); color: #52b788; padding: 0 3px; border-radius: 2px; }
-    .md-bold { color: #e8e4da; font-weight: 600; }
-    .md-italic { color: #a0a0a8; font-style: italic; }
-
-    /* ── SECTION COMMON ── */
-    section {
-      padding: 6rem 6rem;
-      position: relative;
-    }
-
-    .section-rule {
-      width: 3rem;
-      height: 2px;
-      background: var(--amber);
-      margin-bottom: 1.5rem;
-    }
-
-    .section-label {
-      font-family: 'DM Mono', monospace;
-      font-size: 0.7rem;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--amber);
-      margin-bottom: 0.5rem;
-    }
-
-    .section-title {
-      font-size: clamp(2rem, 3.5vw, 3.2rem);
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      line-height: 1.1;
-      color: var(--ink);
-      max-width: 18ch;
-    }
-
-    .section-desc {
-      font-size: 1rem;
-      color: var(--muted);
-      max-width: 55ch;
-      margin-top: 1rem;
-      line-height: 1.8;
-    }
-
-    /* ── FEATURES ── */
-    #features { background: var(--cream); }
-
-    .features-header {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 4rem;
-      align-items: end;
-      margin-bottom: 5rem;
-    }
-
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 2px;
-      background: var(--rule);
-      border: 1px solid var(--rule);
-    }
-
-    .feature-card {
-      background: var(--cream);
-      padding: 2.5rem 2rem;
-      transition: background 0.2s;
-      animation: fadeIn 0.6s ease-out both;
-    }
-
-    .feature-card:hover { background: var(--paper); }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .feature-card:nth-child(1) { animation-delay: 0.05s; }
-    .feature-card:nth-child(2) { animation-delay: 0.10s; }
-    .feature-card:nth-child(3) { animation-delay: 0.15s; }
-    .feature-card:nth-child(4) { animation-delay: 0.20s; }
-    .feature-card:nth-child(5) { animation-delay: 0.25s; }
-    .feature-card:nth-child(6) { animation-delay: 0.30s; }
-    .feature-card:nth-child(7) { animation-delay: 0.35s; }
-    .feature-card:nth-child(8) { animation-delay: 0.40s; }
-    .feature-card:nth-child(9) { animation-delay: 0.45s; }
-
-    .feature-icon {
-      font-size: 1.5rem;
-      margin-bottom: 1rem;
-    }
-
-    .feature-name {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.05rem;
-      font-weight: 700;
-      margin-bottom: 0.6rem;
-      color: var(--ink);
-    }
-
-    .feature-desc {
-      font-size: 0.85rem;
-      color: var(--muted);
-      line-height: 1.7;
-    }
-
-    .feature-tag {
-      display: inline-block;
-      margin-top: 0.8rem;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.65rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--green);
-      border: 1px solid var(--green);
-      padding: 0.15rem 0.5rem;
-      border-radius: 2px;
-    }
-
-    /* ── WORKFLOW ── */
-    #workflow { background: var(--paper); }
-
-    .workflow-layout {
-      display: grid;
-      grid-template-columns: 1fr 1.2fr;
-      gap: 5rem;
-      align-items: center;
-      margin-top: 4rem;
-    }
-
-    .workflow-steps { display: flex; flex-direction: column; gap: 0; }
-
-    .workflow-step {
-      display: grid;
-      grid-template-columns: 3rem 1fr;
-      gap: 1.5rem;
-      padding: 2rem 0;
-      border-top: 1px solid var(--rule);
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .workflow-step:last-child { border-bottom: 1px solid var(--rule); }
-
-    .workflow-step:hover .step-title { color: var(--amber); }
-
-    .step-num {
-      font-family: 'DM Mono', monospace;
-      font-size: 0.7rem;
-      color: var(--amber);
-      letter-spacing: 0.05em;
-      padding-top: 0.2rem;
-    }
-
-    .step-title {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.1rem;
-      font-weight: 700;
-      margin-bottom: 0.4rem;
-      color: var(--ink);
-      transition: color 0.2s;
-    }
-
-    .step-desc {
-      font-size: 0.85rem;
-      color: var(--muted);
-      line-height: 1.7;
-    }
-
-    /* vault diagram */
-    .vault-diagram {
-      background: var(--ink);
-      border-radius: 8px;
-      padding: 2.5rem;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.78rem;
-      line-height: 2;
-      color: #a0a0a8;
-      box-shadow: 24px 24px 0 var(--rule);
-    }
-
-    .vd-title { color: var(--amber-lt); font-size: 0.85rem; margin-bottom: 0.5rem; }
-    .vd-dir { color: #7eb8f7; }
-    .vd-file { color: #e8e4da; }
-    .vd-comment { color: #555; }
-    .vd-green { color: #52b788; }
-
-    /* ── INSTALL ── */
-    #install {
-      background: var(--ink);
-      color: var(--paper);
-    }
-
-    #install .section-title { color: var(--paper); }
-    #install .section-desc { color: #7a7a82; }
-
-    .install-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 2rem;
-      margin-top: 4rem;
-    }
-
-    .install-card {
-      background: #18181b;
-      border: 1px solid #2a2a2e;
-      border-radius: 6px;
-      padding: 2rem;
-      transition: border-color 0.2s;
-    }
-
-    .install-card:hover { border-color: var(--amber); }
-
-    .install-os {
-      font-size: 1.5rem;
-      margin-bottom: 0.8rem;
-    }
-
-    .install-name {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--paper);
-      margin-bottom: 1rem;
-    }
-
-    .install-cmd {
-      background: #0e0e10;
-      border: 1px solid #2a2a2e;
-      border-radius: 4px;
-      padding: 1rem;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.72rem;
-      color: #52b788;
-      line-height: 1.6;
-      position: relative;
-      overflow: auto;
-      word-break: break-all;
-    }
-
-    .copy-btn {
-      position: absolute;
-      top: 0.5rem;
-      right: 0.5rem;
-      background: #2a2a2e;
-      border: none;
-      color: #666;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.65rem;
-      padding: 0.2rem 0.5rem;
-      border-radius: 3px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .copy-btn:hover { background: var(--amber); color: var(--ink); }
-
-    .install-note {
-      font-size: 0.78rem;
-      color: #555;
-      margin-top: 0.8rem;
-      line-height: 1.6;
-    }
-
-    /* ── SCREENSHOTS ── */
-    /* screenshots: slightly lighter than pure ink so install reads darker */
-    #screenshots { background: #16161a; overflow: hidden; }
-    #screenshots .section-title { color: var(--paper); }
-    #screenshots .section-desc  { color: #7a7a82; }
-
-    .ss-tabs {
-      display: flex;
-      gap: 0;
-      margin-top: 3.5rem;
-      border-bottom: 1px solid #2a2a2e;
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
-    .ss-tabs::-webkit-scrollbar { display: none; }
-
-    .ss-tab {
-      flex-shrink: 0;
-      padding: 0.75rem 1.6rem;
-      background: none;
-      border: none;
-      border-bottom: 2px solid transparent;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.75rem;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: #555;
-      cursor: pointer;
-      transition: all 0.22s;
-      margin-bottom: -1px;
-    }
-    .ss-tab:hover { color: #a0a0a8; }
-    .ss-tab.active { color: var(--amber); border-bottom-color: var(--amber); }
-
-    .ss-panels { margin-top: 2.5rem; }
-
-    .ss-panel {
-      display: none;
-      animation: ssFadeIn 0.4s ease both;
-    }
-    .ss-panel.active { display: block; }
-
-    @keyframes ssFadeIn {
-      from { opacity: 0; transform: translateY(12px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Figure wrapper */
-    .ss-figure {
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-    }
-
-    /* Image wrapper — clips the image and shows placeholder behind it */
-    .ss-img-wrap {
-      position: relative;
-      width: 100%;
-      border: 1px solid #2a2a2e;
-      border-radius: 10px;
-      overflow: hidden;
-      background: #141416;
-      box-shadow: 0 32px 64px rgba(0,0,0,0.55), 0 0 0 1px #1e1e22;
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-      min-height: 420px;
-      display: flex;
-      align-items: stretch;
-    }
-    .ss-img-wrap:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 44px 80px rgba(0,0,0,0.65), 0 0 0 1px #2a2a2e;
-    }
-
-    /* The real screenshot */
-    .ss-img-wrap img {
-      width: 100%;
-      height: auto;
-      display: block;
-      border-radius: 9px;
-      object-fit: cover;
-    }
-
-    /* Placeholder shown when image is missing (onerror fires) */
-    .ss-placeholder-inner {
-      position: absolute;
-      inset: 0;
-      display: none;             /* hidden by default; shown when .ss-placeholder class added */
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.8rem;
-      padding: 2rem;
-      pointer-events: none;
-    }
-    .ss-img-wrap.ss-placeholder .ss-placeholder-inner {
-      display: flex;
-    }
-    /* Also show when image hasn't loaded yet (no .ss-placeholder class, img hidden) */
-    .ss-img-wrap:not(.ss-placeholder) .ss-placeholder-inner {
-      display: none;
-    }
-
-    .ss-placeholder-icon {
-      font-size: 3rem;
-      opacity: 0.3;
-    }
-    .ss-placeholder-filename {
-      font-family: 'DM Mono', monospace;
-      font-size: 0.85rem;
-      color: #444;
-      background: #1a1a1d;
-      border: 1px dashed #2a2a2e;
-      border-radius: 4px;
-      padding: 0.5rem 1rem;
-      letter-spacing: 0.04em;
-    }
-    .ss-placeholder-hint {
-      font-family: 'DM Mono', monospace;
-      font-size: 0.7rem;
-      color: #333;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-
-    /* Caption below each screenshot */
-    .ss-caption {
-      margin-top: 1.2rem;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.72rem;
-      color: #444;
-      letter-spacing: 0.03em;
-      line-height: 1.6;
-    }
-    .ss-caption strong { color: #7a7a82; font-weight: 400; }
-
-    /* ── CHANGELOG ── */
-    #changelog { background: var(--cream); }
-
-    .changelog-layout {
-      display: grid;
-      grid-template-columns: 1fr 2fr;
-      gap: 5rem;
-      margin-top: 4rem;
-    }
-
-    .changelog-nav {
-      position: sticky;
-      top: 6rem;
-      height: fit-content;
-    }
-
-    .cl-version-btn {
-      display: block;
-      width: 100%;
-      text-align: left;
-      background: none;
-      border: none;
-      padding: 0.8rem 1rem;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.78rem;
-      color: var(--muted);
-      cursor: pointer;
-      border-left: 2px solid var(--rule);
-      transition: all 0.2s;
-    }
-
-    .cl-version-btn.active,
-    .cl-version-btn:hover {
-      color: var(--amber);
-      border-left-color: var(--amber);
-    }
-
-    .changelog-entry { margin-bottom: 3rem; }
-
-    .cl-header {
-      display: flex;
-      align-items: baseline;
-      gap: 1.5rem;
-      margin-bottom: 1.5rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid var(--rule);
-    }
-
-    .cl-ver {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.8rem;
-      font-weight: 900;
-      color: var(--ink);
-    }
-
-    .cl-date {
-      font-family: 'DM Mono', monospace;
-      font-size: 0.75rem;
-      color: var(--muted);
-      letter-spacing: 0.05em;
-    }
-
-    .cl-badge {
-      background: var(--green);
-      color: var(--white);
-      font-family: 'DM Mono', monospace;
-      font-size: 0.65rem;
-      padding: 0.2rem 0.6rem;
-      border-radius: 2px;
-      letter-spacing: 0.05em;
-    }
-
-    .cl-section-title {
-      font-family: 'DM Mono', monospace;
-      font-size: 0.7rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--amber);
-      margin-bottom: 0.8rem;
-      margin-top: 1.5rem;
-    }
-
-    .cl-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
-
-    .cl-list li {
-      font-size: 0.9rem;
-      color: var(--muted);
-      padding-left: 1.5rem;
-      position: relative;
-      line-height: 1.6;
-    }
-
-    .cl-list li::before {
-      content: '→';
-      position: absolute;
-      left: 0;
-      color: var(--amber);
-    }
-
-    .cl-list li strong { color: var(--ink); font-weight: 500; }
-
-    /* ── FOOTER ── */
-    footer {
-      background: var(--ink);
-      color: #555;
-      padding: 3rem 6rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 2rem;
-      flex-wrap: wrap;
-    }
-
-    .footer-logo {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--paper);
-    }
-
-    .footer-logo span { color: var(--amber); }
-
-    .footer-links {
-      display: flex;
-      gap: 2rem;
-      list-style: none;
-    }
-
-    .footer-links a {
-      color: #555;
-      text-decoration: none;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.72rem;
-      letter-spacing: 0.05em;
-      transition: color 0.2s;
-    }
-
-    .footer-links a:hover { color: var(--amber); }
-
-    .footer-copy {
-      font-family: 'DM Mono', monospace;
-      font-size: 0.7rem;
-      color: #333;
-    }
-
-    /* ── SCROLL ANIMATIONS ── */
-    .reveal {
-      opacity: 0;
-      transform: translateY(20px);
-      transition: opacity 0.7s ease, transform 0.7s ease;
-    }
-
-    .reveal.visible {
-      opacity: 1;
-      transform: none;
-    }
-
-    /* ── RESPONSIVE ── */
-    @media (max-width: 960px) {
-      nav { padding: 1rem 1.5rem; }
-      .nav-links { display: none; }
-
-      .hero {
-        grid-template-columns: 1fr;
-        min-height: auto;
-      }
-      .hero-left { padding: 6rem 2rem 3rem; }
-      .hero-right { min-height: 50vh; padding: 3rem 1.5rem; }
-
-      section { padding: 4rem 2rem; }
-
-      .features-header { grid-template-columns: 1fr; gap: 1.5rem; margin-bottom: 2.5rem; }
-      .features-grid { grid-template-columns: 1fr 1fr; }
-
-      .workflow-layout { grid-template-columns: 1fr; gap: 2.5rem; }
-      .install-grid { grid-template-columns: 1fr; }
-      .changelog-layout { grid-template-columns: 1fr; }
-      .changelog-nav { display: none; }
-
-      .ss-img-wrap { min-height: 220px; }
-
-      footer { padding: 2rem; flex-direction: column; align-items: flex-start; }
-    }
-
-    @media (max-width: 600px) {
-      .features-grid { grid-template-columns: 1fr; }
-      .hero-title { font-size: 2.5rem; }
-    }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
@@ -1068,7 +80,7 @@
   <!-- HERO -->
   <section class="hero" style="padding:0;">
     <div class="hero-left">
-      <div class="hero-eyebrow">v1.2.0 · Free & Open Source · MIT License</div>
+      <div class="hero-eyebrow">v2.0.0 · Free & Open Source · MIT License</div>
       <h1 class="hero-title">
         Research notes,<br>
         <em>finally organised.</em>
@@ -1102,7 +114,7 @@
           <span class="t-line">&nbsp;</span>
           <span class="t-line"><span class="t-info">==> Creating virtual environment...</span></span>
           <span class="t-line"><span class="t-info">==> Installing Noteration...</span></span>
-          <span class="t-line"><span class="t-ok">✓  Noteration v1.2.0 installed!</span></span>
+          <span class="t-line"><span class="t-ok">✓  Noteration v2.0.0 installed!</span></span>
           <span class="t-line">&nbsp;</span>
           <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">noteration</span> <span class="t-cursor"></span></span>
         </div>
@@ -1141,14 +153,14 @@
       <div class="feature-card">
         <div class="feature-icon">✎</div>
         <h3 class="feature-name">Markdown Editor</h3>
-        <p class="feature-desc">A distraction-free Markdown editor with full syntax highlighting, line numbers, auto-indent, and a live HTML preview mode. Write academic notes naturally and switch to rendered view with one keypress.</p>
+        <p class="feature-desc">A distraction-free Markdown editor with full syntax highlighting, line numbers, auto-indent, and support for LaTeX. Write naturally and switch to rendered view with one keypress.</p>
         <span class="feature-tag">Ctrl+Shift+V</span>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">🧘</div>
-        <h3 class="feature-name">Focus Mode</h3>
-        <p class="feature-desc">Press F11 for a fullscreen, distraction-free writing environment. All UI hides, the editor centres itself, and Vim keybindings activate so you never need to leave the keyboard while writing.</p>
-        <span class="feature-tag">New in v1.1</span>
+        <div class="feature-icon">◫</div>
+        <h3 class="feature-name">Split View</h3>
+        <p class="feature-desc">Work on two notes at once or read a PDF side-by-side with your research draft. Noteration 2.0 introduces vertical splitting to maximise your screen real estate and research productivity.</p>
+        <span class="feature-tag">New in v2.0</span>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🕸️</div>
@@ -1165,14 +177,14 @@
       <div class="feature-card">
         <div class="feature-icon">📚</div>
         <h3 class="feature-name">Literature Management</h3>
-        <p class="feature-desc">Browse your Papis reference library inside Noteration. Auto-fetch metadata from DOI, arXiv, or ISBN. Export BibTeX per-note or for the entire library in one click.</p>
-        <span class="feature-tag">Papis</span>
+        <p class="feature-desc">Browse your Papis reference library inside Noteration. Auto-fetch metadata from DOI. Export BibTeX per-note or choose from thousands of CSL citation styles (APA, IEEE, etc).</p>
+        <span class="feature-tag">Papis + CSL</span>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🔍</div>
         <h3 class="feature-name">Global Vault Search</h3>
-        <p class="feature-desc">One search bar that simultaneously covers all Markdown notes, literature metadata, and PDF annotation content. Supports regular expressions and case-sensitive filters for precise results.</p>
-        <span class="feature-tag">Vault-wide</span>
+        <p class="feature-desc">High-performance SQLite FTS5 engine that covers all notes, literature metadata, and PDF annotations. Get instant results even in massive vaults with regex and case-sensitive support.</p>
+        <span class="feature-tag">FTS5 Engine</span>
       </div>
       <div class="feature-card">
         <div class="feature-icon">☁️</div>
@@ -1187,10 +199,48 @@
         <span class="feature-tag">PySide6</span>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">📖</div>
-        <h3 class="feature-name">Academic Writing Guide</h3>
-        <p class="feature-desc">Press F2 for an in-app briefing on academic writing strategies — critical reading techniques, citation ethics, argumentation across disciplines, and documentation standards.</p>
-        <span class="feature-tag">New in v1.1</span>
+        <div class="feature-icon">🧘</div>
+        <h3 class="feature-name">Focus Mode</h3>
+        <p class="feature-desc">Press F11 for a fullscreen, distraction-free writing environment. All UI hides, the editor centres itself, and Vim keybindings activate so you never need to leave the keyboard.</p>
+        <span class="feature-tag">Vim Support</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📤</div>
+        <h3 class="feature-name">Document Export</h3>
+        <p class="feature-desc">Easily share your research in the format you need. Export Markdown notes directly to HTML, PDF, DOCX, ODT, LaTeX, or plain text with just a few clicks.</p>
+        <span class="feature-tag">Pandoc Powered</span>
+      </div>
+      <!-- v2.0 additions -->
+      <div class="feature-card">
+        <div class="feature-icon">#</div>
+        <h3 class="feature-name">Tags Management</h3>
+        <p class="feature-desc">Organise your knowledge with a unified <code>#tag</code> system. Noteration synchronises tags between your Markdown notes and Papis literature metadata for a truly integrated workflow.</p>
+        <span class="feature-tag">Unified Search</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">∑</div>
+        <h3 class="feature-name">Advanced Rendering</h3>
+        <p class="feature-desc">Academic-grade LaTeX support via Arithmatex. Render complex formulae directly in your preview.</p>
+        <span class="feature-tag">New in v2.0</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🛡️</div>
+        <h3 class="feature-name">Vault Encryption</h3>
+        <p class="feature-desc">At-rest encryption using the <b>age</b> format, natively integrated for seamless security. Secure your entire research vault with public-key cryptography and a seamless session decryption workflow. Encryption can be permanently disabled at any time through settings.</p>
+        <span class="feature-tag">New in v2.0</span>
+      </div>
+      <!-- v2.0 additions -->
+      <div class="feature-card">
+        <div class="feature-icon">>_</div>
+        <h3 class="feature-name">Powerful CLI</h3>
+        <p class="feature-desc">Manage your vault, search notes, fetch literature, and sync changes directly from your terminal with the <code>ntr</code> command. Perfect for automation and power users.</p>
+        <span class="feature-tag">New in v2.0</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌐</div>
+        <h3 class="feature-name">REST API</h3>
+        <p class="feature-desc">Expose your vault via a lightweight HTTP interface. Integrate Noteration with external tools like Obsidian, VS Code, or custom scripts using standard JSON endpoints.</p>
+        <span class="feature-tag">New in v2.0</span>
       </div>
     </div>
   </section>
@@ -1274,6 +324,7 @@
     <!-- Tab bar -->
     <div class="ss-tabs reveal">
       <button class="ss-tab active" data-panel="editor">✎ Editor</button>
+      <button class="ss-tab" data-panel="split">◫ Split View</button>
       <button class="ss-tab" data-panel="focus">🧘 Focus Mode</button>
       <button class="ss-tab" data-panel="pdf">📘 PDF Viewer</button>
       <button class="ss-tab" data-panel="graph">🕸️ Graph</button>
@@ -1301,6 +352,28 @@
           </div>
           <figcaption class="ss-caption">
             Main editor — syntax highlighting, wiki-links <strong>(purple)</strong>, citations <strong>(green)</strong>, backlink panel on the right
+          </figcaption>
+        </figure>
+      </div>
+
+      <!-- SPLIT VIEW -->
+      <div class="ss-panel" id="ss-split">
+        <figure class="ss-figure">
+          <div class="ss-img-wrap">
+            <img
+              src="images/screenshot-split.png"
+              alt="Split View — side-by-side editing and reading"
+              loading="lazy"
+              onerror="this.closest('.ss-img-wrap').classList.add('ss-placeholder'); this.style.display='none';"
+            />
+            <div class="ss-placeholder-inner">
+              <div class="ss-placeholder-icon">◫</div>
+              <div class="ss-placeholder-filename">images/screenshot-split.png</div>
+              <div class="ss-placeholder-hint">Replace with your actual screenshot</div>
+            </div>
+          </div>
+          <figcaption class="ss-caption">
+            Split View <strong>(v2.0)</strong> — vertical layout for multi-tasking. Move any tab between left and right panes using the tab context menu.
           </figcaption>
         </figure>
       </div>
@@ -1476,7 +549,8 @@
     <div class="changelog-layout">
       <div class="changelog-nav reveal">
         <div style="font-family:'DM Mono',monospace;font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;">Versions</div>
-        <button class="cl-version-btn active">v1.2.0 · Latest</button>
+        <button class="cl-version-btn active">v2.0.0 · Latest</button>
+        <button class="cl-version-btn">v1.2.0</button>
         <button class="cl-version-btn">v1.1.2</button>
         <button class="cl-version-btn">v1.1.1</button>
         <button class="cl-version-btn">v1.1.0</button>
@@ -1486,9 +560,40 @@
       <div>
         <div class="changelog-entry reveal">
           <div class="cl-header">
+            <h3 class="cl-ver">v2.0.0</h3>
+            <div class="cl-date">2026-06-03</div>
+            <div class="cl-badge">latest</div>
+          </div>
+
+          <div class="cl-section-title">Added</div>
+          <ul class="cl-list">
+            <li><strong>Command Line Interface (ntr)</strong> — full vault management, FTS search, literature fetching, and sync from the terminal.</li>
+            <li><strong>REST API (ntr-api)</strong> — FastAPI-based HTTP interface for external tool integration.</li>
+            <li><strong>API Security</strong> — configurable API Key authentication for secure remote access.</li>
+            <li><strong>GUI API Control</strong> — new tab in Settings to manage server lifecycle and authentication.</li>
+            <li><strong>Advanced CLI Export</strong> — integrated Pandoc-based export directly into the CLI.</li>
+            <li><strong>Architectural Decoupling</strong> — refactored core logic into <code>VaultCore</code> (Pure Python), separating business rules from GUI.</li>
+            <li><strong>SQLite FTS5 Search</strong> — high-performance full-text search engine for notes and literature.</li>
+            <li><strong>Tags System</strong> — first-class <code>#tag</code> support with automatic extraction and dedicated sidebar panel.</li>
+            <li><strong>Split View</strong> — vertical layout for side-by-side editing and reading.</li>
+            <li><strong>Robust LaTeX</strong> — integrated Arithmatex for reliable math rendering in the preview.</li>
+            <li><strong>Vault Encryption</strong> — "at-rest" encryption using <code>age</code> with a secure session workflow.</li>
+            <li><strong>Navigation History</strong> — browser-style back/forward navigation (Alt+Left/Right).</li>
+            <li><strong>PDF Annotation Toggle</strong> — show/hide the annotation panel with a dedicated shortcut (Ctrl+Alt+A).</li>
+            <li><strong>Detailed Sync Logs</strong> — specific changed and untracked files are now listed in the Synchronization tab.</li>
+          </ul>
+          
+          <div class="cl-section-title">Changed</div>
+          <ul class="cl-list">
+            <li><strong>CSL Selection</strong> — users can now choose preferred citation styles (APA, IEEE, etc.) in Settings.</li>
+            <li><strong>Export Flow</strong> — unified and simplified document export menus across the application.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry reveal">
+          <div class="cl-header">
             <h3 class="cl-ver">v1.2.0</h3>
             <div class="cl-date">2026-05-16</div>
-            <div class="cl-badge">latest</div>
           </div>
 
           <div class="cl-section-title">Added</div>
@@ -1610,70 +715,6 @@
     <div class="footer-copy">© 2026 lilamr · Free &amp; open-source · Built with PySide6, PyMuPDF, GitPython, NetworkX</div>
   </footer>
 
-  <script>
-    // ── Scroll reveal ──
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.classList.add('visible');
-          observer.unobserve(e.target);
-        }
-      });
-    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-
-    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-
-    // ── Copy to clipboard ──
-    function copyCmd(btn, text) {
-      navigator.clipboard.writeText(text).then(() => {
-        const orig = btn.textContent;
-        btn.textContent = 'copied!';
-        btn.style.background = 'var(--green)';
-        btn.style.color = '#fff';
-        setTimeout(() => {
-          btn.textContent = orig;
-          btn.style.background = '';
-          btn.style.color = '';
-        }, 2000);
-      });
-    }
-
-    // ── Changelog nav ──
-    document.querySelectorAll('.cl-version-btn').forEach((btn, i) => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.cl-version-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const entries = document.querySelectorAll('.changelog-entry');
-        if (entries[i]) {
-          entries[i].scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      });
-    });
-
-    // ── Screenshot tabs ──
-    const ssTabs = document.querySelectorAll('.ss-tab');
-    const ssPanels = document.querySelectorAll('.ss-panel');
-
-    ssTabs.forEach(tab => {
-      tab.addEventListener('click', () => {
-        ssTabs.forEach(t => t.classList.remove('active'));
-        ssPanels.forEach(p => p.classList.remove('active'));
-        tab.classList.add('active');
-        const target = document.getElementById('ss-' + tab.dataset.panel);
-        if (target) target.classList.add('active');
-      });
-    });
-
-    // ── Terminal typewriter on load ──
-    const cursor = document.querySelector('.t-cursor');
-    let visible = true;
-    setInterval(() => {
-      cursor.style.opacity = (visible = !visible) ? '1' : '0';
-    }, 530);
-
-    // ── Ko-fi widget — render into nav slot ──
-    kofiwidget2.init('Support me on Ko-fi', '#f76e25', 'R6R11Z1NDP');
-    document.getElementById('kofi-nav').innerHTML = kofiwidget2.getHTML();
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
