@@ -78,7 +78,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     mkdir -p "$ICON_DIR"
 
     # Download icon from GitHub
-    curl -sSL "https://raw.githubusercontent.com/lilamr/noteration/main/noteration/assets/icon_256.png" -o "$ICON_DIR/noteration.png"
+    curl -sSL "https://raw.githubusercontent.com/lilamr/noteration/main/noteration/assets/images/icon_256.png" -o "$ICON_DIR/noteration.png"
 
     cat <<EOF > "$DESKTOP_DIR/noteration.desktop"
 [Desktop Entry]
@@ -107,7 +107,7 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
 
     # Download macOS icon
     echo -e "${BLUE}==>${NC} Downloading app icon..."
-    curl -sSL "https://raw.githubusercontent.com/lilamr/noteration/main/noteration/assets/icon.icns" -o "$RESOURCES_DIR/icon.icns"
+    curl -sSL "https://raw.githubusercontent.com/lilamr/noteration/main/noteration/assets/images/icon.icns" -o "$RESOURCES_DIR/icon.icns"
 
     # Create the launcher inside the app bundle
     cat <<EOF > "$MACOS_DIR/$APP_NAME"
@@ -134,7 +134,7 @@ EOF
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.1.0</string>
+    <string>2.0.0</string>
     <key>LSMinimumSystemVersion</key>
     <string>10.13</string>
 </dict>

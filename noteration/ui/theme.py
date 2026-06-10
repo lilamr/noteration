@@ -1,5 +1,4 @@
-"""
-noteration/ui/theme.py
+"""noteration/ui/theme.py
 
 Theme engine for Phase 5:
   - ThemeMode: light | dark | system
@@ -22,52 +21,52 @@ logger = get_logger(__name__)
 
 
 class ThemeMode(str, Enum):
-    LIGHT  = "light"
-    DARK   = "dark"
+    LIGHT = "light"
+    DARK = "dark"
     SYSTEM = "system"
 
 
 # ── Palette definitions ───────────────────────────────────────────────────
 
 _LIGHT_COLORS = {
-    QPalette.ColorRole.Window:          "#F5F5F5",
-    QPalette.ColorRole.WindowText:      "#1A1A1A",
-    QPalette.ColorRole.Base:            "#FFFFFF",
-    QPalette.ColorRole.AlternateBase:   "#F0F0F0",
-    QPalette.ColorRole.Text:            "#1A1A1A",
-    QPalette.ColorRole.BrightText:      "#FFFFFF",
-    QPalette.ColorRole.Button:          "#E8E8E8",
-    QPalette.ColorRole.ButtonText:      "#1A1A1A",
-    QPalette.ColorRole.Highlight:       "#1565C0",
+    QPalette.ColorRole.Window: "#F5F5F5",
+    QPalette.ColorRole.WindowText: "#1A1A1A",
+    QPalette.ColorRole.Base: "#FFFFFF",
+    QPalette.ColorRole.AlternateBase: "#F0F0F0",
+    QPalette.ColorRole.Text: "#1A1A1A",
+    QPalette.ColorRole.BrightText: "#FFFFFF",
+    QPalette.ColorRole.Button: "#E8E8E8",
+    QPalette.ColorRole.ButtonText: "#1A1A1A",
+    QPalette.ColorRole.Highlight: "#1565C0",
     QPalette.ColorRole.HighlightedText: "#FFFFFF",
-    QPalette.ColorRole.Link:            "#185FA5",
-    QPalette.ColorRole.Mid:             "#C8C8C8",
-    QPalette.ColorRole.Midlight:        "#DCDCDC",
-    QPalette.ColorRole.Dark:            "#AAAAAA",
-    QPalette.ColorRole.Shadow:          "#888888",
-    QPalette.ColorRole.ToolTipBase:     "#FFFDE7",
-    QPalette.ColorRole.ToolTipText:     "#1A1A1A",
+    QPalette.ColorRole.Link: "#185FA5",
+    QPalette.ColorRole.Mid: "#C8C8C8",
+    QPalette.ColorRole.Midlight: "#DCDCDC",
+    QPalette.ColorRole.Dark: "#AAAAAA",
+    QPalette.ColorRole.Shadow: "#888888",
+    QPalette.ColorRole.ToolTipBase: "#FFFDE7",
+    QPalette.ColorRole.ToolTipText: "#1A1A1A",
     QPalette.ColorRole.PlaceholderText: "#9E9E9E",
 }
 
 _DARK_COLORS = {
-    QPalette.ColorRole.Window:          "#1E1E1E",
-    QPalette.ColorRole.WindowText:      "#E0E0E0",
-    QPalette.ColorRole.Base:            "#252525",
-    QPalette.ColorRole.AlternateBase:   "#2C2C2C",
-    QPalette.ColorRole.Text:            "#E0E0E0",
-    QPalette.ColorRole.BrightText:      "#FFFFFF",
-    QPalette.ColorRole.Button:          "#2D2D2D",
-    QPalette.ColorRole.ButtonText:      "#E0E0E0",
-    QPalette.ColorRole.Highlight:       "#1976D2",
+    QPalette.ColorRole.Window: "#1E1E1E",
+    QPalette.ColorRole.WindowText: "#E0E0E0",
+    QPalette.ColorRole.Base: "#252525",
+    QPalette.ColorRole.AlternateBase: "#2C2C2C",
+    QPalette.ColorRole.Text: "#E0E0E0",
+    QPalette.ColorRole.BrightText: "#FFFFFF",
+    QPalette.ColorRole.Button: "#2D2D2D",
+    QPalette.ColorRole.ButtonText: "#E0E0E0",
+    QPalette.ColorRole.Highlight: "#1976D2",
     QPalette.ColorRole.HighlightedText: "#FFFFFF",
-    QPalette.ColorRole.Link:            "#64B5F6",
-    QPalette.ColorRole.Mid:             "#3C3C3C",
-    QPalette.ColorRole.Midlight:        "#333333",
-    QPalette.ColorRole.Dark:            "#111111",
-    QPalette.ColorRole.Shadow:          "#0A0A0A",
-    QPalette.ColorRole.ToolTipBase:     "#263238",
-    QPalette.ColorRole.ToolTipText:     "#E0E0E0",
+    QPalette.ColorRole.Link: "#64B5F6",
+    QPalette.ColorRole.Mid: "#3C3C3C",
+    QPalette.ColorRole.Midlight: "#333333",
+    QPalette.ColorRole.Dark: "#111111",
+    QPalette.ColorRole.Shadow: "#0A0A0A",
+    QPalette.ColorRole.ToolTipBase: "#263238",
+    QPalette.ColorRole.ToolTipText: "#E0E0E0",
     QPalette.ColorRole.PlaceholderText: "#616161",
 }
 
@@ -225,12 +224,13 @@ QStatusBar { background: #1E1E1E; color: #9E9E9E; border-top: 1px solid #3C3C3C;
 
 # ── System theme detection ────────────────────────────────────────────────
 
+
 def _system_is_dark() -> bool:
     """Detect OS theme. Return True if dark mode is active."""
     try:
         # Qt 6.5+ styleHints().colorScheme()
         app = QApplication.instance()
-        if app and hasattr(app, 'styleHints'):
+        if app and hasattr(app, "styleHints"):
             scheme = app.styleHints().colorScheme()  # type: ignore[attr-defined]
             res = scheme == Qt.ColorScheme.Dark  # type: ignore[attr-defined]
             return res
@@ -239,7 +239,7 @@ def _system_is_dark() -> bool:
 
     # Fallback: check palette
     app = QApplication.instance()
-    if app and hasattr(app, 'palette'):
+    if app and hasattr(app, "palette"):
         bg = app.palette().color(QPalette.ColorRole.Window)  # type: ignore[attr-defined]
         res = bg.lightness() < 128
         return res
@@ -251,32 +251,32 @@ def _system_is_dark() -> bool:
 
 # Syntax highlighting palettes
 _SYNTAX_LIGHT = {
-    "heading":    "#1a1a2e",
-    "bold_italic":"#111111",
-    "italic":     "#444444",
-    "image":      ("#c77700", "#FFF8E1"), # (fg, bg)
-    "link":       "#185FA5",
-    "wiki":       ("#534AB7", "#EEEDFE"),
-    "citation":   ("#0F6E56", "#E1F5EE"),
-    "code":       ("#1D9E75", "#F0FFF8"),
-    "quote":      ("#777777", "#F0F0F0"),
-    "list":       "#BA7517",
-    "escape":     "#c0392b",
+    "heading": "#1a1a2e",
+    "bold_italic": "#111111",
+    "italic": "#444444",
+    "image": ("#c77700", "#FFF8E1"),  # (fg, bg)
+    "link": "#185FA5",
+    "wiki": ("#534AB7", "#EEEDFE"),
+    "citation": ("#0F6E56", "#E1F5EE"),
+    "code": ("#1D9E75", "#F0FFF8"),
+    "quote": ("#777777", "#F0F0F0"),
+    "list": "#BA7517",
+    "escape": "#c0392b",
     "code_block": ("#888888", "#F5F5F5"),
 }
 
 _SYNTAX_DARK = {
-    "heading":    "#BBDEFB",
-    "bold_italic":"#FFFFFF",
-    "italic":     "#BDBDBD",
-    "image":      ("#FFB74D", "#3E2723"),
-    "link":       "#64B5F6",
-    "wiki":       ("#9575CD", "#311B92"),
-    "citation":   ("#4DB6AC", "#004D40"),
-    "code":       ("#81C784", "#1B5E20"),
-    "quote":      ("#9E9E9E", "#2C2C2C"),
-    "list":       "#FFD54F",
-    "escape":     "#EF5350",
+    "heading": "#BBDEFB",
+    "bold_italic": "#FFFFFF",
+    "italic": "#BDBDBD",
+    "image": ("#FFB74D", "#3E2723"),
+    "link": "#64B5F6",
+    "wiki": ("#9575CD", "#311B92"),
+    "citation": ("#4DB6AC", "#004D40"),
+    "code": ("#81C784", "#1B5E20"),
+    "quote": ("#9E9E9E", "#2C2C2C"),
+    "list": "#FFD54F",
+    "escape": "#EF5350",
     "code_block": ("#B0BEC5", "#2D2D2D"),
 }
 
@@ -295,14 +295,14 @@ def apply_theme(app: QApplication, mode: ThemeMode | str) -> None:
         effective = mode
 
     colors = _DARK_COLORS if effective == ThemeMode.DARK else _LIGHT_COLORS
-    qss    = _DARK_QSS    if effective == ThemeMode.DARK else _LIGHT_QSS
+    qss = _DARK_QSS if effective == ThemeMode.DARK else _LIGHT_QSS
 
     palette = QPalette()
     for role, hex_color in colors.items():
         color = QColor(hex_color)
         palette.setColor(role, color)
         # Set for all groups (Active, Inactive, Disabled)
-        palette.setColor(QPalette.ColorGroup.Active,   role, color)
+        palette.setColor(QPalette.ColorGroup.Active, role, color)
         palette.setColor(QPalette.ColorGroup.Inactive, role, color)
         # Disabled is slightly paler
         disabled = QColor(hex_color)
@@ -314,8 +314,9 @@ def apply_theme(app: QApplication, mode: ThemeMode | str) -> None:
 
 
 def get_effective_mode(config_mode: str) -> ThemeMode:
-    mode = ThemeMode(config_mode) if config_mode in ThemeMode._value2member_map_ \
-           else ThemeMode.SYSTEM
+    mode = (
+        ThemeMode(config_mode) if config_mode in ThemeMode._value2member_map_ else ThemeMode.SYSTEM
+    )
     if mode == ThemeMode.SYSTEM:
         return ThemeMode.DARK if _system_is_dark() else ThemeMode.LIGHT
     return mode
@@ -323,32 +324,54 @@ def get_effective_mode(config_mode: str) -> ThemeMode:
 
 # ── Watcher ───────────────────────────────────────────────────────────────
 
+
 class SystemThemeWatcher(QObject):
-    """
-    Polling-based watcher: checks OS theme every 5 seconds.
-    Emits theme_changed(ThemeMode) if it has changed.
-    (Qt 6.5+ has native signals, but this is more portable)
+    """Watcher for OS theme changes.
+    Uses modern Qt 6.5+ signals for instantaneous updates if available,
+    with a 5-second polling fallback for older environments.
     """
 
-    theme_changed = Signal(object)   # ThemeMode
+    theme_changed = Signal(object)  # ThemeMode
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._last: bool | None = None
+        self._last_is_dark: bool | None = None
+        
+        # 1. Setup Fallback Polling Timer
         self._timer = QTimer(self)
         self._timer.setInterval(5_000)
-        self._timer.timeout.connect(self._check)
+        self._timer.timeout.connect(self._check_polling)
+
+        # 2. Setup Modern Qt 6.5+ Signal (if available)
+        app = QApplication.instance()
+        if app and hasattr(app, "styleHints"):
+            try:
+                app.styleHints().colorSchemeChanged.connect(self._on_style_hints_changed)
+                logger.debug("SystemThemeWatcher: Using modern QStyleHints signal.")
+            except (AttributeError, TypeError) as e:
+                logger.debug(f"SystemThemeWatcher: QStyleHints signal not available ({e}).")
 
     def start(self) -> None:
-        self._last = _system_is_dark()
+        self._last_is_dark = _system_is_dark()
         self._timer.start()
 
     def stop(self) -> None:
         self._timer.stop()
 
-    def _check(self) -> None:
+    def _on_style_hints_changed(self) -> None:
+        """Triggered immediately by Qt when OS theme changes."""
         current = _system_is_dark()
-        if current != self._last:
-            self._last = current
-            self.theme_changed.emit(
-                ThemeMode.DARK if current else ThemeMode.LIGHT)
+        if current != self._last_is_dark:
+            self._apply_change(current)
+
+    def _check_polling(self) -> None:
+        """Fallback check for environments that don't emit style signals."""
+        current = _system_is_dark()
+        if current != self._last_is_dark:
+            self._apply_change(current)
+
+    def _apply_change(self, is_dark: bool) -> None:
+        self._last_is_dark = is_dark
+        mode = ThemeMode.DARK if is_dark else ThemeMode.LIGHT
+        logger.info(f"System theme change detected: {mode}")
+        self.theme_changed.emit(mode)

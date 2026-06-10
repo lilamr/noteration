@@ -1,5 +1,4 @@
-"""
-noteration/ui/backlink_panel.py
+"""noteration/ui/backlink_panel.py
 
 Backlink panel that can be placed in sidebar or as a dock widget.
 Displays:
@@ -13,8 +12,15 @@ from __future__ import annotations
 
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QListWidget, QListWidgetItem, QTabWidget, QFrame,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QListWidget,
+    QListWidgetItem,
+    QTabWidget,
+    QFrame,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
@@ -23,8 +29,7 @@ from noteration.db.link_graph import LinkGraph
 
 
 class BacklinkPanel(QWidget):
-    """
-    Backlink panel (can be used as a dock or embedded widget).
+    """Backlink panel (can be used as a dock or embedded widget).
 
     Signals
     -------
@@ -32,12 +37,12 @@ class BacklinkPanel(QWidget):
     rebuild_requested()   — user clicked the rebuild button
     """
 
-    note_requested = Signal(str)   # note filename stem
-    rebuild_requested = Signal()   # user clicked the rebuild button
+    note_requested = Signal(str)  # note filename stem
+    rebuild_requested = Signal()  # user clicked the rebuild button
 
     def __init__(self, graph: LinkGraph, parent=None) -> None:
         super().__init__(parent)
-        self._graph       = graph
+        self._graph = graph
         self._current_note: str = ""
         self._setup_ui()
 
@@ -51,8 +56,8 @@ class BacklinkPanel(QWidget):
         # Header
         header = QFrame()
         header.setStyleSheet(
-            "QFrame{background:palette(window);"
-            "border-bottom:0.5px solid palette(mid);}")
+            "QFrame{background:palette(window);border-bottom:0.5px solid palette(mid);}"
+        )
         hl = QHBoxLayout(header)
         hl.setContentsMargins(8, 4, 8, 4)
         title = QLabel("Backlinks")
@@ -61,8 +66,8 @@ class BacklinkPanel(QWidget):
         hl.addStretch()
         self._badge = QLabel("0")
         self._badge.setStyleSheet(
-            "font-size:10px;background:#E3F2FD;color:#0D47A1;"
-            "padding:1px 6px;border-radius:8px;")
+            "font-size:10px;background:#E3F2FD;color:#0D47A1;padding:1px 6px;border-radius:8px;"
+        )
         hl.addWidget(self._badge)
         root.addWidget(header)
 
@@ -70,17 +75,17 @@ class BacklinkPanel(QWidget):
         self._tabs = QTabWidget()
         self._tabs.setDocumentMode(True)
         self._tabs.setStyleSheet(
-            "QTabBar::tab{padding:4px 10px;font-size:11px;}"
-            "QTabBar::tab:selected{font-weight:600;}")
+            "QTabBar::tab{padding:4px 10px;font-size:11px;}QTabBar::tab:selected{font-weight:600;}"
+        )
 
-        self._back_list    = self._make_note_list()
+        self._back_list = self._make_note_list()
         self._forward_list = self._make_note_list()
-        self._orphan_list  = self._make_note_list()
+        self._orphan_list = self._make_note_list()
         self._stats_widget = self._make_stats_widget()
 
-        self._tabs.addTab(self._back_list,    "← In")
+        self._tabs.addTab(self._back_list, "← In")
         self._tabs.addTab(self._forward_list, "→ Out")
-        self._tabs.addTab(self._orphan_list,  "◎ Orphan")
+        self._tabs.addTab(self._orphan_list, "◎ Orphan")
         self._tabs.addTab(self._stats_widget, "📊 Stats")
         root.addWidget(self._tabs)
 
@@ -89,7 +94,8 @@ class BacklinkPanel(QWidget):
         lst.setStyleSheet(
             "QListWidget{font-size:12px;font-family:'Consolas',monospace;}"
             "QListWidget::item:hover{background:palette(mid);}"
-            "QListWidget::item:selected{background:#BBDEFB;color:#0D47A1;}")
+            "QListWidget::item:selected{background:#BBDEFB;color:#0D47A1;}"
+        )
         lst.itemDoubleClicked.connect(self._on_item_double_clicked)
         return lst
 
@@ -101,11 +107,11 @@ class BacklinkPanel(QWidget):
 
         self._stat_labels: dict[str, QLabel] = {}
         for key, label in [
-            ("nodes",        "Total notes"),
-            ("edges",        "Total links"),
-            ("orphans",      "Orphans"),
-            ("hub",          "Hub (most connected)"),
-            ("components",   "Disconnected components"),
+            ("nodes", "Total notes"),
+            ("edges", "Total links"),
+            ("orphans", "Orphans"),
+            ("hub", "Hub (most connected)"),
+            ("components", "Disconnected components"),
             ("largest_comp", "Largest component"),
         ]:
             row = QHBoxLayout()

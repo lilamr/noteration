@@ -1,5 +1,4 @@
-"""
-noteration/ui/sidebar.py
+"""noteration/ui/sidebar.py
 Left QTabWidget containing Notes, PDFs (Papis), Outline, and Citations panels.
 """
 
@@ -12,13 +11,30 @@ from typing import Any, cast, TYPE_CHECKING
 
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTreeView, QLineEdit, QHBoxLayout,
-    QAbstractItemView, QMessageBox, QFileSystemModel, QTreeWidget,
-    QListView, QTabWidget, QTreeWidgetItem, QComboBox, QMenu, QInputDialog,
+    QWidget,
+    QVBoxLayout,
+    QTreeView,
+    QLineEdit,
+    QHBoxLayout,
+    QAbstractItemView,
+    QMessageBox,
+    QFileSystemModel,
+    QTreeWidget,
+    QListView,
+    QTabWidget,
+    QTreeWidgetItem,
+    QComboBox,
+    QMenu,
+    QInputDialog,
 )
 from PySide6.QtCore import (
-    Qt, Signal, QSortFilterProxyModel, QModelIndex,
-    QAbstractItemModel, QAbstractListModel, QPersistentModelIndex,
+    Qt,
+    Signal,
+    QSortFilterProxyModel,
+    QModelIndex,
+    QAbstractItemModel,
+    QAbstractListModel,
+    QPersistentModelIndex,
 )
 
 from noteration.logger import get_logger
@@ -33,6 +49,7 @@ if TYPE_CHECKING:
 
 class HeadingItem:
     """Item for HeadingModel hierarchical structure."""
+
     def __init__(self, level: int, text: str, parent: HeadingItem | None = None) -> None:
         self.level = level
         self.text = text
@@ -58,6 +75,7 @@ class HeadingItem:
 
 class HeadingModel(QAbstractItemModel):
     """Hierarchical model for the note Outline (Headings)."""
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.root_item = HeadingItem(0, "Root")
@@ -71,14 +89,16 @@ class HeadingModel(QAbstractItemModel):
         for level, text in headings:
             while len(stack) > 1 and stack[-1].level >= level:
                 stack.pop()
-            
+
             new_item = HeadingItem(level, text, stack[-1])
             stack[-1].append_child(new_item)
             stack.append(new_item)
-            
+
         self.endResetModel()
 
-    def index(self, row: int, column: int, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> QModelIndex:
+    def index(
+        self, row: int, column: int, parent: QModelIndex | QPersistentModelIndex = QModelIndex()
+    ) -> QModelIndex:
         if not self.hasIndex(row, column, parent):
             return QModelIndex()
 
@@ -109,7 +129,9 @@ class HeadingModel(QAbstractItemModel):
     def columnCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
         return 1
 
-    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+    def data(
+        self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole
+    ) -> Any:
         if not index.isValid():
             return None
         item = index.internalPointer()
@@ -123,6 +145,7 @@ class HeadingModel(QAbstractItemModel):
 
 class CitationModel(QAbstractListModel):
     """Simple list model for Citations extracted from a note."""
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._keys: list[str] = []
@@ -135,7 +158,9 @@ class CitationModel(QAbstractListModel):
     def rowCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
         return len(self._keys)
 
-    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+    def data(
+        self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole
+    ) -> Any:
         if not index.isValid():
             return None
         key = self._keys[index.row()]
@@ -150,19 +175,23 @@ class CitationModel(QAbstractListModel):
 
 class NotesFilterProxyModel(QSortFilterProxyModel):
     """Proxy model to filter for Markdown files and directories only."""
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex | QPersistentModelIndex) -> bool:
+
+    def filterAcceptsRow(
+        self, source_row: int, source_parent: QModelIndex | QPersistentModelIndex
+    ) -> bool:
         model = cast(QFileSystemModel, self.sourceModel())
         idx = model.index(source_row, 0, source_parent)
-        
+
         if model.isDir(idx):
             return True
-            
+
         file_name = model.fileName(idx).lower()
         return file_name.endswith(".md")
 
 
 class NotesTreeWidget(QTreeWidget):
     """Tree widget for notes that supports manual sorting via drag and drop."""
+
     note_selected = Signal(Path)
     item_moved = Signal(Path, Path)
 
@@ -171,7 +200,7 @@ class NotesTreeWidget(QTreeWidget):
         self.root_path = root_path
         self.vault_path = vault_path
         self._order_file = vault_path / ".noteration" / "notes_order.json"
-        
+
         self.setHeaderHidden(True)
         self.setIndentation(12)
         self.setAnimated(True)
@@ -180,7 +209,7 @@ class NotesTreeWidget(QTreeWidget):
         self.setDropIndicatorShown(True)
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        
+
         self.itemDoubleClicked.connect(self._on_double_clicked)
         self.populate()
 
@@ -201,7 +230,7 @@ class NotesTreeWidget(QTreeWidget):
     def _scan_dir(self, path: Path, parent_item: QTreeWidgetItem) -> None:
         """Initial alphabetical scan of the directory structure."""
         entries = sorted(list(path.iterdir()), key=lambda x: (not x.is_dir(), x.name.lower()))
-        
+
         for entry in entries:
             if entry.is_dir():
                 item = QTreeWidgetItem(parent_item, [entry.name])
@@ -213,7 +242,9 @@ class NotesTreeWidget(QTreeWidget):
                 item.setData(0, Qt.ItemDataRole.UserRole, entry)
                 item.setIcon(0, self.style().standardIcon(self.style().StandardPixmap.SP_FileIcon))
 
-    def _apply_order(self, order_list: list[dict], current_path: Path, parent_item: QTreeWidgetItem) -> None:
+    def _apply_order(
+        self, order_list: list[dict], current_path: Path, parent_item: QTreeWidgetItem
+    ) -> None:
         """Recursively apply the stored JSON ordering to the tree."""
         for entry_info in order_list:
             name = entry_info.get("name")
@@ -221,13 +252,13 @@ class NotesTreeWidget(QTreeWidget):
                 continue
             is_dir = entry_info.get("is_dir", False)
             path = current_path / str(name)
-            
+
             if not path.exists():
                 continue
-                
+
             item = QTreeWidgetItem(parent_item, [str(name)])
             item.setData(0, Qt.ItemDataRole.UserRole, path)
-            
+
             if is_dir:
                 item.setIcon(0, self.style().standardIcon(self.style().StandardPixmap.SP_DirIcon))
                 children = entry_info.get("children", [])
@@ -240,18 +271,22 @@ class NotesTreeWidget(QTreeWidget):
         existing_names = set()
         for i in range(parent_item.childCount()):
             existing_names.add(parent_item.child(i).text(0))
-            
+
         for entry in path.iterdir():
             if entry.name not in existing_names:
                 if entry.is_dir():
                     item = QTreeWidgetItem(parent_item, [entry.name])
                     item.setData(0, Qt.ItemDataRole.UserRole, entry)
-                    item.setIcon(0, self.style().standardIcon(self.style().StandardPixmap.SP_DirIcon))
+                    item.setIcon(
+                        0, self.style().standardIcon(self.style().StandardPixmap.SP_DirIcon)
+                    )
                     self._scan_dir(entry, item)
                 elif entry.suffix.lower() == ".md":
                     item = QTreeWidgetItem(parent_item, [entry.name])
                     item.setData(0, Qt.ItemDataRole.UserRole, entry)
-                    item.setIcon(0, self.style().standardIcon(self.style().StandardPixmap.SP_FileIcon))
+                    item.setIcon(
+                        0, self.style().standardIcon(self.style().StandardPixmap.SP_FileIcon)
+                    )
             elif entry.is_dir():
                 # Recursively check the contents of existing folders
                 child_item = self.find_item_by_path(entry, parent_item)
@@ -299,12 +334,14 @@ class NotesTreeWidget(QTreeWidget):
         if isinstance(path, Path) and path.is_file():
             self.note_selected.emit(path)
 
-    def find_item_by_path(self, path: Path, parent: QTreeWidgetItem | None = None) -> QTreeWidgetItem | None:
+    def find_item_by_path(
+        self, path: Path, parent: QTreeWidgetItem | None = None
+    ) -> QTreeWidgetItem | None:
         """Recursively locate a tree item corresponding to a file path."""
         root = parent or self.invisibleRootItem()
         if root.data(0, Qt.ItemDataRole.UserRole) == path:
             return root
-        
+
         for i in range(root.childCount()):
             child = root.child(i)
             res = self.find_item_by_path(path, child)
@@ -322,12 +359,12 @@ class NotesTreeWidget(QTreeWidget):
 
         item = QTreeWidgetItem(parent_item, [path.name])
         item.setData(0, Qt.ItemDataRole.UserRole, path)
-        
+
         if path.is_dir():
             item.setIcon(0, self.style().standardIcon(self.style().StandardPixmap.SP_DirIcon))
         else:
             item.setIcon(0, self.style().standardIcon(self.style().StandardPixmap.SP_FileIcon))
-        
+
         self.setCurrentItem(item)
         self.scrollToItem(item)
         self.save_order()
@@ -340,16 +377,16 @@ class NotesTreeWidget(QTreeWidget):
             return
 
         old_path = selected_item.data(0, Qt.ItemDataRole.UserRole)
-        
+
         # Execute the default drop behavior to update the UI
         super().dropEvent(event)
-        
+
         # Calculate the new path based on the drop target
         new_parent_item = selected_item.parent() or self.invisibleRootItem()
         new_parent_path = new_parent_item.data(0, Qt.ItemDataRole.UserRole) or self.root_path
-        
+
         new_path = new_parent_path / old_path.name
-        
+
         if old_path != new_path:
             try:
                 if old_path.exists():
@@ -361,8 +398,8 @@ class NotesTreeWidget(QTreeWidget):
                         self._update_item_paths(selected_item, new_path)
             except Exception as e:
                 QMessageBox.critical(self, "Move Failed", str(e))
-                self.populate() # Refresh to sync disk state
-        
+                self.populate()  # Refresh to sync disk state
+
         self.save_order()
 
     def _update_item_paths(self, parent_item: QTreeWidgetItem, new_parent_path: Path) -> None:
@@ -384,8 +421,10 @@ class NotesTreeWidget(QTreeWidget):
 
 # ── Panels ─────────────────────────────────────────────────────────────
 
+
 class NotesPanel(QWidget):
     """Sidebar panel displaying the file tree for notes."""
+
     note_selected = Signal(Path)
     item_moved = Signal(Path, Path)
 
@@ -400,7 +439,7 @@ class NotesPanel(QWidget):
         self.tree.item_moved.connect(self.item_moved.emit)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._show_context_menu)
-        
+
         layout.addWidget(self.tree)
 
     def _show_context_menu(self, pos) -> None:
@@ -436,7 +475,7 @@ class NotesPanel(QWidget):
         old_path = item.data(0, Qt.ItemDataRole.UserRole)
         if not old_path.exists():
             return
-        
+
         is_folder = old_path.is_dir()
         old_name = old_path.stem if not is_folder else old_path.name
         new_name, ok = QInputDialog.getText(self, "Rename", "New name:", text=old_name)
@@ -444,7 +483,7 @@ class NotesPanel(QWidget):
             new_name = new_name.strip()
             if not is_folder and not new_name.endswith(".md"):
                 new_name += ".md"
-            
+
             new_path = old_path.parent / new_name
             try:
                 old_path.rename(new_path)
@@ -459,9 +498,16 @@ class NotesPanel(QWidget):
         path = item.data(0, Qt.ItemDataRole.UserRole)
         if not path.exists():
             return
-        
-        if QMessageBox.question(self, "Delete", f"Permanently delete '{path.name}'?", 
-                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+
+        if (
+            QMessageBox.question(
+                self,
+                "Delete",
+                f"Permanently delete '{path.name}'?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            == QMessageBox.StandardButton.Yes
+        ):
             try:
                 if path.is_dir():
                     shutil.rmtree(path)
@@ -493,6 +539,7 @@ class NotesPanel(QWidget):
 
 class PapisPanel(QWidget):
     """Sidebar panel for browsing and filtering Papis literature entries."""
+
     pdf_selected = Signal(str, str)
 
     def __init__(self, config: NoterationConfig, parent=None) -> None:
@@ -506,7 +553,7 @@ class PapisPanel(QWidget):
         f_row = QWidget()
         f_lay = QHBoxLayout(f_row)
         f_lay.setContentsMargins(0, 0, 0, 4)
-        
+
         self.combo = QComboBox()
         self.combo.setFixedWidth(85)
         self.combo.addItem("All")
@@ -525,7 +572,7 @@ class PapisPanel(QWidget):
         self.tree.setIndentation(0)
         self.tree.itemDoubleClicked.connect(self._on_double_clicked)
         layout.addWidget(self.tree)
-        
+
         self._dirty = True
 
     def mark_dirty(self) -> None:
@@ -542,16 +589,20 @@ class PapisPanel(QWidget):
         lit_dir = self.config.papis_library
         if not lit_dir.exists():
             return
-        
+
         yaml = get_yaml()
 
         all_collections = set()
-        
+
         # 1. Direct PDFs in library root
         for pdf_file in sorted(lit_dir.glob("*.pdf")):
             item = QTreeWidgetItem(self.tree, [f"📘 {pdf_file.name}"])
-            item.setData(0, Qt.ItemDataRole.UserRole, {"key": pdf_file.stem, "pdf": pdf_file, "collections": []})
-        
+            item.setData(
+                0,
+                Qt.ItemDataRole.UserRole,
+                {"key": pdf_file.stem, "pdf": pdf_file, "collections": []},
+            )
+
         # 2. Folder-based entries with info.yaml
         for entry_dir in sorted(lit_dir.iterdir()):
             if not entry_dir.is_dir() or not (entry_dir / "info.yaml").exists():
@@ -567,7 +618,15 @@ class PapisPanel(QWidget):
                     all_collections.add(str(c))
                 pdf = list(entry_dir.glob("*.pdf"))
                 item = QTreeWidgetItem(self.tree, [f"{'📘' if pdf else '📂'} {title}"])
-                item.setData(0, Qt.ItemDataRole.UserRole, {"key": entry_dir.name, "pdf": pdf[0] if pdf else None, "collections": [str(c) for c in colls]})
+                item.setData(
+                    0,
+                    Qt.ItemDataRole.UserRole,
+                    {
+                        "key": entry_dir.name,
+                        "pdf": pdf[0] if pdf else None,
+                        "collections": [str(c) for c in colls],
+                    },
+                )
             except Exception as e:
                 logger.warning(f"Failed to process Papis entry directory {entry_dir}: {e}")
 
@@ -612,6 +671,7 @@ class PapisPanel(QWidget):
 
 class OutlinePanel(QWidget):
     """Sidebar panel displaying a hierarchical heading outline of the active note."""
+
     heading_clicked = Signal(str)
 
     def __init__(self, parent=None) -> None:
@@ -638,6 +698,7 @@ class OutlinePanel(QWidget):
 
 class CitationsPanel(QWidget):
     """Sidebar panel listing all @citations found in the current note."""
+
     citation_clicked = Signal(str)
 
     def __init__(self, parent=None) -> None:
@@ -660,16 +721,50 @@ class CitationsPanel(QWidget):
             self.citation_clicked.emit(k)
 
 
+class TagsPanel(QWidget):
+    """Sidebar panel displaying all tags found in the vault."""
+
+    tag_clicked = Signal(str)
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.tree = QTreeWidget()
+        self.tree.setHeaderHidden(True)
+        self.tree.setIndentation(0)
+        self.tree.itemDoubleClicked.connect(self._on_double_click)
+        layout.addWidget(self.tree)
+
+    def update_tags(self, tags: list[tuple[str, str]]) -> None:
+        """Update the tags list. Expects list of (tag_name, source)."""
+        self.tree.clear()
+        # Sort by tag name then source
+        sorted_tags = sorted(tags, key=lambda x: (x[0].lower(), x[1]))
+        for tag, source in sorted_tags:
+            icon = "🏷️" if source == "note" else "📚"
+            item = QTreeWidgetItem(self.tree, [f"{icon} {tag}"])
+            item.setData(0, Qt.ItemDataRole.UserRole, tag)
+
+    def _on_double_click(self, item: QTreeWidgetItem, _col: int) -> None:
+        tag = item.data(0, Qt.ItemDataRole.UserRole)
+        if tag:
+            self.tag_clicked.emit(tag)
+
+
 # ── Main Sidebar ───────────────────────────────────────────────────────
 
+
 class SidebarWidget(QWidget):
+    """Main Sidebar container with tabbed panels for navigation and metadata.
     """
-    Main Sidebar container with tabbed panels for navigation and metadata.
-    """
+
     note_selected = Signal(object)
     pdf_selected = Signal(str, str)
     heading_clicked = Signal(str)
     citation_clicked = Signal(str)
+    tag_clicked = Signal(str)
     item_moved = Signal(object, object)
 
     def __init__(self, vault_path: Path, config: NoterationConfig, parent=None) -> None:
@@ -679,25 +774,29 @@ class SidebarWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.tabs = QTabWidget()
-        
+
         self.notes_panel = NotesPanel(vault_path)
         self.notes_panel.note_selected.connect(self.note_selected.emit)
         self.notes_panel.item_moved.connect(self.item_moved.emit)
-        
+
         self.papis_panel = PapisPanel(config)
         self.papis_panel.pdf_selected.connect(self.pdf_selected.emit)
-        
+
         self.outline_panel = OutlinePanel()
         self.outline_panel.heading_clicked.connect(self.heading_clicked.emit)
-        
+
         self.citations_panel = CitationsPanel()
         self.citations_panel.citation_clicked.connect(self.citation_clicked.emit)
 
+        self.tags_panel = TagsPanel()
+        self.tags_panel.tag_clicked.connect(self.tag_clicked.emit)
+
         self.tabs.addTab(self.notes_panel, "Notes")
         self.tabs.addTab(self.papis_panel, "PDFs")
+        self.tabs.addTab(self.tags_panel, "Tags")
         self.tabs.addTab(self.outline_panel, "Outline")
         self.tabs.addTab(self.citations_panel, "Citations")
-        
+
         layout.addWidget(self.tabs)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.papis_panel.populate()
@@ -705,6 +804,9 @@ class SidebarWidget(QWidget):
     def _on_tab_changed(self, index: int) -> None:
         if self.tabs.widget(index) == self.papis_panel:
             self.papis_panel.ensure_populated()
+
+    def update_tags(self, tags: list[tuple[str, str]]) -> None:
+        self.tags_panel.update_tags(tags)
 
     def update_outline(self, headings: list[tuple[int, str]]) -> None:
         self.outline_panel.update_outline(headings)

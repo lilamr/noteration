@@ -1,5 +1,4 @@
-"""
-noteration/pdf/reader.py
+"""noteration/pdf/reader.py
 
 Dual-backend PDF rendering wrapper:
   1. PyMuPDF (fitz) — extract text, coordinates, render to QPixmap
@@ -22,13 +21,19 @@ from collections import OrderedDict
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtCore import QRectF
 
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
+
 _fitz: Any = None
+
 
 def get_fitz() -> Any:
     global _fitz
     if _fitz is None:
         try:
             import fitz  # type: ignore
+
             _fitz = fitz
             # Silence MuPDF warnings/errors which can be noisy
             try:
@@ -39,6 +44,7 @@ def get_fitz() -> Any:
             pass
     return _fitz
 
+
 def has_fitz() -> bool:
     return get_fitz() is not None
 
@@ -46,20 +52,22 @@ def has_fitz() -> bool:
 @dataclass
 class TextSpan:
     """A single word / text span with its position on the page (in PDF points)."""
+
     text: str
-    bbox: tuple[float, float, float, float]   # x0, y0, x1, y1
+    bbox: tuple[float, float, float, float]  # x0, y0, x1, y1
     page: int
 
 
 @dataclass
 class PageInfo:
-    width: float        # in PDF points
+    width: float  # in PDF points
     height: float
     page_index: int
 
 
 class RenderCache:
     """Simple LRU cache for QPixmap renders."""
+
     def __init__(self, max_size: int = 15) -> None:
         self.max_size = max_size
         self._cache: OrderedDict[Tuple[int, float], QPixmap] = OrderedDict()
@@ -84,8 +92,7 @@ class RenderCache:
 
 
 class PdfReader:
-    """
-    PyMuPDF wrapper for PDF rendering & text extraction.
+    """PyMuPDF wrapper for PDF rendering & text extraction.
     If fitz is not available, all methods return empty values or None.
     """
 
@@ -102,7 +109,7 @@ class PdfReader:
         try:
             self._doc = fitz.open(str(pdf_path))
         except Exception as e:
-            print(f"[PdfReader] Failed to open {pdf_path}: {e}")
+            logger.error(f"Failed to open {pdf_path}: {e}")
 
     # ------------------------------------------------------------------
     # Properties
@@ -128,39 +135,39 @@ class PdfReader:
     # ------------------------------------------------------------------
 
     def render_page(self, page_idx: int, zoom: float = 1.0) -> QPixmap | None:
-        """
-        Render a single PDF page to QPixmap.
+        """Render a single PDF page to QPixmap.
         zoom: 1.0 = 72 dpi, 2.0 = 144 dpi (for HiDPI screens).
         """
         if not self._doc or page_idx >= self.page_count:
             return None
-            
+
         # Check cache first
         cached = self._render_cache.get(page_idx, zoom)
         if cached:
             return cached
-            
+
         try:
             fitz = get_fitz()
             page = self._doc[page_idx]
-            mat = fitz.Matrix(zoom * 2.0, zoom * 2.0)   # 2× = ~144 dpi baseline
+            mat = fitz.Matrix(zoom * 2.0, zoom * 2.0)  # 2× = ~144 dpi baseline
             pix = page.get_pixmap(matrix=mat, alpha=False)
 
             # Convert fitz Pixmap → QImage → QPixmap
             img = QImage(
                 pix.samples,
-                pix.width, pix.height,
+                pix.width,
+                pix.height,
                 pix.stride,
                 QImage.Format.Format_RGB888,
             )
             pixmap = QPixmap.fromImage(img)
-            
+
             # Save to cache
             self._render_cache.set(page_idx, zoom, pixmap)
-            
+
             return pixmap
         except Exception as e:
-            print(f"[PdfReader] render_page failed on page {page_idx}: {e}")
+            logger.error(f"render_page failed on page {page_idx}: {e}")
             return None
 
     # ------------------------------------------------------------------
@@ -168,8 +175,7 @@ class PdfReader:
     # ------------------------------------------------------------------
 
     def extract_text_spans(self, page_idx: int) -> list[TextSpan]:
-        """
-        Extract all text spans along with their bounding boxes.
+        """Extract all text spans along with their bounding boxes.
         Used for:
         - Displaying accurate highlight overlays
         - Fuzzy search
@@ -182,7 +188,7 @@ class PdfReader:
             blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)["blocks"]
             spans: list[TextSpan] = []
             for block in blocks:
-                if block.get("type") != 0:   # 0 = text, 1 = image
+                if block.get("type") != 0:  # 0 = text, 1 = image
                     continue
                 for line in block.get("lines", []):
                     for span in line.get("spans", []):
@@ -191,7 +197,8 @@ class PdfReader:
                             b = span["bbox"]
                             spans.append(TextSpan(text=txt, bbox=tuple(b), page=page_idx))
             return spans
-        except Exception:
+        except Exception as e:
+            logger.error(f"extract_text_spans failed on page {page_idx}: {e}")
             return []
 
     def extract_page_text(self, page_idx: int) -> str:
@@ -200,22 +207,20 @@ class PdfReader:
             return ""
         try:
             return self._doc[page_idx].get_text()
-        except Exception:
+        except Exception as e:
+            logger.error(f"extract_page_text failed on page {page_idx}: {e}")
             return ""
 
     def extract_full_text(self) -> str:
         """Get plain text for the entire document."""
-        return "\n\n".join(
-            self.extract_page_text(i) for i in range(self.page_count)
-        )
+        return "\n\n".join(self.extract_page_text(i) for i in range(self.page_count))
 
     # ------------------------------------------------------------------
     # Search
     # ------------------------------------------------------------------
 
     def search_text(self, query: str) -> list[tuple[int, tuple[float, float, float, float]]]:
-        """
-        Search for text within the entire document.
+        """Search for text within the entire document.
         Returns: list of (page_idx, bbox).
         """
         if not self._doc or not query:
@@ -239,8 +244,7 @@ class PdfReader:
         zoom: float,
         widget_width: int,
     ) -> QRectF:
-        """
-        Convert PDF points coordinates → pixels in widget (after zoom & scale).
+        """Convert PDF points coordinates → pixels in widget (after zoom & scale).
         Assumes page is fit to widget_width.
         """
         info = self.page_info(page_idx)

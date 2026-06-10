@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-06-03
+
+### Added
+- **Command Line Interface (ntr)**: A robust CLI for vault management, full-text search, note creation/deletion, literature management (DOI/arXiv fetching), graph analysis, and synchronization.
+- **REST API (ntr-api)**: A FastAPI-based HTTP interface allowing external tools to interact with the vault (CRUD notes, search, stats).
+- **API Security**: Implemented API Key authentication for the REST API.
+- **GUI API Control**: Added a new "API" tab in Settings to manage the server lifecycle, port, and authentication keys directly from the GUI.
+- **Advanced CLI Export**: Integrated Pandoc-based document export directly into the CLI (`ntr export`).
+- **New User Guides**: Added comprehensive `user_guide_cli.md` and `user_guide_api.md` in the `docs/` folder.
+- **Architectural Decoupling**: Refactored the core logic into `VaultCore` (Pure Python), separating business rules from the PySide6 GUI.
+- **SQLite FTS5 Search**: Replaced regex-based search with a high-performance Full-Text Search engine using SQLite FTS5.
+- **Tags System**: Implemented a first-class `#tag` system with automatic extraction from Markdown and a dedicated "Tags" sidebar panel.
+- **Navigation History**: Added support for `Alt+Left` (Back) and `Alt+Right` (Forward) navigation between recently opened notes.
+- **Robust LaTeX Rendering**: Integrated `pymdownx.arithmatex` for reliable math rendering, preserving complex formulas and double backslashes.
+- **Advanced Markdown Features**: Enabled tasklists, highlights, strikethrough, and superscript extensions.
+- **Smart Re-encryption**: Optimized synchronization for encrypted vaults to prevent unnecessary Git modifications by only re-encrypting modified files.
+- **Thread Safety**: Improved shutdown logic in background controllers to resolve application crashes on exit.
+- **Encrypted Vault Indexing**: Resolved PDF indexing issues in encrypted vaults by ensuring correct path initialization for the literature bridge.
+- **Transparent Vault Encryption**: Implemented "at-rest" encryption using the **age** format, natively integrated for seamless security, including a session-based secure decryption workflow and the ability to permanently disable encryption.
+- **CSL Style Selection**: Added the ability to choose citation styles (APA, IEEE, MLA, etc.) directly in the Settings dialog.
+- **Document Export Integration**: Unified document export menus in the File menu and Preview context menu.
+- **Split View**: Implemented vertical split view in the main window, allowing side-by-side editing and reading. Use the tab context menu to move tabs between panes.
+- **PDF Annotation Toggle**: Added a dedicated button and shortcut (`Ctrl+Alt+A`) to show/hide the annotation panel for a cleaner reading experience.
+- **Detailed Sync Logs**: The Synchronization tab now lists specific changed and untracked files in its log.
+
 ## [1.2.0] - 2026-05-16
 
 ### Added

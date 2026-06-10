@@ -1,12 +1,17 @@
-"""
-Find and Replace dialog for the Markdown editor.
+"""Find and Replace dialog for the Markdown editor.
 """
 
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QLabel, QPushButton, QCheckBox, QGroupBox,
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLineEdit,
+    QLabel,
+    QPushButton,
+    QCheckBox,
+    QGroupBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
@@ -53,11 +58,11 @@ class FindReplaceDialog(QDialog):
         # Options
         options_group = QGroupBox("Options")
         options_layout = QHBoxLayout(options_group)
-        
+
         self._case_cb = QCheckBox("Case sensitive")
         self._whole_cb = QCheckBox("Whole words")
         self._regex_cb = QCheckBox("Regex")
-        
+
         options_layout.addWidget(self._case_cb)
         options_layout.addWidget(self._whole_cb)
         options_layout.addWidget(self._regex_cb)
@@ -65,26 +70,26 @@ class FindReplaceDialog(QDialog):
 
         # Buttons
         btn_layout = QHBoxLayout()
-        
+
         self._find_btn = QPushButton("Find Next")
         self._find_btn.setDefault(True)
         self._find_btn.clicked.connect(self._on_find_next)
-        
+
         self._replace_btn = QPushButton("Replace")
         self._replace_btn.clicked.connect(self._on_replace)
-        
+
         self._replace_all_btn = QPushButton("Replace All")
         self._replace_all_btn.clicked.connect(self._on_replace_all)
-        
+
         self._close_btn = QPushButton("Close")
         self._close_btn.clicked.connect(self.close)
-        
+
         btn_layout.addWidget(self._find_btn)
         btn_layout.addWidget(self._replace_btn)
         btn_layout.addWidget(self._replace_all_btn)
         btn_layout.addStretch()
         btn_layout.addWidget(self._close_btn)
-        
+
         layout.addLayout(btn_layout)
 
         self._find_input.setFocus()
@@ -102,10 +107,7 @@ class FindReplaceDialog(QDialog):
         if not query:
             return
         self.find_next_requested.emit(
-            query,
-            self._case_cb.isChecked(),
-            self._whole_cb.isChecked(),
-            self._regex_cb.isChecked()
+            query, self._case_cb.isChecked(), self._whole_cb.isChecked(), self._regex_cb.isChecked()
         )
 
     def _on_replace(self) -> None:
@@ -118,7 +120,7 @@ class FindReplaceDialog(QDialog):
             replace_text,
             self._case_cb.isChecked(),
             self._whole_cb.isChecked(),
-            self._regex_cb.isChecked()
+            self._regex_cb.isChecked(),
         )
 
     def _on_replace_all(self) -> None:
@@ -131,7 +133,7 @@ class FindReplaceDialog(QDialog):
             replace_text,
             self._case_cb.isChecked(),
             self._whole_cb.isChecked(),
-            self._regex_cb.isChecked()
+            self._regex_cb.isChecked(),
         )
 
     def set_initial_text(self, text: str) -> None:

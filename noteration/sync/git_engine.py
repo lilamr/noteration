@@ -1,5 +1,4 @@
-"""
-Git synchronization engine using GitPython.
+"""Git synchronization engine using GitPython.
 """
 
 from __future__ import annotations
@@ -11,6 +10,7 @@ from datetime import datetime, timezone
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any
+from noteration.utils.path_safety import is_safe_path
 
 from noteration.logger import get_logger
 
@@ -19,35 +19,40 @@ logger = get_logger(__name__)
 _git_mod: Any = None
 _HAS_GIT: bool | None = None
 
+
 def get_git() -> Any:
     global _git_mod, _HAS_GIT
     if _HAS_GIT is None:
         try:
             import git as _g
+
             _git_mod = _g
             _HAS_GIT = True
         except ImportError:
             _HAS_GIT = False
     return _git_mod
 
+
 def has_git() -> bool:
     return get_git() is not None
 
+
 # ── Data models ───────────────────────────────────────────────────────────
 
+
 class SyncStatus(Enum):
-    SUCCESS        = auto()
-    ERROR          = auto()
-    CONFLICT       = auto()
-    UP_TO_DATE     = auto()
-    NOT_A_REPO     = auto()
-    NOTHING_TO_DO  = auto()
+    SUCCESS = auto()
+    ERROR = auto()
+    CONFLICT = auto()
+    UP_TO_DATE = auto()
+    NOT_A_REPO = auto()
+    NOTHING_TO_DO = auto()
 
 
 class SyncStrategy(Enum):
     REBASE = "rebase"
-    MERGE  = "merge"
-    STASH  = "stash"
+    MERGE = "merge"
+    STASH = "stash"
 
 
 @dataclass
@@ -89,14 +94,15 @@ class RepoStatus:
 
 # ── GitRepo wrapper ───────────────────────────────────────────────────────
 
+
 class GitRepo:
-    """
-    GitPython wrapper for Noteration vault operations.
+    """GitPython wrapper for Noteration vault operations.
     Thread-safe wrapper using a reentrant lock and a single Repo instance.
     """
 
-    def __init__(self, vault_path: Path) -> None:
+    def __init__(self, vault_path: Path, work_tree: Path | None = None) -> None:
         self.vault_path = vault_path
+        self.work_tree = work_tree
         self._repo: Any = None
         self._lock = threading.RLock()
 
@@ -109,6 +115,9 @@ class GitRepo:
         if self._repo is not None:
             return True
         try:
+            # We open the repo at the vault_path (physical storage).
+            # We DO NOT set a global GIT_WORK_TREE environment here anymore
+            # to prevent it from leaking into sync/commit operations.
             self._repo = get_git().Repo(self.vault_path)
             return True
         except (get_git().InvalidGitRepositoryError, get_git().NoSuchPathError):
@@ -123,14 +132,35 @@ class GitRepo:
         with self._lock:
             return self._ensure_repo()
 
-    def _get_env(self) -> dict[str, str]:
+    def _get_env(self, use_worktree: bool = False) -> dict[str, str]:
         """Environment variables for Git."""
         env = os.environ.copy()
         env["GIT_TERMINAL_PROMPT"] = "0"
         env["GIT_ASKPASS"] = "true"
+
+        # Only use worktree for status checks in encrypted sessions.
+        # For sync/commit, we want Git to operate on vault_path (storage).
+        if use_worktree and self.work_tree:
+            env["GIT_WORK_TREE"] = str(self.work_tree)
+            # When using a worktree, we must also specify the git directory explicitly
+            # to avoid ambiguity in some Git versions.
+            env["GIT_DIR"] = str(self.vault_path / ".git")
+        else:
+            # Explicitly clear GIT_WORK_TREE to bypass any external inheritance
+            env.pop("GIT_WORK_TREE", None)
+
         return env
 
-    # ── State Detection ───────────────────────────────────────────────
+    def add(self, rel_path: str) -> None:
+        """Stage a file for Git."""
+        with self._lock:
+            if not self._ensure_repo() or self._repo is None:
+                return
+            try:
+                env = self._get_env(use_worktree=False)
+                self._repo.git.add(rel_path, env=env)
+            except Exception as e:
+                logger.error(f"Failed to add {rel_path} to Git: {e}")
 
     def is_rebase_in_progress(self) -> bool:
         git_dir = self.vault_path / ".git"
@@ -144,10 +174,12 @@ class GitRepo:
             if not self._ensure_repo() or self._repo is None:
                 return False
             try:
+                # Abort is a repository-level operation, no worktree needed.
+                env = self._get_env(use_worktree=False)
                 if self.is_rebase_in_progress():
-                    self._repo.git.rebase("--abort")
+                    self._repo.git.rebase("--abort", env=env)
                 elif self.is_merge_in_progress():
-                    self._repo.git.merge("--abort")
+                    self._repo.git.merge("--abort", env=env)
                 return True
             except get_git().GitCommandError as e:
                 logger.error(f"Git command failed during abort: {e}")
@@ -166,20 +198,10 @@ class GitRepo:
             if not self._ensure_repo() or self._repo is None:
                 return SyncResult(status=SyncStatus.NOT_A_REPO)
 
-            # 1. Auto-resolve junk conflicts (logs) before continuing
-            try:
-                unmerged = self._repo.index.unmerged_blobs()
-                for path in list(unmerged.keys()):
-                    path_str = str(path)
-                    if path_str.endswith(".log") or (".noteration" in path_str and "log" in path_str):
-                        log(f"  i Auto-resolving conflict in log file: {path_str}")
-                        # Take the current file on disk (which was likely updated by the logger)
-                        self._repo.index.add([path_str])
-            except (get_git().GitCommandError, IOError, OSError) as e:
-                logger.debug(f"Auto-resolve logs failed (expected if non-critical): {e}")
-            except Exception as e:
-                logger.exception(f"Unexpected error during log auto-resolution: {e}")
+            # Operations during sync MUST NOT use the worktree (decrypted files).
+            env = self._get_env(use_worktree=False)
 
+            # 1. Conflict detection remains, but manual resolution is required for all files
             is_rebase = self.is_rebase_in_progress()
             is_merge = self.is_merge_in_progress()
 
@@ -188,23 +210,19 @@ class GitRepo:
                 return self._sync_push(log_callback=log_callback)
 
             try:
-                env = self._get_env()
                 if is_rebase:
                     log("$ git rebase --continue")
                     env["GIT_EDITOR"] = "true"
-                    # Correct keyword is 'env', not 'with_env'
                     self._repo.git.rebase("--continue", env=env)
                 else:
                     log("$ git commit (to finish merge)")
                     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-                    self._repo.index.commit(f"merge: resolve conflicts {ts}")
-                
+                    self._repo.git.commit("-m", f"merge: resolve conflicts {ts}", env=env)
+
                 log("  ✓ Conflict resolution finished")
                 return self._sync_push(log_callback=log_callback)
             except get_git().GitCommandError as e:
                 err = str(e)
-                # rebase --continue returns success if there are no more commits to replay, 
-                # but might throw if it's already finished or if there are still conflicts.
                 if "no rebase in progress" in err.lower():
                     log("  ✓ Rebase finished (already complete)")
                     return self._sync_push(log_callback=log_callback)
@@ -213,37 +231,40 @@ class GitRepo:
                 if conflicts:
                     log(f"  ✗ Conflicts remain: {len(conflicts)} files")
                     return SyncResult(status=SyncStatus.CONFLICT, conflicts=conflicts)
-                
-                # If _detect_conflicts is empty but we still have an error, it might be 
-                # because of the log file conflict we just auto-resolved but rebase 
-                # still failed for some reason. Let's try one more rebase --continue 
-                # if we have no REAL conflicts left.
-                if "CONFLICT" in err or "conflict" in err:
-                     try:
-                         log("  i Retrying rebase --continue after auto-resolution...")
-                         self._repo.git.rebase("--continue", with_env=env)
-                         log("  ✓ Conflict resolution finished (auto)")
-                         return self._sync_push(log_callback=log_callback)
-                     except Exception as retry_err:
-                         logger.debug(f"Retrying rebase --continue failed: {retry_err}")
 
+                if "CONFLICT" in err or "conflict" in err:
+                    try:
+                        log("  i Retrying rebase --continue after auto-resolution...")
+                        self._repo.git.rebase("--continue", env=env)
+                        log("  ✓ Conflict resolution finished (auto)")
+                        return self._sync_push(log_callback=log_callback)
+                    except Exception as retry_err:
+                        logger.debug(f"Retrying rebase --continue failed: {retry_err}")
                 err_msg = str(e.stderr).strip() or err
                 log(f"  ✗ Failed to continue: {err_msg[:200]}")
                 return SyncResult(status=SyncStatus.ERROR, message=err_msg)
 
     # ── Status ──────────────────────────────────────────
 
-    def status(self, fetch: bool = False) -> RepoStatus:
+    def status(self, fetch: bool = False, session_hashes: dict[str, str] | None = None) -> RepoStatus:
         s = RepoStatus()
         with self._lock:
             if not self._ensure_repo() or self._repo is None:
                 return s
-            
+
             repo = self._repo
             s.is_repo = True
             try:
+                # 1. Environment for status
+                # If we have a work_tree (decrypted session), we use it for some checks.
+                env_worktree = self._get_env(use_worktree=True)
+                env_storage = self._get_env(use_worktree=False)
+
                 if fetch and repo.remotes:
-                    repo.remotes[0].fetch(env=self._get_env())
+                    repo.remotes[0].fetch(env=env_storage)
+
+                # Refresh index
+                repo.git.update_index("-q", "--refresh", env=env_storage)
 
                 try:
                     s.branch = repo.active_branch.name
@@ -251,35 +272,89 @@ class GitRepo:
                     s.branch = "HEAD (detached)"
 
                 s.remotes = [r.name for r in repo.remotes]
-                s.is_dirty = repo.is_dirty(untracked_files=True)
-                
-                s.untracked = repo.untracked_files
-                s.modified = [str(item.a_path) for item in repo.index.diff(None)]
-                s.staged = [str(item.a_path) for item in repo.index.diff("HEAD")]
+
+                # Check dirty status
+                try:
+                    if self.work_tree:
+                        # ENCRYPTED SESSION MODE
+                        # 1. Check storage (vault_path) for changes to plaintext files 
+                        # like config.toml or .gitignore that stay in storage.
+                        diff_storage = repo.git.diff(name_only=True, env=env_storage).splitlines()
+                        untracked_storage = repo.git.ls_files(others=True, exclude_standard=True, env=env_storage).splitlines()
+                        
+                        # 2. Check worktree for changes to notes/annotations/etc.
+                        # Since they are untracked from Git's perspective, we use hashes.
+                        untracked_worktree_raw = repo.git.ls_files(others=True, exclude_standard=True, env=env_worktree).splitlines()
+                        
+                        modified_session = []
+                        added_session = []
+                        
+                        if session_hashes:
+                            from noteration.pdf.annotations import calculate_file_hash
+                            for f in untracked_worktree_raw:
+                                if f.endswith(".age"):
+                                    continue
+                                
+                                if f in session_hashes:
+                                    full_p = self.work_tree / f
+                                    if full_p.exists():
+                                        try:
+                                            current_h = calculate_file_hash(full_p)
+                                            if current_h != session_hashes[f]:
+                                                modified_session.append(f)
+                                        except Exception:
+                                            pass
+                                else:
+                                    # Truly new file (not in initial session)
+                                    added_session.append(f)
+                        
+                        # Beautify: remove .age suffix for the UI if present
+                        def beautify(path_list):
+                            out = []
+                            for p in path_list:
+                                if p.endswith(".age"):
+                                    out.append(p[:-4])
+                                else:
+                                    out.append(p)
+                            return sorted(list(set(out)))
+
+                        s.modified = beautify(diff_storage + modified_session)[:500]
+                        s.untracked = beautify(untracked_storage + added_session)[:500]
+                        s.is_dirty = bool(s.modified or s.untracked)
+                    else:
+                        # STANDARD MODE
+                        diff_raw = repo.git.diff(name_only=True, env=env_storage).splitlines()
+                        untracked_raw = repo.git.ls_files(others=True, exclude_standard=True, env=env_storage).splitlines()
+                        s.is_dirty = bool(diff_raw or untracked_raw)
+                        s.untracked = untracked_raw[:500]
+                        s.modified = diff_raw[:500]
+                except Exception as e:
+                    logger.error(f"Failed to check dirty status: {e}")
+                    s.is_dirty = False
+
+                try:
+                    s.staged = repo.git.diff("--cached", name_only=True, env=env_storage).splitlines()[:500]
+                except Exception:
+                    s.staged = []
 
                 if repo.remotes:
                     try:
                         branch = repo.active_branch
                         tracking = branch.tracking_branch()
                         if tracking:
-                            ahead = list(repo.iter_commits(f"{tracking.name}..{branch.name}"))
-                            behind = list(repo.iter_commits(f"{branch.name}..{tracking.name}"))
-                            s.ahead = len(ahead)
-                            s.behind = len(behind)
-                    except (get_git().GitCommandError, TypeError, ValueError, AttributeError) as e:
-                        logger.debug(f"Failed to get ahead/behind counts (likely detached head or no tracking): {e}")
+                            s.ahead = int(repo.git.rev_list("--count", f"{tracking.name}..{branch.name}", env=env_storage))
+                            s.behind = int(repo.git.rev_list("--count", f"{branch.name}..{tracking.name}", env=env_storage))
+                    except Exception:
+                        pass
 
                 try:
                     last = repo.head.commit
                     s.last_commit_sha = last.hexsha
                     msg = last.message if isinstance(last.message, str) else last.message.decode("utf-8")
                     s.last_commit_msg = msg.splitlines()[0]
-                    s.last_commit_time = datetime.fromtimestamp(
-                        last.committed_date, timezone.utc).strftime("%Y-%m-%d %H:%M")
-                except (get_git().GitCommandError, AttributeError, ValueError) as e:
-                    logger.debug(f"Failed to get last commit info: {e}")
-            except get_git().GitCommandError as e:
-                logger.error(f"Git status command failed: {e}")
+                    s.last_commit_time = datetime.fromtimestamp(last.committed_date, timezone.utc).strftime("%Y-%m-%d %H:%M")
+                except Exception:
+                    pass
             except Exception as e:
                 logger.exception(f"Unexpected error during status check: {e}")
 
@@ -287,7 +362,13 @@ class GitRepo:
 
     # ── Synchronization ───────────────────────────────────────────────────
 
-    def sync(self, remote: str = "origin", branch: str = "", strategy: SyncStrategy = SyncStrategy.REBASE, log_callback=None) -> SyncResult:
+    def sync(
+        self,
+        remote: str = "origin",
+        branch: str = "",
+        strategy: SyncStrategy = SyncStrategy.REBASE,
+        log_callback=None,
+    ) -> SyncResult:
         def log(msg: str) -> None:
             if log_callback:
                 log_callback(msg)
@@ -295,7 +376,11 @@ class GitRepo:
         with self._lock:
             if not self._ensure_repo() or self._repo is None:
                 return SyncResult(status=SyncStatus.NOT_A_REPO)
-            
+
+            # CRITICAL: Sync operations operate on the encrypted storage files.
+            # We must NOT use the worktree (decrypted files) here.
+            env = self._get_env(use_worktree=False)
+
             repo = self._repo
             if not branch:
                 try:
@@ -307,18 +392,62 @@ class GitRepo:
             log(f"$ git sync (branch: {branch}, remote: {remote})")
 
             try:
+                # 0. Refresh index in storage context
+                repo.git.update_index("-q", "--refresh", env=env)
+
                 # 1. Commit local changes
-                if repo.is_dirty(untracked_files=True):
+                # Check status against storage files
+                diff_raw = repo.git.diff(name_only=True, env=env).splitlines()
+                untracked_raw = repo.git.ls_files(others=True, exclude_standard=True, env=env).splitlines()
+                staged_raw = repo.git.diff("--cached", name_only=True, env=env).splitlines()
+
+                if diff_raw or untracked_raw or staged_raw:
                     log("  i Staging and committing local changes...")
-                    repo.git.add(A=True)
-                    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-                    repo.index.commit(f"sync: auto-commit {ts}")
-                    log("  ✓ Local changes committed")
+
+                    # Stage all changes in storage folder
+                    repo.git.add(A=True, env=env)
+                    
+                    # If this is an encrypted vault, ensure no raw files leaked into the index
+                    if self.work_tree:
+                        for sub in ["notes", "literature", "annotations", "attachments"]:
+                            repo.git.rm("--cached", f"{sub}/**/*.md", f"{sub}/**/*.json", "--ignore-unmatch", env=env)
+
+                    # Check if indeed there are changes to commit after cleaning
+                    if repo.is_dirty(index=True):
+                        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+                        repo.git.commit("-m", f"sync: auto-commit {ts}", env=env)
+                        
+                        log("  ✓ Local changes committed:")
+                        # Show added/modified/deleted more clearly with beautification
+                        def clean_p(p):
+                            return p[:-4] if p.endswith(".age") else p
+
+                        for f in diff_raw[:5]:
+                            # Check if file still exists to distinguish modified vs deleted
+                            if (self.vault_path / f).exists():
+                                log(f"    • {clean_p(f)} (modified)")
+                            else:
+                                log(f"    - {clean_p(f)} (deleted)")
+                        for f in untracked_raw[:5]:
+                            log(f"    + {clean_p(f)} (added)")
+                        
+                        total = len(diff_raw) + len(untracked_raw)
+                        if total > 10:
+                            log(f"    ... and {total - 10} more files")
+                    else:
+                        log("  i No changes to commit after staging and cleanup.")
+
 
                 # 2. Pull from remote
+                available_remotes = [r.name for r in repo.remotes]
+                if not available_remotes or remote not in available_remotes:
+                    log(f"  i No remote '{remote}' configured. Syncing in local-only mode.")
+                    result.status = SyncStatus.SUCCESS
+                    result.message = "Local commit finished (offline mode)"
+                    return result
+
                 log(f"  i Pulling from {remote}/{branch}...")
                 try:
-                    env = self._get_env()
                     if strategy == SyncStrategy.REBASE:
                         repo.git.pull(remote, branch, rebase=True, env=env)
                     elif strategy == SyncStrategy.STASH:
@@ -356,12 +485,14 @@ class GitRepo:
         def log(msg: str) -> None:
             if log_callback:
                 log_callback(msg)
-            
+
         result = SyncResult(status=SyncStatus.SUCCESS)
         with self._lock:
             if not self._ensure_repo() or self._repo is None:
                 return SyncResult(status=SyncStatus.ERROR, message="Repo unavailable")
 
+            # Always bypass worktree for push
+            env = self._get_env(use_worktree=False)
             repo = self._repo
             if not branch:
                 try:
@@ -372,7 +503,7 @@ class GitRepo:
             log(f"  i Pushing to {remote}/{branch}...")
             try:
                 origin = repo.remote(name=remote)
-                push_info = origin.push(branch, env=self._get_env())
+                push_info = origin.push(branch, env=env)
                 for info in push_info:
                     if info.flags & info.ERROR:
                         raise get_git().GitCommandError("push", info.summary)
@@ -394,20 +525,20 @@ class GitRepo:
         """Detect and return information about unmerged files (conflicts)."""
         conflicts: list[ConflictInfo] = []
         # Max size of content to read into memory to avoid Segfaults with huge files
-        MAX_CONTENT_SIZE = 128 * 1024 # 128 KB
+        MAX_CONTENT_SIZE = 128 * 1024  # 128 KB
 
         with self._lock:
             if not self._ensure_repo() or self._repo is None:
                 return conflicts
             try:
+                # Conflict detection works on the repository level (index),
+                # but we use storage environment to be safe.
+
+                # We need to get unmerged blobs directly
                 unmerged = self._repo.index.unmerged_blobs()
                 for path, blobs in unmerged.items():
                     path_str = str(path)
-                    
-                    # Skip log files to avoid infinite loops and memory issues
-                    if path_str.endswith(".log") or ".noteration" in path_str and "log" in path_str:
-                        continue
-                        
+
                     our_content = their_content = ""
                     for stage, blob in blobs:
                         try:
@@ -422,37 +553,62 @@ class GitRepo:
                         except Exception as e:
                             logger.debug(f"Unexpected error reading blob for conflict preview: {e}")
                             content = "[error reading content]"
-                            
-                    if stage == 2:
-                        our_content = content
-                    elif stage == 3:
-                        their_content = content
-                            
-                    conflicts.append(ConflictInfo(
-                        path=path_str, 
-                        our_content=our_content, 
-                        their_content=their_content
-                    ))
+
+                        if stage == 2:
+                            our_content = content
+                        elif stage == 3:
+                            their_content = content
+
+                    conflicts.append(
+                        ConflictInfo(
+                            path=path_str, our_content=our_content, their_content=their_content
+                        )
+                    )
             except get_git().GitCommandError as e:
                 logger.error(f"Failed to detect conflicts (Git error): {e}")
             except Exception as e:
                 logger.exception(f"Unexpected error during conflict detection: {e}")
         return conflicts
 
-    def resolve_conflict(self, path: str, resolved_content: str) -> bool:
+    def resolve_conflict(
+        self, path: str, resolved_content: str, public_key: str | None = None
+    ) -> bool:
         with self._lock:
             if not self._ensure_repo() or self._repo is None:
                 return False
             try:
-                full_path = self.vault_path / path
-                full_path.write_text(resolved_content, encoding="utf-8")
-                self._repo.index.add([path])
+                full_path = (self.vault_path / path).resolve()
+                if not is_safe_path(self.vault_path, full_path):
+                    logger.error(f"Attempted to resolve conflict outside vault: {path}")
+                    return False
+
+                env = self._get_env(use_worktree=False)
+
+                if path.endswith(".age") and public_key:
+                    import tempfile
+                    from noteration.utils.encryption import encrypt_file
+
+                    # Create a temporary file to hold the plaintext resolution
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", suffix=".tmp", encoding="utf-8", delete=False
+                    ) as tmp:
+                        tmp.write(resolved_content)
+                        tmp_path = Path(tmp.name)
+
+                    try:
+                        # Encrypt from temp file directly to the storage path
+                        encrypt_file(tmp_path, public_key, dest_path=full_path)
+                    finally:
+                        if tmp_path.exists():
+                            tmp_path.unlink()
+                else:
+                    # Plaintext resolution (default)
+                    full_path.write_text(resolved_content, encoding="utf-8")
+
+                self._repo.git.add(path, env=env)
                 return True
             except (IOError, OSError) as e:
                 logger.error(f"Failed to write resolved content to {path}: {e}")
-                return False
-            except get_git().GitCommandError as e:
-                logger.error(f"Failed to add resolved file {path} to Git: {e}")
                 return False
             except Exception as e:
                 logger.exception(f"Unexpected error resolving conflict for {path}: {e}")
@@ -465,20 +621,37 @@ class GitRepo:
             if not self._ensure_repo() or self._repo is None:
                 return
             try:
-                remote = self._repo.remote(name=name)
-                if remote:
-                    self._repo.delete_remote(remote)
-            except ValueError:
-                pass
-            self._repo.create_remote(name, url)
+                env = self._get_env(use_worktree=False)
+                # Use git command directly to ensure env
+                self._repo.git.remote("add", name, url, env=env)
+            except get_git().GitCommandError:
+                # If already exists, update it
+                try:
+                    self._repo.git.remote("set-url", name, url, env=env)
+                except Exception as e:
+                    logger.debug(f"Failed to update remote URL: {e}")
+            except Exception as e:
+                logger.debug(f"Failed to add remote: {e}")
 
     def list_remotes(self) -> list[tuple[str, str]]:
         with self._lock:
             if not self._ensure_repo() or self._repo is None:
                 return []
             try:
-                return [(r.name, next(iter(r.urls), "")) for r in self._repo.remotes]
-            except Exception:
+                env = self._get_env(use_worktree=False)
+                raw = self._repo.git.remote("-v", env=env)
+                remotes = []
+                seen = set()
+                for line in raw.splitlines():
+                    if not line:
+                        continue
+                    parts = line.split()
+                    if len(parts) >= 2 and parts[0] not in seen:
+                        remotes.append((parts[0], parts[1]))
+                        seen.add(parts[0])
+                return remotes
+            except Exception as e:
+                logger.error(f"Git command failed during list_remotes: {e}")
                 return []
 
     def recent_commits(self, n: int = 20) -> list[dict]:
@@ -487,14 +660,27 @@ class GitRepo:
             if not self._ensure_repo() or self._repo is None:
                 return []
             try:
-                for c in self._repo.iter_commits(max_count=n):
-                    msg = c.message if isinstance(c.message, str) else c.message.decode("utf-8")
-                    commits.append({
-                        "sha": c.hexsha[:7],
-                        "message": msg.strip().splitlines()[0][:60],
-                        "author": c.author.name,
-                        "time": datetime.fromtimestamp(c.committed_date).strftime("%Y-%m-%d %H:%M")
-                    })
+                env = self._get_env(use_worktree=False)
+                # Use git log directly to ensure env
+                raw = self._repo.git.log(
+                    f"-{n}",
+                    "--pretty=format:%h|%s|%an|%ad",
+                    "--date=format:%Y-%m-%d %H:%M",
+                    env=env,
+                )
+                for line in raw.splitlines():
+                    if not line:
+                        continue
+                    parts = line.split("|")
+                    if len(parts) == 4:
+                        commits.append(
+                            {
+                                "sha": parts[0],
+                                "message": parts[1][:60],
+                                "author": parts[2],
+                                "time": parts[3],
+                            }
+                        )
             except Exception as e:
                 logger.debug(f"Failed to get recent commits: {e}")
         return commits
@@ -504,50 +690,79 @@ class GitRepo:
         with self._lock:
             if not self._ensure_repo() or self._repo is None:
                 return
-            
+
+            # We always operate on the physical storage for .gitignore
+            env = self._get_env(use_worktree=False)
             gitignore_path = self.vault_path / ".gitignore"
             content = gitignore_path.read_text(encoding="utf-8") if gitignore_path.exists() else ""
             lines = [line.strip() for line in content.splitlines()]
-            
+
+            # Unified pattern list: Only ignore specific junk, keep config and order
             patterns = [
                 ".noteration/*.log",
-                ".noteration/noteration.log",
-                "*.log",
-                "noteration.log",
-                ".noteration/db.sqlite",
+                ".noteration/*.log.age",
+                ".noteration/search.db",
+                ".noteration/search.db.age",
                 ".noteration/link_graph.json",
+                ".noteration/link_graph.json.age",
+                ".noteration/pdf_index.json",
+                ".noteration/pdf_index.json.age",
+                ".noteration/db.sqlite",
+                "*.log",
                 "literature/**/*.pdf",
                 "__pycache__/",
+                "*.pyc",
+                "*.pyo",
                 ".DS_Store",
+                "Thumbs.db",
             ]
-            
+
             modified = False
             for p in patterns:
                 if p not in lines:
                     lines.append(p)
                     modified = True
-            
+
             if modified:
                 # Atomic write for .gitignore
                 tmp_path = gitignore_path.with_suffix(".tmp")
                 try:
                     tmp_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
                     tmp_path.replace(gitignore_path)
-                    self._repo.index.add([".gitignore"])
+                    # Add to index but DON'T commit yet, the caller (sync) will commit it.
+                    self._repo.git.add(".gitignore", env=env)
                 except Exception as e:
                     logger.debug(f"Failed to update .gitignore: {e}")
                     if tmp_path.exists():
                         tmp_path.unlink()
-            
-            # Attempt to untrack log and cache files if they were accidentally committed
+
+            # Attempt to untrack junk files if they were accidentally committed
             try:
                 # Use --ignore-unmatch to avoid errors if files aren't tracked
-                self._repo.git.rm("--cached", ".noteration/noteration.log", "--ignore-unmatch")
-                self._repo.git.rm("--cached", "noteration.log", "--ignore-unmatch")
-                self._repo.git.rm("--cached", ".noteration/db.sqlite", "--ignore-unmatch")
-                self._repo.git.rm("--cached", ".noteration/link_graph.json", "--ignore-unmatch")
+                to_untrack = [
+                    ".noteration/noteration.log",
+                    ".noteration/search.db",
+                    ".noteration/link_graph.json",
+                    ".noteration/pdf_index.json",
+                    ".noteration/db.sqlite",
+                    ".noteration/search.db.age",
+                    ".noteration/link_graph.json.age",
+                    ".noteration/pdf_index.json.age",
+                    "noteration.log",
+                ]
+                
+                # Proactive cleanup for encrypted vaults
+                if self.work_tree:
+                    # Untrack common raw patterns in subfolders
+                    for sub in ["notes", "literature", "annotations", "attachments"]:
+                        try:
+                            self._repo.git.rm("--cached", f"{sub}/**/*.md", f"{sub}/**/*.json", "--ignore-unmatch", env=env)
+                        except Exception:
+                            pass
+
+                self._repo.git.rm("--cached", *to_untrack, "--ignore-unmatch", env=env)
             except Exception as e:
-                logger.debug(f"Failed to untrack generated files: {e}")
+                logger.debug(f"Failed to untrack junk files: {e}")
 
     @classmethod
     def init(cls, vault_path: Path, remote_url: str = "") -> "GitRepo":
@@ -557,12 +772,18 @@ class GitRepo:
             gitignore = vault_path / ".gitignore"
             if not gitignore.exists():
                 gitignore.write_text(
-                    "# Noteration — do not sync binary PDFs, cache or logs\n"
-                    "literature/**/*.pdf\n"
-                    ".noteration/db.sqlite\n"
-                    ".noteration/link_graph.json\n"
+                    "# Noteration — auto-generated cache and log files\n"
                     ".noteration/*.log\n"
+                    ".noteration/*.log.age\n"
+                    ".noteration/search.db\n"
+                    ".noteration/search.db.age\n"
+                    ".noteration/link_graph.json\n"
+                    ".noteration/link_graph.json.age\n"
+                    ".noteration/pdf_index.json\n"
+                    ".noteration/pdf_index.json.age\n"
+                    ".noteration/db.sqlite\n"
                     "*.log\n"
+                    "literature/**/*.pdf\n"
                     "__pycache__/\n"
                     "*.pyc\n"
                     "*.pyo\n"

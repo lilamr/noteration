@@ -1,5 +1,4 @@
-"""
-noteration/ui/literature_tab.py
+"""noteration/ui/literature_tab.py
 
 Papis literature browser tab with list + detail view.
 """
@@ -13,21 +12,84 @@ if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QListWidget,
-    QListWidgetItem, QLabel, QPushButton, QSplitter, QFrame,
-    QScrollArea, QGridLayout, QDialog, QFormLayout, QDialogButtonBox,
-    QFileDialog, QInputDialog, QMessageBox, QMenu, QApplication,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLineEdit,
+    QListView,
+    QLabel,
+    QPushButton,
+    QSplitter,
+    QFrame,
+    QScrollArea,
+    QGridLayout,
+    QDialog,
+    QFormLayout,
+    QDialogButtonBox,
+    QFileDialog,
+    QInputDialog,
+    QMessageBox,
+    QMenu,
+    QApplication,
     QComboBox,
 )
-from PySide6.QtCore import Qt, Signal, QTimer, QAbstractListModel, QModelIndex
+from PySide6.QtCore import (
+    Qt,
+    Signal,
+    QTimer,
+    QAbstractListModel,
+    QModelIndex,
+    QSortFilterProxyModel,
+)
 
-from noteration.literature.papis_bridge import LiteratureEntry, get_yaml
+from noteration.literature.papis_bridge import LiteratureEntry
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 # ── Data Model ──────────────────────────────────────────────────────────
 
+
+class LiteratureFilterProxy(QSortFilterProxyModel):
+    """Proxy model for advanced filtering and sorting of literature."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._collection_filter = "All"
+
+    def set_collection_filter(self, collection: str):
+        self._collection_filter = collection
+        self.invalidateFilter()
+
+    def filterAcceptsRow(self, source_row, source_parent):
+        model = self.sourceModel()
+        entry = model.get_entry(source_row)
+        if not entry:
+            return False
+
+        # 1. Collection Filter
+        if self._collection_filter != "All":
+            if self._collection_filter not in entry.collections:
+                return False
+
+        # 2. Text Search Filter (multi-token AND)
+        query = self.filterRegularExpression().pattern().lower()
+        if not query:
+            return True
+
+        tokens = query.split()
+        entry_text = (
+            f"{entry.key} {entry.title} {entry.author} {entry.year} {' '.join(entry.tags)}".lower()
+        )
+
+        return all(token in entry_text for token in tokens)
+
+
 class LiteratureModel(QAbstractListModel):
     """Efficient model for literature entries to handle large libraries."""
+
     def __init__(self, entries: list[LiteratureEntry] | None = None, parent=None):
         super().__init__(parent)
         self._entries = entries or []
@@ -38,18 +100,16 @@ class LiteratureModel(QAbstractListModel):
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or not (0 <= index.row() < len(self._entries)):
             return None
-        
+
         entry = self._entries[index.row()]
-        
+
         if role == Qt.ItemDataRole.DisplayRole:
             coll_str = f" [{', '.join(entry.collections)}]" if entry.collections else ""
-            return (f"@{entry.key}{coll_str}\n"
-                    f"{entry.title[:55]}\n"
-                    f"{entry.author[:35]} · {entry.year}")
-        
+            return f"@{entry.key}{coll_str}\n{entry.title[:55]}\n{entry.author[:35]} · {entry.year}"
+
         elif role == Qt.ItemDataRole.UserRole:
             return entry
-            
+
         return None
 
     def set_entries(self, entries: list[LiteratureEntry]):
@@ -65,9 +125,9 @@ class LiteratureModel(QAbstractListModel):
 
 # ── Dialog: Add Document ────────────────────────────────────────────────
 
+
 class AddDocumentDialog(QDialog):
-    """
-    Dialog for adding a new document to the Papis library.
+    """Dialog for adding a new document to the Papis library.
     Supports:
       - Auto-fetch via DOI or arXiv URL (fills form automatically)
       - Manual metadata entry + local PDF selection
@@ -139,10 +199,10 @@ class AddDocumentDialog(QDialog):
         form = QFormLayout()
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
-        self._title_input  = QLineEdit()
+        self._title_input = QLineEdit()
         self._author_input = QLineEdit()
         self._author_input.setPlaceholderText("Newton, Isaac; Gauss, Carl")
-        self._year_input   = QLineEdit()
+        self._year_input = QLineEdit()
         self._year_input.setMaximumWidth(70)
         self._journal_input = QLineEdit()
         self._publisher_input = QLineEdit()
@@ -159,9 +219,9 @@ class AddDocumentDialog(QDialog):
         self._page_input.setMaximumWidth(100)
         self._page_row_input = QLineEdit()
         self._abstract_input = QLineEdit()
-        self._tags_input   = QLineEdit()
+        self._tags_input = QLineEdit()
         self._tags_input.setPlaceholderText("physics, mechanics  (comma separated)")
-        self._collections_input   = QLineEdit()
+        self._collections_input = QLineEdit()
         self._collections_input.setPlaceholderText("GIS, Land Cover  (comma separated)")
 
         # PDF picker
@@ -191,8 +251,7 @@ class AddDocumentDialog(QDialog):
 
         # ── Buttons ────────────────────────────────────────────────
         buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok |
-            QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -209,6 +268,7 @@ class AddDocumentDialog(QDialog):
         QApplication.processEvents()
 
         from noteration.literature.doi_fetcher import fetch_doi
+
         meta = fetch_doi(doi)
         self._apply_metadata(meta, source="Crossref")
 
@@ -221,6 +281,7 @@ class AddDocumentDialog(QDialog):
         QApplication.processEvents()
 
         from noteration.literature.doi_fetcher import fetch_arxiv
+
         meta = fetch_arxiv(url)
         self._apply_metadata(meta, source="arXiv")
 
@@ -233,6 +294,7 @@ class AddDocumentDialog(QDialog):
         QApplication.processEvents()
 
         from noteration.literature.doi_fetcher import fetch_isbn
+
         meta = fetch_isbn(isbn)
         self._apply_metadata(meta, source="OpenLibrary")
 
@@ -240,8 +302,7 @@ class AddDocumentDialog(QDialog):
         """Fill all form fields from metadata dict obtained from fetch."""
         if not meta:
             self._fetch_status.setText(
-                f"✗ Failed to fetch data from {source}. "
-                "Check connection or fill manually."
+                f"✗ Failed to fetch data from {source}. Check connection or fill manually."
             )
             self._fetch_status.setStyleSheet("color: red; font-size: 11px;")
             return
@@ -268,9 +329,7 @@ class AddDocumentDialog(QDialog):
         self._fetch_status.setStyleSheet("color: green; font-size: 11px;")
 
     def _pick_pdf(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select PDF", "", "PDF Files (*.pdf)"
-        )
+        path, _ = QFileDialog.getOpenFileName(self, "Select PDF", "", "PDF Files (*.pdf)")
         if path:
             self._pdf_path = Path(path)
             self._pdf_label.setText(self._pdf_path.name)
@@ -336,13 +395,11 @@ class AddDocumentDialog(QDialog):
 
     @property
     def tags(self) -> list[str]:
-        return [t.strip() for t in self._tags_input.text().split(",")
-                if t.strip()]
+        return [t.strip() for t in self._tags_input.text().split(",") if t.strip()]
 
     @property
     def collections(self) -> list[str]:
-        return [c.strip() for c in self._collections_input.text().split(",")
-                if c.strip()]
+        return [c.strip() for c in self._collections_input.text().split(",") if c.strip()]
 
     @property
     def extra_fields(self) -> dict:
@@ -355,40 +412,44 @@ class AddDocumentDialog(QDialog):
 
 # ── LiteratureTab ─────────────────────────────────────────────────────────
 
+
 class LiteratureTab(QWidget):
-    """
-    Papis literature browser tab.
+    """Papis literature browser tab.
     Left: list of entries with filter (supports field:value).
     Right: detail view + actions (open PDF, copy key, create note,
            edit metadata, add/remove tag, attach file).
     """
 
-    pdf_open_requested    = Signal(Path, str)   # (pdf_path, papis_key)
-    note_create_requested = Signal(str, str)   # (papis_key, title)
-    library_changed        = Signal()            # emitted after library is modified
+    pdf_open_requested = Signal(Path, str)  # (pdf_path, papis_key)
+    note_create_requested = Signal(str, str)  # (papis_key, title)
+    library_changed = Signal()  # emitted after library is modified
 
-    def __init__(self, vault: "VaultManager",
-                 parent=None) -> None:
+    def __init__(self, vault: "VaultManager", parent=None) -> None:
         super().__init__(parent)
-        self.vault      = vault
+        self.vault = vault
         self.vault_path = vault.vault_path
-        self.config     = vault.config
-        self._bridge    = vault.papis
-        self._entries:  list[LiteratureEntry] = []
-        self._current:  LiteratureEntry | None = None
-        self._library   = vault.library
+        self.config = vault.config
+        self._bridge = vault.papis
+        self._current: LiteratureEntry | None = None
+        self._pending_selection: str | None = None
+        self._library = vault.library
+        self.on_changed = lambda: self.vault.request_git_status()
+
+        # Model/View Setup
+        self._model = LiteratureModel()
+        self._proxy = LiteratureFilterProxy(self)
+        self._proxy.setSourceModel(self._model)
 
         self._setup_ui()
-        
+
         # Connect shared controller signals once
         self._library.entries_loaded.connect(self._on_entries_loaded)
         self._library.error_occurred.connect(self._on_load_error)
-        
-        QTimer.singleShot(100, self._load_entries)
+
+        QTimer.singleShot(0, self._load_entries)
 
     def shutdown(self) -> None:
         """Stop background threads handled by controllers."""
-        # No longer manages its own thread
         pass
 
     def refresh(self) -> None:
@@ -397,31 +458,23 @@ class LiteratureTab(QWidget):
 
     def select_entry(self, papis_key: str) -> None:
         """Select entry in list based on papis_key."""
-        entry = None
-        if self._bridge:
-            entry = self._bridge.get(papis_key)
-        if entry is None:
-            for i in range(self._entry_list.count()):
-                item = self._entry_list.item(i)
-                e = item.data(Qt.ItemDataRole.UserRole)
-                if e and e.key == papis_key:
-                    entry = e
-                    break
-        if entry is None:
-            return
-        self._entry_list.blockSignals(True)
-        for i in range(self._entry_list.count()):
-            item = self._entry_list.item(i)
-            e = item.data(Qt.ItemDataRole.UserRole)
-            if e and e.key == papis_key:
-                self._entry_list.setCurrentItem(item)
-                self._entry_list.scrollToItem(item)
+        found_row = -1
+        for row in range(self._model.rowCount()):
+            entry = self._model.get_entry(row)
+            if entry and entry.key == papis_key:
+                found_row = row
                 break
-        self._entry_list.blockSignals(False)
-        self._current = entry
-        self._show_detail(entry)
 
-    # ── UI construction ───────────────────────────────────────────────
+        if found_row < 0:
+            return
+
+        source_index = self._model.index(found_row)
+        proxy_index = self._proxy.mapFromSource(source_index)
+
+        if proxy_index.isValid():
+            self._entry_list.setCurrentIndex(proxy_index)
+            self._entry_list.scrollTo(proxy_index)
+            self._on_entry_selected(proxy_index)
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -438,48 +491,45 @@ class LiteratureTab(QWidget):
         s_layout.setContentsMargins(6, 3, 6, 3)
         s_layout.setSpacing(4)
 
-        # Collection filter dropdown
         self._collection_combo = QComboBox()
-        self._collection_combo.setFixedWidth(80)
+        self._collection_combo.setFixedWidth(100)
         self._collection_combo.addItem("All")
         self._collection_combo.currentTextChanged.connect(self._on_collection_changed)
         s_layout.addWidget(self._collection_combo)
 
         self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText(
-            "Search… title, author, year, key — or field:value (title:principia, tags:physics)"
-        )
+        self._search_input.setPlaceholderText("Search… (instant filter)")
         self._search_input.textChanged.connect(self._on_search)
         s_layout.addWidget(self._search_input)
 
         add_btn = QPushButton("+ Add")
-        add_btn.setToolTip("Add new document to Papis library")
         add_btn.clicked.connect(self._on_add_document)
         s_layout.addWidget(add_btn)
 
         refresh_btn = QPushButton("↻")
         refresh_btn.setFixedWidth(30)
-        refresh_btn.setToolTip("Reload library")
         refresh_btn.clicked.connect(lambda: self._load_entries(force=True))
         s_layout.addWidget(refresh_btn)
 
         layout.addWidget(search_bar)
 
-        # Left/right splitter
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        self._entry_list = QListWidget()
-        self._entry_list.setStyleSheet("font-size: 12px;")
-        self._entry_list.currentItemChanged.connect(self._on_entry_selected)
-        self._entry_list.setContextMenuPolicy(
-            Qt.ContextMenuPolicy.CustomContextMenu)
-        self._entry_list.customContextMenuRequested.connect(
-            self._show_list_context_menu)
+        self._entry_list = QListView()
+        self._entry_list.setModel(self._proxy)
+        self._entry_list.setStyleSheet("font-size: 11px;")
+        self._entry_list.selectionModel().currentChanged.connect(
+            lambda curr, prev: self._on_entry_selected(curr)
+        )
+
+        self._entry_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._entry_list.customContextMenuRequested.connect(self._show_list_context_menu)
+
         splitter.addWidget(self._entry_list)
 
         self._detail_widget = self._build_detail_widget()
         splitter.addWidget(self._detail_widget)
-        splitter.setSizes([280, 500])
+        splitter.setSizes([320, 500])
 
         layout.addWidget(splitter)
 
@@ -501,7 +551,29 @@ class LiteratureTab(QWidget):
         self._detail_grid.setColumnMinimumWidth(0, 80)
         layout.addLayout(self._detail_grid)
 
-        # Main action buttons
+        self._field_labels = {}
+        fields = [
+            "Author",
+            "Year",
+            "Journal",
+            "Publisher",
+            "DOI",
+            "ISBN",
+            "Volume",
+            "Issue",
+            "Page",
+            "PDF",
+        ]
+        for row, field_name in enumerate(fields):
+            lbl = QLabel(field_name)
+            lbl.setStyleSheet("color: gray; font-size: 11px;")
+            val = QLabel("—")
+            val.setWordWrap(True)
+            val.setStyleSheet("font-size: 12px;")
+            self._detail_grid.addWidget(lbl, row, 0, Qt.AlignmentFlag.AlignTop)
+            self._detail_grid.addWidget(val, row, 1)
+            self._field_labels[field_name] = val
+
         btn_row = QHBoxLayout()
         self._btn_open_pdf = QPushButton("Open PDF")
         self._btn_open_pdf.setEnabled(False)
@@ -521,18 +593,15 @@ class LiteratureTab(QWidget):
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
-        # Edit metadata buttons
         edit_row = QHBoxLayout()
         self._btn_edit_title = QPushButton("Edit Title")
         self._btn_edit_title.setEnabled(False)
-        self._btn_edit_title.clicked.connect(
-            lambda: self._on_edit_field("title", "Title"))
+        self._btn_edit_title.clicked.connect(lambda: self._on_edit_field("title", "Title"))
         edit_row.addWidget(self._btn_edit_title)
 
         self._btn_edit_author = QPushButton("Edit Author")
         self._btn_edit_author.setEnabled(False)
-        self._btn_edit_author.clicked.connect(
-            lambda: self._on_edit_field("author", "Author"))
+        self._btn_edit_author.clicked.connect(lambda: self._on_edit_field("author", "Author"))
         edit_row.addWidget(self._btn_edit_author)
 
         self._btn_add_tag = QPushButton("+ Tag")
@@ -559,203 +628,120 @@ class LiteratureTab(QWidget):
         edit_row.addStretch()
         layout.addLayout(edit_row)
 
-        # Tag list (inline, can be deleted)
         self._tag_label = QLabel("")
         self._tag_label.setWordWrap(True)
         self._tag_label.setStyleSheet("margin-top: 4px;")
         layout.addWidget(self._tag_label)
 
-        # Collection list (inline, can be deleted)
         self._collection_label = QLabel("")
         self._collection_label.setWordWrap(True)
         self._collection_label.setStyleSheet("margin-top: 4px;")
         layout.addWidget(self._collection_label)
 
-        # Abstract
-        self._detail_abstract = QLabel("")
-        self._detail_abstract.setWordWrap(True)
-        self._detail_abstract.setStyleSheet(
-            "color: gray; font-size: 11px; margin-top: 8px;")
-        layout.addWidget(self._detail_abstract)
-
         layout.addStretch()
         scroll.setWidget(container)
         return scroll
 
-# ── Data loading ──────────────────────────────────────────────────
-
     def _load_entries(self, force: bool = False) -> None:
-        """Load Papis entries using the specialized library controller."""
-        # Use the shared controller from vault manager
-        self._library = self.vault.library
-        self._bridge = self._library.bridge
-        
-        # Show loading indicator in list
-        self._entry_list.clear()
-        loading_item = QListWidgetItem("Loading library...")
-        loading_item.setFlags(loading_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
-        self._entry_list.addItem(loading_item)
-        
-        # Disable collection combo during load
         self._collection_combo.setEnabled(False)
-        
-        # Trigger load
-        self._library.load_entries(force=force)
+        self._library.load_entries(force=force, fts_engine=self.vault.core.fts)
 
     def _on_entries_loaded(self, entries: list[LiteratureEntry]) -> None:
-        self._entries = entries
+        self._model.set_entries(entries)
         self._collection_combo.setEnabled(True)
-        
-        # Collect all unique collections
+
         all_collections = set()
-        for e in self._entries:
+        for e in entries:
             for col in e.collections:
                 all_collections.add(col)
-        
-        # Update dropdown
+
         current = self._collection_combo.currentText()
         self._collection_combo.blockSignals(True)
         self._collection_combo.clear()
         self._collection_combo.addItem("All")
         for col in sorted(all_collections):
             self._collection_combo.addItem(col)
-        # Restore selection if valid
+
         if current in all_collections:
             self._collection_combo.setCurrentText(current)
-        elif current != "All":
-            self._collection_combo.setCurrentText("All")
         self._collection_combo.blockSignals(False)
-        
-        self._filter_and_populate()
+
+        if self._pending_selection:
+            self.select_entry(self._pending_selection)
+            self._pending_selection = None
 
     def _on_load_error(self, message: str) -> None:
-        """Handle library loading error and notify user."""
-        self._entry_list.clear()
-        self._entry_list.addItem(f"Error: {message}")
         self._collection_combo.setEnabled(True)
         QMessageBox.critical(self, "Library Load Error", message)
 
-    def _filter_and_populate(self) -> None:
-        collection_filter = self._collection_combo.currentText()
-        search_text = self._search_input.text().lower()
-        
-        filtered = []
-        for e in self._entries:
-            # Collection filter
-            if collection_filter != "All":
-                if collection_filter not in e.collections:
-                    continue
-            
-            # Search filter
-            if search_text:
-                q = search_text.lower()
-                if not (q in e.title.lower() or q in e.author.lower() 
-                       or q in e.key.lower() or q in e.year.lower()):
-                    continue
-            
-            filtered.append(e)
-        
-        self._populate_list(filtered)
+    def _on_search(self, text: str) -> None:
+        self._proxy.setFilterFixedString(text)
 
     def _on_collection_changed(self, text: str) -> None:
-        self._filter_and_populate()
+        self._proxy.set_collection_filter(text)
 
-    def _populate_list(self, entries: list[LiteratureEntry]) -> None:
-        self._entry_list.clear()
-        for e in entries:
-            # Show collection badge if exists
-            coll_str = f" [{', '.join(e.collections)}]" if e.collections else ""
-            label = f"@{e.key}{coll_str}\n{e.title[:55]}\n{e.author[:35]} · {e.year}"
-            item = QListWidgetItem(label)
-            item.setData(Qt.ItemDataRole.UserRole, e)
-            self._entry_list.addItem(item)
-
-    # ── Event handlers ────────────────────────────────────────────────
-
-    def _on_search(self, text: str) -> None:
-        self._filter_and_populate()
-
-    def _on_entry_selected(self, current: QListWidgetItem, _prev) -> None:
-        if not current:
+    def _on_entry_selected(self, index: QModelIndex) -> None:
+        if not index.isValid():
             return
-        data = current.data(Qt.ItemDataRole.UserRole)
-        if isinstance(data, LiteratureEntry):
-            self._current = data
-            self._show_detail(self._current)
+        entry = index.data(Qt.ItemDataRole.UserRole)
+        if isinstance(entry, LiteratureEntry):
+            self._current = entry
+            self._show_detail(entry)
 
     def _show_detail(self, e: LiteratureEntry) -> None:
         self._detail_title.setText(e.title or e.key)
-
-        # Clear grid
-        for i in reversed(range(self._detail_grid.count())):
-            item = self._detail_grid.itemAt(i)
-            if item:
-                w = item.widget()
-                if w:
-                    w.deleteLater()
-
-        fields = [
-            ("Author", e.author),
-            ("Year",   e.year),
-            ("Journal",  e.journal),
-            ("Publisher", e.publisher),
-            ("DOI",    e.doi),
-            ("ISBN",   e.isbn),
-            ("Volume", e.volume),
-            ("Issue",  e.issue),
-            ("Page", e.page),
-            ("PDF",   str(e.pdf_path) if e.pdf_path else "—"),
-        ]
-        for row, (label, value) in enumerate(fields):
-            lbl = QLabel(label)
-            lbl.setStyleSheet("color: gray; font-size: 11px;")
-            val = QLabel(value or "—")
-            val.setWordWrap(True)
-            val.setStyleSheet("font-size: 12px;")
-            self._detail_grid.addWidget(
-                lbl, row, 0, Qt.AlignmentFlag.AlignTop)
-            self._detail_grid.addWidget(val, row, 1)
-
-        self._refresh_tag_display(e)
-
-        self._detail_abstract.setText(
-            e.abstract[:400] + ("…" if len(e.abstract) > 400 else "")
-            if e.abstract else ""
-        )
-
-        has_pdf = bool(e.pdf_path and e.pdf_path.exists())
-        self._btn_open_pdf.setEnabled(has_pdf)
-        for btn in (self._btn_copy_key, self._btn_create_note,
-                    self._btn_edit_title, self._btn_edit_author,
-                    self._btn_add_tag, self._btn_add_collection,
-                    self._btn_attach, self._btn_delete):
-            btn.setEnabled(True)
+        data_map = {
+            "Author": e.author,
+            "Year": e.year,
+            "Journal": e.journal,
+            "Publisher": e.publisher,
+            "DOI": e.doi,
+            "ISBN": e.isbn,
+            "Volume": e.volume,
+            "Issue": e.issue,
+            "Page": e.page,
+            "PDF": str(e.pdf_path) if e.pdf_path else "—",
+        }
+        for f, v in data_map.items():
+            if f in self._field_labels:
+                self._field_labels[f].setText(v or "—")
 
         self._refresh_tag_display(e)
         self._refresh_collection_display(e)
 
+        has_pdf = bool(e.pdf_path and e.pdf_path.exists())
+        self._btn_open_pdf.setEnabled(has_pdf)
+        for btn in (
+            self._btn_copy_key,
+            self._btn_create_note,
+            self._btn_edit_title,
+            self._btn_edit_author,
+            self._btn_add_tag,
+            self._btn_add_collection,
+            self._btn_attach,
+            self._btn_delete,
+        ):
+            btn.setEnabled(True)
+
     def _refresh_tag_display(self, e: LiteratureEntry) -> None:
-        """Show tags as badges — right-click tag to delete."""
-        if e.tags:
-            tag_str = "  ".join(f"[{t}]" for t in e.tags)
-            self._tag_label.setText(f"Tags: {tag_str}  (right-click tag to delete)")
-        else:
-            self._tag_label.setText("Tags: —")
+        tag_str = "  ".join(f"[{t}]" for t in e.tags) if e.tags else "—"
+        self._tag_label.setText(f"Tags: {tag_str}")
 
     def _refresh_collection_display(self, e: LiteratureEntry) -> None:
-        """Show collections as badges — right-click collection to delete."""
-        if e.collections:
-            coll_str = "  ".join(f"[{c}]" for c in e.collections)
-            self._collection_label.setText(f"Collections: {coll_str}  (right-click collection to delete)")
-        else:
-            self._collection_label.setText("Collections: —")
+        coll_str = "  ".join(f"[{c}]" for c in e.collections) if e.collections else "—"
+        self._collection_label.setText(f"Collections: {coll_str}")
 
-    # ── Main actions ────────────────────────────────────────────────────
+    def _refresh_list_item(self, entry: LiteratureEntry) -> None:
+        idx = self._entry_list.currentIndex()
+        if idx.isValid():
+            # Emit dataChanged for the current index and its source index if using a proxy
+            self._model.dataChanged.emit(self._proxy.mapToSource(idx), self._proxy.mapToSource(idx))
+        else:
+            self._model.layoutChanged.emit()
 
     def _on_open_pdf(self) -> None:
         if self._current and self._current.pdf_path:
-            self.pdf_open_requested.emit(
-                self._current.pdf_path, self._current.key)
+            self.pdf_open_requested.emit(self._current.pdf_path, self._current.key)
 
     def _on_copy_key(self) -> None:
         if self._current:
@@ -763,267 +749,189 @@ class LiteratureTab(QWidget):
 
     def _on_create_note(self) -> None:
         if self._current:
-            self.note_create_requested.emit(
-                self._current.key, self._current.title)
-
-    # ── Add document ────────────────────────────────────────────────
+            self.note_create_requested.emit(self._current.key, self._current.title)
 
     def _on_add_document(self) -> None:
         dlg = AddDocumentDialog(self)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
-
         entry = self._bridge.add_document(
-            pdf_path      = dlg.pdf_path,
-            title       = dlg.title,
-            author      = dlg.author,
-            year       = dlg.year,
-            journal    = dlg.journal,
-            publisher = dlg.publisher,
-            doi       = dlg.doi,
-            isbn      = dlg.isbn,
-            volume    = dlg.volume,
-            issue     = dlg.issue,
-            page      = dlg.page,
-            abstract  = dlg.abstract,
-            tags      = dlg.tags or None,
-            collections = dlg.collections or None,
-            from_doi    = dlg.from_doi,
-            from_arxiv  = dlg.from_arxiv,
-            from_isbn   = dlg.from_isbn,
+            pdf_path=dlg.pdf_path,
+            title=dlg.title,
+            author=dlg.author,
+            year=dlg.year,
+            journal=dlg.journal,
+            publisher=dlg.publisher,
+            doi=dlg.doi,
+            isbn=dlg.isbn,
+            volume=dlg.volume,
+            issue=dlg.issue,
+            page=dlg.page,
+            abstract=dlg.abstract,
+            tags=dlg.tags or None,
+            collections=dlg.collections or None,
+            from_doi=dlg.from_doi,
+            from_arxiv=dlg.from_arxiv,
+            from_isbn=dlg.from_isbn,
+            fts_engine=self.vault.core.fts,
+            track_changes_callback=self.vault.track_changes,
         )
         if entry:
+            self._pending_selection = entry.key
             self._load_entries(force=True)
             self.library_changed.emit()
-            QMessageBox.information(
-                self, "Success",
-                f"Document added: @{entry.key}"
-            )
+            self.on_changed()
+            QMessageBox.information(self, "Success", f"Document added: @{entry.key}")
         else:
-            QMessageBox.warning(
-                self, "Failed",
-                "Document could not be added.\n"
-                "Ensure metadata is filled or DOI/arXiv is valid."
-            )
-
-    # ── Edit metadata ─────────────────────────────────────────────────
+            QMessageBox.warning(self, "Failed", "Document could not be added.")
 
     def _on_edit_field(self, field_name: str, label: str) -> None:
         if not self._current:
             return
-        current_val = getattr(self._current, field_name, "")
-        new_val, ok = QInputDialog.getText(
-            self, f"Edit {label}",
-            f"{label}:", text=str(current_val)
-        )
-        if not ok or new_val.strip() == current_val:
-            return
-        if self._bridge.update_field(self._current.key, field_name,
-                                     new_val.strip()):
-            self._show_detail(self._current)
-            self._refresh_list_item(self._current)
-            self.library_changed.emit()
-        else:
-            QMessageBox.warning(self, "Failed",
-                                "Cannot save changes to info.yaml.")
-
-    # ── Tag management ────────────────────────────────────────────────
+        val = getattr(self._current, field_name, "")
+        new_val, ok = QInputDialog.getText(self, f"Edit {label}", f"{label}:", text=str(val))
+        if ok and new_val.strip() != val:
+            if self._bridge.update_field(
+                self._current.key,
+                field_name,
+                new_val.strip(),
+                fts_engine=self.vault.core.fts,
+                track_changes_callback=self.vault.track_changes,
+            ):
+                self._show_detail(self._current)
+                self._refresh_list_item(self._current)
+                self.library_changed.emit()
+                self.on_changed()
 
     def _on_add_tag(self) -> None:
         if not self._current:
             return
-        tag, ok = QInputDialog.getText(
-            self, "Add Tag", "Tag name:"
-        )
-        if not ok or not tag.strip():
-            return
-        if self._bridge.append_tag(self._current.key, tag.strip()):
-            self._refresh_tag_display(self._current)
-            self.library_changed.emit()
-        else:
-            QMessageBox.warning(self, "Failed",
-                                "Cannot add tag.")
+        tag, ok = QInputDialog.getText(self, "Add Tag", "Tag name:")
+        if ok and tag.strip():
+            if self._bridge.append_tag(
+                self._current.key,
+                tag.strip(),
+                fts_engine=self.vault.core.fts,
+                track_changes_callback=self.vault.track_changes,
+            ):
+                self._refresh_tag_display(self._current)
+                self.vault.tags_updated.emit()
+                self.library_changed.emit()
+                self.on_changed()
 
     def _on_remove_tag(self, tag: str) -> None:
         if not self._current:
             return
-        reply = QMessageBox.question(
-            self, "Delete Tag",
-            f"Delete tag \"{tag}\" from @{self._current.key}?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            if self._bridge.remove_tag(self._current.key, tag):
+        if (
+            QMessageBox.question(
+                self, "Delete Tag", f'Delete tag "{tag}" from @{self._current.key}?'
+            )
+            == QMessageBox.StandardButton.Yes
+        ):
+            if self._bridge.remove_tag(
+                self._current.key,
+                tag,
+                fts_engine=self.vault.core.fts,
+                track_changes_callback=self.vault.track_changes,
+            ):
                 self._refresh_tag_display(self._current)
+                self.vault.tags_updated.emit()
                 self.library_changed.emit()
-            else:
-                QMessageBox.warning(self, "Failed", "Cannot delete tag.")
-
-    # ── Collection management ───────────────────────────────────────────
+                self.on_changed()
 
     def _on_add_collection(self) -> None:
         if not self._current:
             return
-        coll, ok = QInputDialog.getText(
-            self, "Add Collection", "Collection name:"
-        )
-        if not ok or not coll.strip():
-            return
-        if self._append_collection(self._current.key, coll.strip()):
-            self._refresh_collection_display(self._current)
-            self._load_entries(force=True)  # Refresh dropdown
-            self.library_changed.emit()
-        else:
-            QMessageBox.warning(self, "Failed",
-                                "Cannot add collection.")
-
-    def _append_collection(self, key: str, collection: str) -> bool:
-        """Add collection to entry."""
-        entry = self._bridge.get(key)
-        if not entry or not entry.info_path:
-            return False
-        if collection in entry.collections:
-            return True  # Already exists
-        entry.collections.append(collection)
-        entry._raw["collections"] = entry.collections
-        try:
-            yaml = get_yaml()
-            if not yaml:
-                return False
-            with open(entry.info_path, "w") as f:
-                yaml.dump(entry._raw, f)
-            return True
-        except Exception:
-            return False
+        coll, ok = QInputDialog.getText(self, "Add Collection", "Collection name:")
+        if ok and coll.strip():
+            if self._bridge.append_collection(
+                self._current.key, 
+                coll.strip(),
+                track_changes_callback=self.vault.track_changes
+            ):
+                self._refresh_collection_display(self._current)
+                self._load_entries(force=True)
+                self.library_changed.emit()
+                self.on_changed()
 
     def _on_remove_collection(self, collection: str) -> None:
         if not self._current:
             return
-        reply = QMessageBox.question(
-            self, "Delete Collection",
-            f"Delete collection \"{collection}\" from @{self._current.key}?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            if self._remove_collection(self._current.key, collection):
+        if (
+            QMessageBox.question(
+                self,
+                "Delete Collection",
+                f'Delete collection "{collection}" from @{self._current.key}?',
+            )
+            == QMessageBox.StandardButton.Yes
+        ):
+            if self._bridge.remove_collection(
+                self._current.key, 
+                collection,
+                track_changes_callback=self.vault.track_changes
+            ):
                 self._refresh_collection_display(self._current)
                 self._load_entries(force=True)
                 self.library_changed.emit()
-            else:
-                QMessageBox.warning(self, "Failed", "Cannot delete collection.")
-
-    def _remove_collection(self, key: str, collection: str) -> bool:
-        """Remove collection from entry."""
-        entry = self._bridge.get(key)
-        if not entry or not entry.info_path:
-            return False
-        if collection not in entry.collections:
-            return True  # Already removed
-        entry.collections.remove(collection)
-        entry._raw["collections"] = entry.collections
-        try:
-            yaml = get_yaml()
-            if not yaml:
-                return False
-            with open(entry.info_path, "w") as f:
-                yaml.dump(entry._raw, f)
-            return True
-        except Exception:
-            return False
-
-    # ── Attach file ────────────────────────────────────────────────
-
-    def _on_attach_file(self) -> None:
-        if not self._current:
-            return
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select File", "", "All Files (*)"
-        )
-        if path and self._bridge.attach_file(self._current.key, Path(path)):
-            self._refresh_list_item(self._current)
-            self._show_detail(self._current)
-            QMessageBox.information(self, "Success", "File successfully attached.")
-        else:
-            QMessageBox.warning(self, "Failed", "File could not be attached.")
-
-    # ── Delete document ────────────────────────────────────────────────
+                self.on_changed()
 
     def _on_delete_document(self) -> None:
         if not self._current:
             return
-        reply = QMessageBox.question(
-            self, "Delete Document",
-            f"Delete document @{self._current.key}?\n\n"
-            f"\"{self._current.title}\"\n\n"
-            "Folder and all files will be permanently deleted.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        key = self._current.key
-        if self._bridge.delete_document(key):
-            self._current = None
-            self._load_entries(force=True)
-            self.library_changed.emit()
-            QMessageBox.information(
-                self, "Success",
-                f"Document @{key} has been deleted."
-            )
-        else:
-            QMessageBox.warning(
-                self, "Failed",
-                "Document could not be deleted."
-            )
-
-    # ── Context menu list ──────────────────────────────────────────────
+        if (
+            QMessageBox.question(self, "Delete Document", f"Delete document @{self._current.key}?")
+            == QMessageBox.StandardButton.Yes
+        ):
+            key = self._current.key
+            if self._bridge.delete_document(
+                key, 
+                fts_engine=self.vault.core.fts,
+                track_changes_callback=lambda p: self.on_changed()
+            ):
+                self._current = None
+                self._load_entries(force=True)
+                self.on_changed()
 
     def _show_list_context_menu(self, pos) -> None:
-        item = self._entry_list.itemAt(pos)
-        if not item:
+        index = self._entry_list.indexAt(pos)
+        if not index.isValid():
             return
-        data = item.data(Qt.ItemDataRole.UserRole)
-        if not isinstance(data, LiteratureEntry):
-            return
-        entry: LiteratureEntry = data
-
+        entry = index.data(Qt.ItemDataRole.UserRole)
         menu = QMenu(self)
-
-        # Remove tag submenu
         if entry.tags:
             tag_menu = menu.addMenu("Delete Tag")
             for tag in entry.tags:
-                act = tag_menu.addAction(tag)
-                act.triggered.connect(
-                    lambda checked=False, t=tag: self._on_remove_tag(t))
-
-        # Remove collection submenu
+                tag_menu.addAction(tag).triggered.connect(lambda _, t=tag: self._on_remove_tag(t))
         if entry.collections:
             coll_menu = menu.addMenu("Delete Collection")
             for coll in entry.collections:
-                act = coll_menu.addAction(coll)
-                act.triggered.connect(
-                    lambda checked=False, c=coll: self._on_remove_collection(c))
+                coll_menu.addAction(coll).triggered.connect(
+                    lambda _, c=coll: self._on_remove_collection(c)
+                )
         menu.addSeparator()
-
-        edit_title = menu.addAction("Edit Title…")
-        edit_title.triggered.connect(
-            lambda: self._on_edit_field("title", "Title"))
-
-        edit_author = menu.addAction("Edit Author…")
-        edit_author.triggered.connect(
-            lambda: self._on_edit_field("author", "Author"))
-
+        menu.addAction("Edit Title…").triggered.connect(
+            lambda: self._on_edit_field("title", "Title")
+        )
+        menu.addAction("Edit Author…").triggered.connect(
+            lambda: self._on_edit_field("author", "Author")
+        )
         menu.exec(self._entry_list.mapToGlobal(pos))
 
-    # ── Helpers ───────────────────────────────────────────────────────
+    def _on_attach_file(self) -> None:
+        if not self._current:
+            return
+        path, _ = QFileDialog.getOpenFileName(self, "Select File", "", "All Files (*)")
+        if not path:
+            return
 
-    def _refresh_list_item(self, entry: LiteratureEntry) -> None:
-        """Update list item text without full reload."""
-        for i in range(self._entry_list.count()):
-            item = self._entry_list.item(i)
-            e = item.data(Qt.ItemDataRole.UserRole)
-            if isinstance(e, LiteratureEntry) and e.key == entry.key:
-                label = (f"@{entry.key}\n{entry.title[:55]}\n"
-                         f"{entry.author[:35]} · {entry.year}")
-                item.setText(label)
-                break
+        if self._bridge.attach_file(self._current.key, Path(path)):
+            # Update UI state first
+            self._refresh_list_item(self._current)
+            self._show_detail(self._current)
+            
+            # Notify user
+            QMessageBox.information(self, "Success", "File successfully attached.")
+            
+            # Trigger background tasks after dialog is closed to avoid race conditions
+            self.on_changed()
+            self.library_changed.emit()

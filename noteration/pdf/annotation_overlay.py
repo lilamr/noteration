@@ -1,5 +1,4 @@
-"""
-noteration/pdf/annotation_overlay.py
+"""noteration/pdf/annotation_overlay.py
 
 Transparent QWidget placed on top of a PDF page to display:
   - Highlights (semi-transparent colored rects)
@@ -15,11 +14,27 @@ Interaction:
 from __future__ import annotations
 
 
-from PySide6.QtWidgets import QWidget, QMenu, QDialog, QVBoxLayout, QPlainTextEdit, QLabel, QPushButton, QHBoxLayout
+from PySide6.QtWidgets import (
+    QWidget,
+    QMenu,
+    QDialog,
+    QVBoxLayout,
+    QPlainTextEdit,
+    QLabel,
+    QPushButton,
+    QHBoxLayout,
+)
 from PySide6.QtCore import Qt, QRectF, QPointF, Signal
 from PySide6.QtGui import (
-    QPainter, QColor, QPen, QBrush, QMouseEvent, QPaintEvent,
-    QFont, QPainterPath, QPolygonF,
+    QPainter,
+    QColor,
+    QPen,
+    QBrush,
+    QMouseEvent,
+    QPaintEvent,
+    QFont,
+    QPainterPath,
+    QPolygonF,
 )
 from typing import Any
 
@@ -31,16 +46,19 @@ logger = get_logger(__name__)
 _fitz: Any = None
 _HAS_FITZ: bool | None = None
 
+
 def _get_fitz() -> Any:
     global _fitz, _HAS_FITZ
     if _HAS_FITZ is None:
         try:
             import fitz as _f
+
             _fitz = _f
             _HAS_FITZ = True
         except ImportError:
             _HAS_FITZ = False
     return _fitz
+
 
 def _has_fitz() -> bool:
     _get_fitz()
@@ -48,14 +66,13 @@ def _has_fitz() -> bool:
 
 
 class AnnotationOverlay(QWidget):
-    """
-    Transparent widget overlaying a PDF page.
+    """Transparent widget overlaying a PDF page.
     Internal coordinates are in PDF points; must scale to pixels during painting.
     """
 
-    annotation_created = Signal(object)   # New Annotation
-    annotation_deleted = Signal(str)      # ann_id
-    annotation_edited = Signal(object)    # Updated Annotation
+    annotation_created = Signal(object)  # New Annotation
+    annotation_deleted = Signal(str)  # ann_id
+    annotation_edited = Signal(object)  # Updated Annotation
     jump_to_note_requested = Signal(str)  # note path
 
     def __init__(
@@ -75,7 +92,7 @@ class AnnotationOverlay(QWidget):
         self._page_h = page_height_pts
         self._fitz_page = None  # PyMuPDF page
         self._page_words: list = []
-        self._mode: str = "view"    # "view" | "highlight" | "comment" | "image"
+        self._mode: str = "view"  # "view" | "highlight" | "comment" | "image"
 
         # Drag state
         self._drag_start_pos: QPointF | None = None
@@ -106,7 +123,8 @@ class AnnotationOverlay(QWidget):
             r = fitz.Rect(x0, y0, x1, y1)
             text = self._fitz_page.get_text("text", clip=r)
             return text.strip() if text else ""
-        except Exception:
+        except Exception as e:
+            logger.error(f"Failed to extract text from rect: {e}")
             return ""
 
     # ------------------------------------------------------------------
@@ -160,17 +178,17 @@ class AnnotationOverlay(QWidget):
         """Find nearest word index to position (in PDF points)."""
         if not self._page_words:
             return -1
-        
+
         px, py = pos_pts.x(), pos_pts.y()
         best_idx = -1
         min_dist = 1e9
-        
+
         # 1. Priority: Is the point inside a word box?
         for i, w in enumerate(self._page_words):
             # w: (x0, y0, x1, y1, ...)
             if w[0] <= px <= w[2] and w[1] <= py <= w[3]:
                 return i
-            
+
         # 2. Secondary: Search for nearest word horizontally with slight vertical tolerance.
         # Helps when highlighting between lines or at word edges.
         for i, w in enumerate(self._page_words):
@@ -178,12 +196,12 @@ class AnnotationOverlay(QWidget):
             # Apply heavy penalty to vertical distance (dy) to prevent line jumping.
             dx = abs(px - cx)
             dy = abs(py - cy)
-            
+
             dist = dx + dy * 4.0
             if dist < min_dist:
                 min_dist = dist
                 best_idx = i
-        
+
         # Tolerance increased to 150 points (~2 inches) to ensure "snap" works.
         return best_idx if min_dist < 150 else -1
 
@@ -219,28 +237,28 @@ class AnnotationOverlay(QWidget):
         """Draw text selection preview that follows lines precisely."""
         start = min(self._drag_start_idx, self._drag_end_idx)
         end = max(self._drag_start_idx, self._drag_end_idx)
-        
+
         s = self._scale()
         color = QColor(255, 235, 59, 130)
         painter.setBrush(QBrush(color))
         painter.setPen(Qt.PenStyle.NoPen)
-        
+
         # Group selected words into lines for clean rendering
         lines: dict[int, list[tuple]] = {}
         for i in range(start, end + 1):
             w_data = self._page_words[i]
-            l_key = w_data[6] # line_no
+            l_key = w_data[6]  # line_no
             if l_key not in lines:
                 lines[l_key] = []
             lines[l_key].append(w_data)
-            
+
         for l_no in sorted(lines.keys()):
             l_words = lines[l_no]
             lx0 = min(item[0] for item in l_words)
             ly0 = min(item[1] for item in l_words)
             lx1 = max(item[2] for item in l_words)
             ly1 = max(item[3] for item in l_words)
-            painter.drawRect(QRectF(lx0*s, ly0*s, (lx1-lx0)*s, (ly1-ly0)*s))
+            painter.drawRect(QRectF(lx0 * s, ly0 * s, (lx1 - lx0) * s, (ly1 - ly0) * s))
 
     def _paint_annotation(self, painter: QPainter, ann: Annotation) -> None:
         if ann.type in ("highlight", "image"):
@@ -259,12 +277,14 @@ class AnnotationOverlay(QWidget):
                     # q: [p0.x, p0.y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y]
                     # Order p0(TL), p1(TR), p2(BL), p3(BR)
                     # Polygon must: TL -> TR -> BR -> BL
-                    poly = QPolygonF([
-                        QPointF(q[0] * s, q[1] * s), # p0
-                        QPointF(q[2] * s, q[3] * s), # p1
-                        QPointF(q[6] * s, q[7] * s), # p3
-                        QPointF(q[4] * s, q[5] * s)  # p2
-                    ])
+                    poly = QPolygonF(
+                        [
+                            QPointF(q[0] * s, q[1] * s),  # p0
+                            QPointF(q[2] * s, q[3] * s),  # p1
+                            QPointF(q[6] * s, q[7] * s),  # p3
+                            QPointF(q[4] * s, q[5] * s),  # p2
+                        ]
+                    )
                     path.addPolygon(poly)
                 painter.drawPath(path)
             # Fallback to rect for image or if highlight quads missing
@@ -277,10 +297,7 @@ class AnnotationOverlay(QWidget):
                 rect = self._pts_to_px(ann.rect)
                 painter.setFont(QFont("Arial", 8))
                 painter.setPen(QPen(QColor("#555"), 1))
-                painter.drawText(
-                    int(rect.x()), int(rect.y() - 2),
-                    ann.note[:30]
-                )
+                painter.drawText(int(rect.x()), int(rect.y() - 2), ann.note[:30])
 
         elif ann.type == "comment" and ann.position:
             s = self._scale()
@@ -303,11 +320,13 @@ class AnnotationOverlay(QWidget):
                 painter.setBrush(QBrush(QColor("#EF9F27")))
                 painter.setPen(Qt.PenStyle.NoPen)
                 # Bookmark triangle
-                triangle = QPolygonF([
-                    QPointF(cx - 6, cy),
-                    QPointF(cx + 6, cy),
-                    QPointF(cx, cy + 12),
-                ])
+                triangle = QPolygonF(
+                    [
+                        QPointF(cx - 6, cy),
+                        QPointF(cx + 6, cy),
+                        QPointF(cx, cy + 12),
+                    ]
+                )
                 painter.drawPolygon(triangle)
 
     # ------------------------------------------------------------------
@@ -324,7 +343,7 @@ class AnnotationOverlay(QWidget):
                 self._drag_start_pos = pos
                 self._drag_end_pos = pos
                 self._dragging = True
-                
+
                 if self._mode == "highlight":
                     self._drag_start_idx = self._find_word_at_pos(pos_pts)
                     self._drag_end_idx = self._drag_start_idx
@@ -345,18 +364,18 @@ class AnnotationOverlay(QWidget):
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if self._dragging:
             self._drag_end_pos = event.position()
-            
+
             if self._mode == "highlight":
                 s = self._scale()
                 pos_pts = QPointF(event.position().x() / s, event.position().y() / s)
                 self._drag_end_idx = self._find_word_at_pos(pos_pts)
-                
+
             self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if self._dragging:
             self._dragging = False
-            
+
             if self._mode == "highlight":
                 if self._drag_start_idx != -1 and self._drag_end_idx != -1:
                     self._finalize_text_selection()
@@ -372,7 +391,7 @@ class AnnotationOverlay(QWidget):
                     if drag_rect.width() > 5 and drag_rect.height() > 5:
                         pts = self._px_to_pts(drag_rect)
                         self._add_image_highlight(pts)
-            
+
             self._drag_start_pos = None
             self._drag_end_pos = None
             self._drag_start_idx = -1
@@ -383,7 +402,7 @@ class AnnotationOverlay(QWidget):
         """Collect quads and text from selected words and save."""
         start = min(self._drag_start_idx, self._drag_end_idx)
         end = max(self._drag_start_idx, self._drag_end_idx)
-        
+
         words = self._page_words[start : end + 1]
         if not words:
             return
@@ -391,7 +410,7 @@ class AnnotationOverlay(QWidget):
         quads = []
         text_parts = []
         lines: dict[int, list[tuple]] = {}
-        
+
         # Global bounding box for rect
         all_x0, all_y0 = 1e9, 1e9
         all_x1, all_y1 = -1e9, -1e9
@@ -402,13 +421,13 @@ class AnnotationOverlay(QWidget):
             all_y0 = min(all_y0, w[1])
             all_x1 = max(all_x1, w[2])
             all_y1 = max(all_y1, w[3])
-            
+
             l_key = w[6]
             if l_key not in lines:
                 lines[l_key] = []
             lines[l_key].append(w)
             text_parts.append(w[4])
-            
+
         for l_no in sorted(lines.keys()):
             l_words = lines[l_no]
             lx0 = min(w[0] for w in l_words)
@@ -420,7 +439,7 @@ class AnnotationOverlay(QWidget):
 
         text = " ".join(text_parts)
         rect_pts = [all_x0, all_y0, all_x1, all_y1]
-        
+
         ann = self._store.new_highlight(
             papis_key=self.papis_key,
             page=self.page_idx,
@@ -441,15 +460,15 @@ class AnnotationOverlay(QWidget):
             fitz = _get_fitz()
             x0, y0, x1, y1 = rect_pts
             fitz_rect = fitz.Rect(x0, y0, x1, y1)
-            
+
             quads: list[list[float]] = []
             text_parts: list[str] = []
-            
+
             if self._fitz_page:
                 # Get all words within the rect area
                 # words: (x0, y0, x1, y1, "word", block_no, line_no, word_no)
                 words = self._fitz_page.get_text("words", clip=fitz_rect)
-                
+
                 # Group by line_no to create quads per line
                 lines = {}
                 for w in words:
@@ -458,7 +477,7 @@ class AnnotationOverlay(QWidget):
                         lines[l_no] = []
                     lines[l_no].append(w)
                     text_parts.append(w[4])
-                
+
                 for l_no in sorted(lines.keys()):
                     line_words = lines[l_no]
                     # Combine words in one line into a single bounding box
@@ -466,7 +485,7 @@ class AnnotationOverlay(QWidget):
                     ly0 = min(w[1] for w in line_words)
                     lx1 = max(w[2] for w in line_words)
                     ly1 = max(w[3] for w in line_words)
-                    
+
                     # Store as p0, p1, p2, p3
                     quads.append([lx0, ly0, lx1, ly0, lx0, ly1, lx1, ly1])
 
@@ -493,7 +512,9 @@ class AnnotationOverlay(QWidget):
             x0, y0, x1, y1 = rect_pts
 
             mat = fitz.Matrix(2.0, 2.0)
-            pix = self._fitz_page.get_pixmap(matrix=mat, alpha=False, clip=fitz.Rect(x0, y0, x1, y1))
+            pix = self._fitz_page.get_pixmap(
+                matrix=mat, alpha=False, clip=fitz.Rect(x0, y0, x1, y1)
+            )
 
             image_bytes = pix.tobytes("png")
 

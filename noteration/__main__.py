@@ -1,5 +1,4 @@
-"""
-Noteration — Research Literature Note-Taking App
+"""Noteration — Research Literature Note-Taking App
 Entry point: python -m noteration
 """
 

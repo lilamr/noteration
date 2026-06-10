@@ -1,27 +1,38 @@
-"""
-noteration/search/search_dialog.py
+"""noteration/search/search_dialog.py
 Global vault search dialog.
 """
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import Optional
 
-import shiboken6
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QTreeWidget, QTreeWidgetItem, QLabel, QPushButton,
-    QCheckBox, QGroupBox, QRadioButton, QProgressBar,
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLineEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QLabel,
+    QPushButton,
+    QCheckBox,
+    QGroupBox,
+    QRadioButton,
+    QProgressBar,
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QObject, QThread
 from PySide6.QtGui import QKeySequence, QShortcut
 
 from noteration.search.vault_search import VaultSearch, SearchResult
+from noteration.search.fts_engine import FTSEngine
+from noteration.core.events import EventBus, NoteOpenedEvent, LiteratureSelectedEvent
 
 
 class SearchWorker(QObject):
     """Worker to perform search in a background thread."""
+
     results_ready = Signal(list)
     error = Signal(str)
     finished = Signal()
@@ -40,19 +51,27 @@ class SearchWorker(QObject):
         self.case_sensitive = case_sensitive
         self.use_regex = use_regex
         self.scope = scope
+        self._abort_event = threading.Event()
+
+    def abort(self) -> None:
+        """Signal the background search to stop."""
+        self._abort_event.set()
 
     def run(self) -> None:
         try:
             all_results = self.searcher.search(
-                self.query, self.case_sensitive, self.use_regex
+                self.query, self.case_sensitive, self.use_regex, abort_event=self._abort_event
             )
+
+            if self._abort_event.is_set():
+                return
 
             # Filter based on scope if not "all"
             if self.scope != "all":
                 type_map = {
                     "notes": "note",
                     "literature": "literature",
-                    "annotations": "annotation"
+                    "annotations": "annotation",
                 }
                 target_type = type_map.get(self.scope)
                 if target_type:
@@ -61,32 +80,37 @@ class SearchWorker(QObject):
             self.results_ready.emit(all_results)
         except Exception as e:
             from noteration.logger import get_logger
+
             get_logger(__name__).exception(f"Background search failed: {e}")
             self.error.emit(f"Search failed: {str(e)}")
             self.results_ready.emit([])
         finally:
             self.finished.emit()
 
+
 class SearchDialog(QDialog):
     """Dialog for global vault search."""
 
     # Signals emitted when a result is clicked
-    note_requested = Signal(Path)           # Open note
-    literature_requested = Signal(str)       # Open literature by papis_key
-    annotation_requested = Signal(str, int) # Open PDF at specific page
+    note_requested = Signal(Path)  # Open note
+    literature_requested = Signal(str)  # Open literature by papis_key
+    annotation_requested = Signal(str, int)  # Open PDF at specific page
 
     def __init__(
         self,
         vault_path: Path,
         papis_bridge=None,
+        fts_engine: Optional[FTSEngine] = None,
+        events: Optional[EventBus] = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self.vault_path = vault_path
-        self._searcher = VaultSearch(vault_path, papis_bridge)
+        self._searcher = VaultSearch(vault_path, papis_bridge, fts_engine=fts_engine)
+        self.events = events
         self._results: list[SearchResult] = []
         self._current_index = -1
-        
+
         # Threading members
         self._search_thread: Optional[QThread] = None
         self._search_worker: Optional[SearchWorker] = None
@@ -151,7 +175,7 @@ class SearchDialog(QDialog):
 
         # Progress bar (hidden by default)
         self._progress = QProgressBar()
-        self._progress.setRange(0, 0) # Indeterminate
+        self._progress.setRange(0, 0)  # Indeterminate
         self._progress.setFixedHeight(4)
         self._progress.setTextVisible(False)
         self._progress.hide()
@@ -243,17 +267,16 @@ class SearchDialog(QDialog):
 
     def _abort_search(self) -> None:
         """Stop current background search if running."""
-        if self._search_thread and shiboken6.isValid(self._search_thread):
-            if self._search_thread.isRunning():
-                self._search_thread.quit()
-                self._search_thread.wait()
-            self._search_thread.deleteLater()
-            self._search_thread = None
-        
-        if self._search_worker and shiboken6.isValid(self._search_worker):
-            self._search_worker.deleteLater()
-            self._search_worker = None
-            
+        if self._search_worker:
+            self._search_worker.abort()
+
+        if self._search_thread and self._search_thread.isRunning():
+            self._search_thread.requestInterruption()
+            self._search_thread.quit()
+            # Wait briefly to allow clean stop, but don't block UI forever
+            self._search_thread.wait(500)
+
+        # Do NOT set to None immediately to allow Qt to finish cleanup
         self._progress.hide()
 
     def _perform_search(self) -> None:
@@ -265,7 +288,9 @@ class SearchDialog(QDialog):
             self._update_nav_buttons()
             return
 
-        self._abort_search()
+        # If already searching, abort previous
+        if self._search_thread and self._search_thread.isRunning():
+            self._abort_search()
 
         case_sensitive = self._case_cb.isChecked()
         use_regex = self._regex_cb.isChecked()
@@ -276,28 +301,23 @@ class SearchDialog(QDialog):
 
         # Create worker and thread
         self._search_thread = QThread()
-        self._search_worker = SearchWorker(
-            self._searcher, query, case_sensitive, use_regex, scope
-        )
+        self._search_worker = SearchWorker(self._searcher, query, case_sensitive, use_regex, scope)
         self._search_worker.moveToThread(self._search_thread)
 
         # Connect signals
         self._search_thread.started.connect(self._search_worker.run)
         self._search_worker.results_ready.connect(self._on_results_ready)
         self._search_worker.error.connect(self._on_search_error)
+
+        # Cleanup chain: worker finished -> thread quit
         self._search_worker.finished.connect(self._search_thread.quit)
-        self._search_worker.finished.connect(self._clear_search_thread)
-        self._search_thread.finished.connect(self._search_thread.deleteLater)
+        self._search_worker.finished.connect(self._search_worker.deleteLater)
         self._search_thread.finished.connect(lambda: self._progress.hide())
 
         self._search_thread.start()
 
-    def _clear_search_thread(self) -> None:
-        self._search_thread = None
-        self._search_worker = None
-
     def _on_results_ready(self, results: list[SearchResult]) -> None:
-        self._status_label.setStyleSheet("") # Reset style
+        self._status_label.setStyleSheet("")  # Reset style
         self._results = results
         self._current_index = -1
         self._populate_tree(results)
@@ -305,7 +325,7 @@ class SearchDialog(QDialog):
 
     def _on_search_error(self, message: str) -> None:
         self._status_label.setText(f"Error: {message}")
-        self._status_label.setStyleSheet("color: #c0392b;") # Red color
+        self._status_label.setStyleSheet("color: #c0392b;")  # Red color
 
     def _populate_tree(self, results: list[SearchResult]) -> None:
         self._results_tree.clear()
@@ -371,9 +391,7 @@ class SearchDialog(QDialog):
         # Track current selection
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if data:
-            self._current_index = next(
-                (i for i, r in enumerate(self._results) if r == data), -1
-            )
+            self._current_index = next((i for i, r in enumerate(self._results) if r == data), -1)
 
     def _navigate_to_item(self, item: QTreeWidgetItem) -> None:
         data: Optional[SearchResult] = item.data(0, Qt.ItemDataRole.UserRole)
@@ -381,10 +399,16 @@ class SearchDialog(QDialog):
             return
 
         if data.type == "note" and data.path:
-            self.note_requested.emit(data.path)
+            if self.events:
+                self.events.publish(NoteOpenedEvent(data.path))
+            else:
+                self.note_requested.emit(data.path)
             self.close()
         elif data.type == "literature" and data.papis_key:
-            self.literature_requested.emit(data.papis_key)
+            if self.events:
+                self.events.publish(LiteratureSelectedEvent(data.papis_key))
+            else:
+                self.literature_requested.emit(data.papis_key)
             self.close()
         elif data.type == "annotation" and data.papis_key:
             page = data.page if data.page is not None else 0

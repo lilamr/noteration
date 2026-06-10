@@ -1,5 +1,4 @@
-"""
-noteration/pdf/annotations.py
+"""noteration/pdf/annotations.py
 Non-destructive PDF annotation model + CRUD to JSON files.
 """
 
@@ -12,7 +11,7 @@ import threading
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Callable
 
 
 AnnotationType = Literal["highlight", "image", "comment", "bookmark"]
@@ -22,9 +21,9 @@ AnnotationType = Literal["highlight", "image", "comment", "bookmark"]
 class Annotation:
     id: str
     type: AnnotationType
-    page: int                           # page (0-indexed)
-    color: str = "#FFEB3B"              # highlight color
-    note: str = ""                      # text note
+    page: int  # page (0-indexed)
+    color: str = "#FFEB3B"  # highlight color
+    note: str = ""  # text note
     tags: list[str] = field(default_factory=list)
     created_at: str = ""
     linked_notes: list[str] = field(default_factory=list)
@@ -32,8 +31,8 @@ class Annotation:
     # Only for highlight: rect coordinates [x0, y0, x1, y1] in PDF points
     rect: list[float] | None = None
     quads: list[list[float]] | None = None  # list of [x0,y0, x1,y1, x2,y2, x3,y3]
-    text_content: str = ""              # highlighted text
-    image_path: str = ""                # path to captured image (if any)
+    text_content: str = ""  # highlighted text
+    image_path: str = ""  # path to captured image (if any)
 
     # Only for comment: position [x, y]
     position: list[float] | None = None
@@ -46,6 +45,7 @@ class Annotation:
 @dataclass
 class DocumentAnnotations:
     """All annotations for a single PDF document."""
+
     papis_key: str
     pdf_hash: str
     pdf_path_relative: str
@@ -83,6 +83,48 @@ class DocumentAnnotations:
     def for_page(self, page: int) -> list[Annotation]:
         return [a for a in self.annotations if a.page == page]
 
+    def compile_to_markdown(self, vault_path: Path) -> str:
+        """Format all annotations into a Markdown document."""
+        if not self.annotations:
+            return ""
+
+        lines = [f"# Annotations for {self.papis_key}\n"]
+
+        # Sort by page then by vertical position if possible
+        sorted_anns = sorted(self.annotations, key=lambda a: (a.page, a.rect[1] if a.rect else 0))
+
+        current_page = -1
+        for ann in sorted_anns:
+            if ann.page != current_page:
+                current_page = ann.page
+                lines.append(f"\n## Page {current_page + 1}\n")
+
+            if ann.type == "highlight":
+                if ann.text_content:
+                    lines.append(f"> {ann.text_content.strip()}\n")
+                if ann.note:
+                    lines.append(f"{ann.note}\n")
+            elif ann.type == "comment":
+                lines.append(f"**Note:** {ann.note}\n")
+            elif ann.type == "image":
+                if ann.image_path:
+                    # Convert absolute path to relative path
+                    try:
+                        img_path = Path(ann.image_path)
+                        # Assume relative to vault root
+                        rel_path = img_path.relative_to(vault_path)
+                        lines.append(f"> ![]({rel_path.as_posix()})\n")
+                    except ValueError:
+                        # Fallback if path is not relative to vault
+                        lines.append(f"> ![]({ann.image_path})\n")
+
+            if ann.tags:
+                lines.append(f"Tags: {' '.join(['#' + t for t in ann.tags])}\n")
+
+            lines.append("")  # Spacer
+
+        return "\n".join(lines)
+
     # ------------------------------------------------------------------
     # Serialization
     # ------------------------------------------------------------------
@@ -111,13 +153,13 @@ class DocumentAnnotations:
 
 
 class AnnotationStore:
-    """
-    Load and save DocumentAnnotations from/to:
+    """Load and save DocumentAnnotations from/to:
     vault/annotations/<papis_key>.json
     """
 
-    def __init__(self, vault_path: Path) -> None:
+    def __init__(self, vault_path: Path, on_changed: Callable[[], None] | None = None) -> None:
         self.vault_path = vault_path
+        self.on_changed = on_changed
         self._annotations_dir = vault_path / "annotations"
         self._annotations_dir.mkdir(parents=True, exist_ok=True)
         self._images_dir = self._annotations_dir / "images"
@@ -164,8 +206,12 @@ class AnnotationStore:
                 with open(tmp_path, "w", encoding="utf-8") as f:
                     json.dump(doc.to_dict(), f, indent=2, ensure_ascii=False)
                 tmp_path.replace(json_path)
+
+                if self.on_changed:
+                    self.on_changed()
             except Exception as e:
                 from noteration.logger import get_logger
+
                 get_logger(__name__).error(f"Failed to save annotations for {papis_key}: {e}")
                 if tmp_path.exists():
                     tmp_path.unlink()
@@ -279,13 +325,14 @@ class AnnotationStore:
 
 
 # ------------------------------------------------------------------
-# Utility: Hash PDF file
+# Utility: Hash file
 # ------------------------------------------------------------------
 
-def hash_pdf(pdf_path: Path) -> str:
-    """Calculate SHA-256 hash of a PDF file for cross-device verification."""
+
+def calculate_file_hash(file_path: Path) -> str:
+    """Calculate SHA-256 hash of a file for cross-device verification."""
     sha256 = hashlib.sha256()
-    with open(pdf_path, "rb") as f:
+    with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(65536), b""):
             sha256.update(chunk)
     return f"sha256:{sha256.hexdigest()}"

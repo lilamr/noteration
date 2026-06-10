@@ -1,5 +1,4 @@
-"""
-noteration/ui/pdf_viewer_tab.py
+"""noteration/ui/pdf_viewer_tab.py
 
 PDF viewer tab with annotations, sidebar, and reading progress.
 """
@@ -15,15 +14,30 @@ if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QSpinBox, QSplitter, QListWidget, QListWidgetItem,
-    QFrame, QStackedWidget, QLineEdit, QProgressBar, QMenu,
-    QMessageBox, QCheckBox, QGroupBox, QScrollArea, QSizePolicy,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QSplitter,
+    QListWidget,
+    QListWidgetItem,
+    QFrame,
+    QStackedWidget,
+    QLineEdit,
+    QProgressBar,
+    QMenu,
+    QMessageBox,
+    QCheckBox,
+    QGroupBox,
+    QScrollArea,
+    QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal, QPointF, QTimer, QRect
 from PySide6.QtGui import QShortcut, QKeySequence, QImage, QPixmap, QColor
 
-from noteration.pdf.annotations import AnnotationStore, Annotation, hash_pdf
+from noteration.pdf.annotations import AnnotationStore, Annotation, calculate_file_hash
 from noteration.pdf.annotation_overlay import AnnotationOverlay
 from noteration.logger import get_logger
 
@@ -34,6 +48,7 @@ logger = get_logger(__name__)
 try:
     from PySide6.QtPdf import QPdfDocument
     from PySide6.QtPdfWidgets import QPdfView
+
     _HAS_QTPDF = True
 except ImportError:
     _HAS_QTPDF = False
@@ -41,11 +56,13 @@ except ImportError:
 _fitz: Any = None
 _HAS_FITZ: bool | None = None
 
+
 def _get_fitz() -> Any:
     global _fitz, _HAS_FITZ
     if _HAS_FITZ is None:
         try:
             import fitz as _f
+
             _fitz = _f
             _HAS_FITZ = True
             # Silence MuPDF warnings/errors
@@ -58,6 +75,7 @@ def _get_fitz() -> Any:
             _HAS_FITZ = False
     return _fitz
 
+
 def _has_fitz() -> bool:
     _get_fitz()
     return bool(_HAS_FITZ)
@@ -65,22 +83,23 @@ def _has_fitz() -> bool:
 
 # ── Global Cache ──────────────────────────────────────────────────────────
 
+
 class _GlobalRenderCache:
-    """
-    Cost-based LRU cache for PDF page pixmaps shared across all viewer tabs.
+    """Cost-based LRU cache for PDF page pixmaps shared across all viewer tabs.
     Prevents memory bloat by evicting based on estimated memory usage (250MB limit).
     """
+
     _instance: _GlobalRenderCache | None = None
     _cache: collections.OrderedDict[tuple[str, int, float], tuple[QPixmap, int]]
     _MAX_COST: int
     _current_cost: int
-    
+
     def __new__(cls) -> _GlobalRenderCache:
         if cls._instance is None:
             cls._instance = super(_GlobalRenderCache, cls).__new__(cls)
             cls._instance._cache = collections.OrderedDict()
             # 250 MB limit. ARGB32 pixmaps can be huge.
-            cls._instance._MAX_COST = 250 * 1024 * 1024 
+            cls._instance._MAX_COST = 250 * 1024 * 1024
             cls._instance._current_cost = 0
         return cls._instance
 
@@ -95,15 +114,15 @@ class _GlobalRenderCache:
         key = (pdf_path, page_idx, round(zoom, 2))
         # Estimate cost in bytes: width * height * (depth / 8)
         cost = pixmap.width() * pixmap.height() * (pixmap.depth() // 8)
-        
+
         if key in self._cache:
             self._current_cost -= self._cache[key][1]
-        
+
         # Evict until we have enough space for the new pixmap
         while self._current_cost + cost > self._MAX_COST and self._cache:
             _, (_, old_cost) = self._cache.popitem(last=False)
             self._current_cost -= old_cost
-            
+
         self._cache[key] = (pixmap, cost)
         self._current_cost += cost
         self._cache.move_to_end(key)
@@ -119,6 +138,7 @@ class _GlobalRenderCache:
             self._cache.clear()
             self._current_cost = 0
 
+
 _RENDER_CACHE = _GlobalRenderCache()
 
 
@@ -126,30 +146,36 @@ _RENDER_CACHE = _GlobalRenderCache()
 
 
 class MuPdfPageWidget(QWidget):
-    """
-    Single PDF page widget rendered via PyMuPDF.
+    """Single PDF page widget rendered via PyMuPDF.
     """
 
-    def __init__(self, doc, page_idx: int, zoom: float,
-                 overlay: AnnotationOverlay, pdf_path: str, parent=None) -> None:
+    def __init__(
+        self,
+        doc,
+        page_idx: int,
+        zoom: float,
+        overlay: AnnotationOverlay,
+        pdf_path: str,
+        parent=None,
+    ) -> None:
         super().__init__(parent)
-        self._doc      = doc
+        self._doc = doc
         self._page_idx = page_idx
-        self._zoom     = zoom
-        self._overlay  = overlay
+        self._zoom = zoom
+        self._overlay = overlay
         self._pdf_path = pdf_path
         self._rendered = False
 
         # Container for stacking image and overlay
         self._container = QWidget(self)
-        
+
         # QLabel for PDF image
         self._img_label = QLabel(self._container)
         self._img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Overlay is mounted on top of container
         self._overlay.setParent(self._container)
-        
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._container, 0, Qt.AlignmentFlag.AlignCenter)
@@ -161,7 +187,7 @@ class MuPdfPageWidget(QWidget):
         """Set fixed size before rendering based on PDF page rect."""
         if not self._doc:
             return
-            
+
         try:
             page = self._doc[self._page_idx]
             r = page.rect
@@ -174,7 +200,9 @@ class MuPdfPageWidget(QWidget):
         except (AttributeError, ValueError, IndexError) as e:
             logger.error(f"Failed to setup placeholder for page {self._page_idx}: {e}")
         except Exception as e:
-            logger.exception(f"Unexpected error in _setup_placeholder for page {self._page_idx}: {e}")
+            logger.exception(
+                f"Unexpected error in _setup_placeholder for page {self._page_idx}: {e}"
+            )
 
     def render_if_needed(self) -> None:
         """Trigger render if not already rendered."""
@@ -201,12 +229,13 @@ class MuPdfPageWidget(QWidget):
             fitz = _get_fitz()
             page = self._doc[self._page_idx]
             # Render at 2x zoom for sharp baseline, then scale to target zoom
-            mat  = fitz.Matrix(self._zoom * 2.0, self._zoom * 2.0)
-            pix  = page.get_pixmap(matrix=mat, alpha=False)
-            img  = QImage(pix.samples, pix.width, pix.height,
-                          pix.stride, QImage.Format.Format_RGB888)
+            mat = fitz.Matrix(self._zoom * 2.0, self._zoom * 2.0)
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            img = QImage(
+                pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888
+            )
             qpix = QPixmap.fromImage(img)
-            
+
             # Store in global cache
             _RENDER_CACHE.set(self._pdf_path, self._page_idx, self._zoom, qpix)
 
@@ -217,8 +246,8 @@ class MuPdfPageWidget(QWidget):
             self._overlay.raise_()
             self.updateGeometry()
         except (AttributeError, ValueError, IndexError) as e:
-             self._img_label.setText(f"[Page data error: {e}]")
-             logger.error(f"Render data error for page {self._page_idx}: {e}")
+            self._img_label.setText(f"[Page data error: {e}]")
+            logger.error(f"Render data error for page {self._page_idx}: {e}")
         except Exception as e:
             self._img_label.setText(f"[Render failed: {e}]")
             logger.exception(f"Unexpected render failure for page {self._page_idx}: {e}")
@@ -240,22 +269,22 @@ class MuPdfPageWidget(QWidget):
 
 # ── MuPDF multi-page viewer ───────────────────────────────────────────────
 
+
 class MuPdfViewer(QWidget):
-    """
-    All PDF pages arranged vertically.
+    """All PDF pages arranged vertically.
     Emits page_changed(int) signal when the visible page changes.
     """
 
-    page_changed = Signal(int)   # current page (0-indexed)
+    page_changed = Signal(int)  # current page (0-indexed)
 
-    def __init__(self, pdf_path: Path, papis_key: str,
-                 store: AnnotationStore, zoom: float = 1.0,
-                 parent=None) -> None:
+    def __init__(
+        self, pdf_path: Path, papis_key: str, store: AnnotationStore, zoom: float = 1.0, parent=None
+    ) -> None:
         super().__init__(parent)
-        self.pdf_path  = pdf_path
+        self.pdf_path = pdf_path
         self.papis_key = papis_key
-        self._store    = store
-        self._zoom     = zoom
+        self._store = store
+        self._zoom = zoom
         self._overlays: list[AnnotationOverlay] = []
         self._page_widgets: list[MuPdfPageWidget] = []
 
@@ -268,13 +297,10 @@ class MuPdfViewer(QWidget):
 
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(False)
-        self._scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self._scroll.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         # Scroll detection for progress update
-        self._scroll.verticalScrollBar().valueChanged.connect(
-            self._on_scroll)
+        self._scroll.verticalScrollBar().valueChanged.connect(self._on_scroll)
         root.addWidget(self._scroll)
 
         self._container = QWidget()
@@ -310,7 +336,7 @@ class MuPdfViewer(QWidget):
 
         for i in range(self._doc.page_count):
             page = self._doc[i]
-            r    = page.rect
+            r = page.rect
             overlay = AnnotationOverlay(
                 papis_key=self.papis_key,
                 page_idx=i,
@@ -326,8 +352,8 @@ class MuPdfViewer(QWidget):
             self._layout.addWidget(pw)
 
         self._container.adjustSize()
-        # Initial render of visible pages
-        QTimer.singleShot(100, self._render_visible_pages)
+        # Initial render of visible pages, queued to the end of the event loop
+        QTimer.singleShot(0, self._render_visible_pages)
 
     def set_zoom(self, zoom: float) -> None:
         old_zoom = self._zoom
@@ -335,7 +361,7 @@ class MuPdfViewer(QWidget):
         # Invalidate cache if zoom level changed significantly
         if round(old_zoom, 2) != round(zoom, 2):
             self.invalidate_render_cache()
-            
+
         for pw in self._page_widgets:
             pw.update_zoom(zoom)
         self._container.adjustSize()
@@ -373,23 +399,18 @@ class MuPdfViewer(QWidget):
         """Render only pages that are currently visible in the viewport plus a buffer."""
         viewport_rect = self._scroll.viewport().rect()
         scroll_y = self._scroll.verticalScrollBar().value()
-        
+
         for pw in self._page_widgets:
             # Map widget position to container coordinates
             pw_pos = pw.mapTo(self._container, pw.rect().topLeft())
-            
+
             # Create a rect for the page in the viewport's coordinate system
-            pw_rect_in_viewport = QRect(
-                pw_pos.x(), 
-                pw_pos.y() - scroll_y,
-                pw.width(), 
-                pw.height()
-            )
-            
+            pw_rect_in_viewport = QRect(pw_pos.x(), pw_pos.y() - scroll_y, pw.width(), pw.height())
+
             # Render if visible or within 1 page height buffer (above or below)
             buffer = pw.height()
             expanded_viewport = viewport_rect.adjusted(0, -buffer, 0, buffer)
-            
+
             if expanded_viewport.intersects(pw_rect_in_viewport):
                 pw.render_if_needed()
 
@@ -437,33 +458,36 @@ class MuPdfViewer(QWidget):
 
 # ── PdfViewerTab ──────────────────────────────────────────────────────────
 
+
 class PdfViewerTab(QWidget):
     """PDF viewer tab with annotations, sidebar, and reading progress."""
 
-    insert_quote_requested  = Signal(str, str)   # (text, papis_key)
-    insert_image_requested  = Signal(str, str)   # (image_path, papis_key)
+    insert_quote_requested = Signal(str, str)  # (text, papis_key)
+    insert_image_requested = Signal(str, str)  # (image_path, papis_key)
+    extract_requested = Signal()  # request to create note from all annots
+    note_requested = Signal(str)  # request to open a specific note
     annotation_count_changed = Signal(int)
 
-    def __init__(self, pdf_path: Path, papis_key: str,
-                 vault: "VaultManager",
-                 parent=None) -> None:
+    def __init__(self, pdf_path: Path, papis_key: str, vault: "VaultManager", parent=None) -> None:
         super().__init__(parent)
-        self.pdf_path  = pdf_path
+        self.pdf_path = pdf_path
         self.papis_key = papis_key or pdf_path.stem
-        self.vault     = vault
+        self.vault = vault
         self.vault_path = vault.vault_path
-        self.config    = vault.config
+        self.config = vault.config
 
         self._current_page = 0
-        self._total_pages  = 0
-        self._zoom         = 1.0
-        self._annot_mode   = "view"
+        self._total_pages = 0
+        self._zoom = 1.0
+        self._annot_mode = "view"
 
-        self._store    = AnnotationStore(self.vault_path)
-        self._doc_ann  = self._store.load(self.papis_key)
+        self._store = AnnotationStore(
+            self.vault_path, on_changed=lambda: self.vault.request_git_status()
+        )
+        self._doc_ann = self._store.load(self.papis_key)
         self._pdf_index = vault.pdf_index
 
-        self._qtpdf_view:  "QPdfView | None"  = None
+        self._qtpdf_view: "QPdfView | None" = None
         self._mupdf_viewer: MuPdfViewer | None = None
 
         self._setup_ui()
@@ -484,15 +508,16 @@ class PdfViewerTab(QWidget):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self._viewer_stack = QStackedWidget()
         splitter.addWidget(self._viewer_stack)
-        splitter.addWidget(self._build_annot_panel())
+        self._annot_panel = self._build_annot_panel()
+        splitter.addWidget(self._annot_panel)
         splitter.setSizes([740, 240])
         root.addWidget(splitter)
 
     def _build_toolbar(self) -> QFrame:
         frame = QFrame()
         frame.setStyleSheet(
-            "QFrame{background:palette(window);"
-            "border-bottom:1px solid palette(mid);}")
+            "QFrame{background:palette(window);border-bottom:1px solid palette(mid);}"
+        )
         frame.setFixedHeight(36)
         lay = QHBoxLayout(frame)
         lay.setContentsMargins(6, 2, 8, 2)
@@ -548,15 +573,13 @@ class PdfViewerTab(QWidget):
         self._btn_hl = QPushButton("🟡 Highlight")
         self._btn_hl.setCheckable(True)
         self._btn_hl.setToolTip("Drag to highlight area")
-        self._btn_hl.clicked.connect(
-            lambda on: self._set_mode("highlight" if on else "view"))
+        self._btn_hl.clicked.connect(lambda on: self._set_mode("highlight" if on else "view"))
         lay.addWidget(self._btn_hl)
 
         self._btn_cm = QPushButton("💬 Comment")
         self._btn_cm.setCheckable(True)
         self._btn_cm.setToolTip("Click to add comment")
-        self._btn_cm.clicked.connect(
-            lambda on: self._set_mode("comment" if on else "view"))
+        self._btn_cm.clicked.connect(lambda on: self._set_mode("comment" if on else "view"))
         lay.addWidget(self._btn_cm)
 
         self._btn_bm = QPushButton("🔖")
@@ -568,9 +591,23 @@ class PdfViewerTab(QWidget):
         self._btn_img = QPushButton("🖼 Image")
         self._btn_img.setCheckable(True)
         self._btn_img.setToolTip("Drag to capture image from PDF")
-        self._btn_img.clicked.connect(
-            lambda on: self._set_mode("image" if on else "view"))
+        self._btn_img.clicked.connect(lambda on: self._set_mode("image" if on else "view"))
         lay.addWidget(self._btn_img)
+
+        self._btn_extract = QPushButton("📤 Extract")
+        self._btn_extract.setToolTip("Export all annotations to a new Markdown note")
+        self._btn_extract.clicked.connect(self.extract_requested.emit)
+        lay.addWidget(self._btn_extract)
+
+        lay.addWidget(_vsep())
+
+        self._btn_toggle_annot = QPushButton("📋")
+        self._btn_toggle_annot.setFixedWidth(32)
+        self._btn_toggle_annot.setCheckable(True)
+        self._btn_toggle_annot.setChecked(True)
+        self._btn_toggle_annot.setToolTip("Toggle annotation panel [Ctrl+Alt+A]")
+        self._btn_toggle_annot.clicked.connect(self._toggle_annot_panel)
+        lay.addWidget(self._btn_toggle_annot)
 
         lay.addStretch()
 
@@ -584,8 +621,8 @@ class PdfViewerTab(QWidget):
     def _build_search_bar(self) -> QFrame:
         frame = QFrame()
         frame.setStyleSheet(
-            "QFrame{background:palette(window);"
-            "border-bottom:1px solid palette(mid);}")
+            "QFrame{background:palette(window);border-bottom:1px solid palette(mid);}"
+        )
         frame.setVisible(False)
         frame.setFixedHeight(32)
         lay = QHBoxLayout(frame)
@@ -627,8 +664,8 @@ class PdfViewerTab(QWidget):
         hr.addStretch()
         self._lbl_count = QLabel("0")
         self._lbl_count.setStyleSheet(
-            "font-size:10px;background:#E1F5EE;color:#0F6E56;"
-            "padding:1px 6px;border-radius:8px;")
+            "font-size:10px;background:#E1F5EE;color:#0F6E56;padding:1px 6px;border-radius:8px;"
+        )
         hr.addWidget(self._lbl_count)
         lay.addLayout(hr)
 
@@ -650,23 +687,21 @@ class PdfViewerTab(QWidget):
         self._annot_list = QListWidget()
         self._annot_list.setStyleSheet("font-size:11px;")
         self._annot_list.itemDoubleClicked.connect(self._on_annot_dblclick)
-        self._annot_list.setContextMenuPolicy(
-            Qt.ContextMenuPolicy.CustomContextMenu)
-        self._annot_list.customContextMenuRequested.connect(
-            self._annot_context_menu)
-        self._annot_list.itemSelectionChanged.connect(
-            self._on_annot_selection_changed)
+        self._annot_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._annot_list.customContextMenuRequested.connect(self._annot_context_menu)
+        self._annot_list.itemSelectionChanged.connect(self._on_annot_selection_changed)
         lay.addWidget(self._annot_list, 1)
 
         grp = QGroupBox("Reading Progress")
-        gl  = QVBoxLayout(grp)
+        gl = QVBoxLayout(grp)
         gl.setContentsMargins(4, 4, 4, 4)
         self._progress_bar = QProgressBar()
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setFixedHeight(16)
         self._progress_bar.setStyleSheet(
             "QProgressBar{font-size:10px;border-radius:4px;}"
-            "QProgressBar::chunk{background:#4CAF50;border-radius:4px;}")
+            "QProgressBar::chunk{background:#4CAF50;border-radius:4px;}"
+        )
         gl.addWidget(self._progress_bar)
         self._lbl_progress = QLabel("Page 0 / 0")
         self._lbl_progress.setStyleSheet("font-size:10px;color:gray;")
@@ -694,7 +729,8 @@ class PdfViewerTab(QWidget):
         QShortcut(QKeySequence("Ctrl+="), self, self._zoom_in)
         QShortcut(QKeySequence("Ctrl+-"), self, self._zoom_out)
         QShortcut(QKeySequence("PgDown"), self, self._next_page)
-        QShortcut(QKeySequence("PgUp"),   self, self._prev_page)
+        QShortcut(QKeySequence("PgUp"), self, self._prev_page)
+        QShortcut(QKeySequence("Ctrl+Alt+A"), self, self._toggle_annot_panel)
 
     # ── Loading ───────────────────────────────────────────────────────
 
@@ -705,7 +741,7 @@ class PdfViewerTab(QWidget):
 
         self._pdf_index.find_or_register(self.pdf_path, self.papis_key)
         if not self._doc_ann.pdf_hash:
-            self._doc_ann.pdf_hash = hash_pdf(self.pdf_path)
+            self._doc_ann.pdf_hash = calculate_file_hash(self.pdf_path)
             self._store.save(self.papis_key)
 
         if _has_fitz():
@@ -713,10 +749,7 @@ class PdfViewerTab(QWidget):
         elif _HAS_QTPDF:
             self._load_qtpdf()
         else:
-            self._show_error(
-                "No PDF renderer found.\n\n"
-                "Install: pip install pymupdf"
-            )
+            self._show_error("No PDF renderer found.\n\nInstall: pip install pymupdf")
 
     def _load_qtpdf(self) -> None:
         doc = QPdfDocument(self)
@@ -817,9 +850,17 @@ class PdfViewerTab(QWidget):
 
         self._save_progress(idx)
 
+    def _toggle_annot_panel(self, on: bool | None = None) -> None:
+        if on is None:
+            on = not self._annot_panel.isVisible()
+        self._annot_panel.setVisible(on)
+        self._btn_toggle_annot.blockSignals(True)
+        self._btn_toggle_annot.setChecked(on)
+        self._btn_toggle_annot.blockSignals(False)
+
     def _save_progress(self, page_idx: int) -> None:
         progress = (page_idx + 1) / max(1, self._total_pages)
-        self._doc_ann.last_page       = page_idx
+        self._doc_ann.last_page = page_idx
         self._doc_ann.reading_progress = progress
         self._store.save(self.papis_key)
         self._update_progress()
@@ -908,22 +949,22 @@ class PdfViewerTab(QWidget):
 
             # Badge color matching annotation color
             color_hex = ann.color if ann.type in ("highlight", "image") else "#FFF9C4"
-            color     = QColor(color_hex)
+            color = QColor(color_hex)
             color.setAlpha(180)
 
             if ann.type == "highlight":
-                excerpt = (ann.text_content or "(drag area)") [:35]
-                label   = f"🟡  Page {ann.page+1}  {excerpt}"
+                excerpt = (ann.text_content or "(drag area)")[:35]
+                label = f"🟡  Page {ann.page + 1}  {excerpt}"
                 if ann.note:
                     label += f"\n   ↳ {ann.note[:35]}"
             elif ann.type == "image":
-                label = f"🖼  Page {ann.page+1}  (image)"
+                label = f"🖼  Page {ann.page + 1}  (image)"
                 if ann.note:
                     label += f"\n   ↳ {ann.note[:35]}"
             elif ann.type == "comment":
-                label = f"💬  Page {ann.page+1}  {ann.note[:40]}"
+                label = f"💬  Page {ann.page + 1}  {ann.note[:40]}"
             else:
-                label = f"🔖  Page {ann.page+1}  {ann.note or 'Bookmark'}"
+                label = f"🔖  Page {ann.page + 1}  {ann.note or 'Bookmark'}"
 
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, ann)
@@ -940,8 +981,7 @@ class PdfViewerTab(QWidget):
         pct = int(self._doc_ann.reading_progress * 100)
         self._progress_bar.setValue(pct)
         self._progress_bar.setFormat(f"{pct}%")
-        self._lbl_progress.setText(
-            f"Page {self._current_page + 1} / {self._total_pages}")
+        self._lbl_progress.setText(f"Page {self._current_page + 1} / {self._total_pages}")
 
     # ── Selection handling ────────────────────────────────────────────
 
@@ -952,10 +992,13 @@ class PdfViewerTab(QWidget):
         if has:
             ann: Annotation = sel[0].data(Qt.ItemDataRole.UserRole)
             # Enable button for text highlights OR image captures
-            can = bool(ann and (
-                (ann.type == "highlight" and ann.text_content) or
-                (ann.type == "image" and ann.image_path)
-            ))
+            can = bool(
+                ann
+                and (
+                    (ann.type == "highlight" and ann.text_content)
+                    or (ann.type == "image" and ann.image_path)
+                )
+            )
             self._btn_insert.setEnabled(can)
         else:
             self._btn_insert.setEnabled(False)
@@ -970,11 +1013,11 @@ class PdfViewerTab(QWidget):
         if not item:
             return
         ann: Annotation = item.data(Qt.ItemDataRole.UserRole)
-        menu   = QMenu(self)
-        act_jump    = menu.addAction(f"Go to Page {ann.page + 1}")
-        act_ins     = None
+        menu = QMenu(self)
+        act_jump = menu.addAction(f"Go to Page {ann.page + 1}")
+        act_ins = None
         act_ins_img = None
-        
+
         if ann.type == "highlight":
             if ann.text_content:
                 act_ins = menu.addAction("Insert Text to Editor")
@@ -982,7 +1025,7 @@ class PdfViewerTab(QWidget):
                 act_ins_img = menu.addAction("Insert Image to Editor")
         elif ann.type == "image" and ann.image_path:
             act_ins_img = menu.addAction("Insert Image to Editor")
-            
+
         menu.addSeparator()
         act_del = menu.addAction("Delete")
 
@@ -1013,9 +1056,9 @@ class PdfViewerTab(QWidget):
             return
         ann: Annotation = sel[0].data(Qt.ItemDataRole.UserRole)
         reply = QMessageBox.question(
-            self, "Delete Annotation",
-            f"Delete this annotation?\n\n"
-            f"{ann.type.capitalize()} • Page {ann.page + 1}",
+            self,
+            "Delete Annotation",
+            f"Delete this annotation?\n\n{ann.type.capitalize()} • Page {ann.page + 1}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
@@ -1037,23 +1080,21 @@ class PdfViewerTab(QWidget):
         self._refresh_annot_list()
 
     def _on_jump_to_note(self, note_path: str) -> None:
-        from PySide6.QtWidgets import QApplication
-        mw = QApplication.activeWindow()
-        if hasattr(mw, "_follow_wiki_link"):
-            mw._follow_wiki_link(Path(note_path).stem)  # type: ignore[union-attr]
+        self.note_requested.emit(Path(note_path).stem)
 
     def closeEvent(self, event) -> None:
         """Clear cache and shutdown viewer when tab is closed."""
         if self._mupdf_viewer:
             self._mupdf_viewer.close()
-        
+
         # Explicitly clear cache for this PDF
         _RENDER_CACHE.clear(str(self.pdf_path))
-        
+
         super().closeEvent(event)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────
+
 
 def _vsep() -> QFrame:
     sep = QFrame()

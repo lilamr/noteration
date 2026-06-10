@@ -1,5 +1,4 @@
-"""
-noteration/editor/wiki_links.py
+"""noteration/editor/wiki_links.py
 Parser for [[wiki-link]] and @citation from Markdown text.
 """
 
@@ -8,18 +7,22 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass
 
 
-_WIKI_PATTERN = re.compile(r'\[\[([^\]|#]+)(?:#([^\]|]+))?(?:\|([^\]]+))?\]\]')
-_CITATION_PATTERN = re.compile(r'@([A-Za-z][A-Za-z0-9_:\-]+)')
+_WIKI_PATTERN = re.compile(r"\[\[([^\]|#]+)(?:#([^\]|]+))?(?:\|([^\]]+))?\]\]")
+_CITATION_PATTERN = re.compile(r"@([A-Za-z][A-Za-z0-9_:\-]+)")
 
 
 @dataclass
 class WikiLink:
-    target: str          # target note name (without .md)
+    target: str  # target note name (without .md)
     heading: str | None  # anchor heading if present
-    alias: str | None    # display text if present
-    start: int           # character position in text
+    alias: str | None  # display text if present
+    start: int  # character position in text
     end: int
 
 
@@ -34,13 +37,15 @@ def parse_wiki_links(text: str) -> list[WikiLink]:
     """Extract all [[wiki-link]] tokens from text."""
     links = []
     for m in _WIKI_PATTERN.finditer(text):
-        links.append(WikiLink(
-            target=m.group(1).strip(),
-            heading=m.group(2).strip() if m.group(2) else None,
-            alias=m.group(3).strip() if m.group(3) else None,
-            start=m.start(),
-            end=m.end(),
-        ))
+        links.append(
+            WikiLink(
+                target=m.group(1).strip(),
+                heading=m.group(2).strip() if m.group(2) else None,
+                alias=m.group(3).strip() if m.group(3) else None,
+                start=m.start(),
+                end=m.end(),
+            )
+        )
     return links
 
 
@@ -53,8 +58,7 @@ def parse_citations(text: str) -> list[Citation]:
 
 
 def extract_headings(text: str) -> list[tuple[int, str]]:
-    """
-    Extract headings from Markdown content.
+    """Extract headings from Markdown content.
     Returns a list of (level, title).
     """
     headings = []
@@ -65,7 +69,7 @@ def extract_headings(text: str) -> list[tuple[int, str]]:
             in_code = not in_code
         if in_code:
             continue
-        m = re.match(r'^(#{1,6})\s+(.+)', line)
+        m = re.match(r"^(#{1,6})\s+(.+)", line)
         if m:
             level = len(m.group(1))
             title = m.group(2).strip()
@@ -74,8 +78,7 @@ def extract_headings(text: str) -> list[tuple[int, str]]:
 
 
 def resolve_link(target: str, vault_path: Path) -> Path | None:
-    """
-    Resolve a wiki-link target to its corresponding note file.
+    """Resolve a wiki-link target to its corresponding note file.
     Supports:
     - standard filename: "idea-1" → notes/idea-1.md
     - relative path: "drafts/idea-1" → notes/drafts/idea-1.md
@@ -103,13 +106,30 @@ def resolve_link(target: str, vault_path: Path) -> Path | None:
 
     # Case-insensitive global search
     target_lower = target.lower()
-    for md_file in notes_dir.rglob("*.md"):
+
+    note_files = []
+    if not isinstance(notes_dir, Path) and hasattr(notes_dir, "list_notes"):
+        note_files = notes_dir.list_notes()
+        actual_notes_dir = notes_dir.notes_dir  # type: ignore
+    else:
+        note_files = list(notes_dir.rglob("*.md"))
+        actual_notes_dir = notes_dir
+
+    for md_file in note_files:
         stem = md_file.stem
         # Match: "idea-1" matches "idea-1.md" (case-insensitive)
         if stem.lower() == target_lower:
             return md_file
-        # Match just the filename part for deeper nested files
-        if stem.lower() == target.split("/")[-1].lower():
-            return md_file
+        # Match relative path if slash is in target, or match stem if no slash is in target
+        if "/" in target:
+            try:
+                rel_path = str(md_file.relative_to(actual_notes_dir)).lower().replace("\\", "/")
+                if rel_path == f"{target_lower}.md" or rel_path == target_lower:
+                    return md_file
+            except ValueError:
+                continue
+        else:
+            if stem.lower() == target.split("/")[-1].lower():
+                return md_file
 
     return None

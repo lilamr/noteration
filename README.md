@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="noteration/assets/logo.png" width="128" alt="Noteration icon"/>
+  <img src="noteration/assets/images/logo.png" width="128" alt="Noteration icon"/>
 </p>
 
 <h1 align="center">Noteration: Note-Literature-Synchronization</h1>
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lilamr/noteration/releases/tag/v1.2.0"><img src="https://img.shields.io/github/v/release/lilamr/noteration?label=version&color=4CAF50" alt="Release"/></a>
+  <a href="https://github.com/lilamr/noteration/releases/tag/v2.0.0"><img src="https://img.shields.io/github/v/release/lilamr/noteration?label=version&color=4CAF50" alt="Release"/></a>
   <a href="https://github.com/lilamr/noteration/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"/></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python"/></a>
   <a href="https://github.com/lilamr/noteration/actions"><img src="https://img.shields.io/github/actions/workflow/status/lilamr/noteration/ci.yml?label=CI" alt="CI"/></a>
@@ -38,15 +38,19 @@ noteration/
 
 | Feature | Description |
 |-------|------------|
-| **Markdown Editor** | Syntax highlighting, line numbers, view/edit modes, auto-indent |
+| **Markdown Editor** | Syntax highlighting, line numbers, view/edit modes, auto-indent, math support |
+| **Split View** | Vertical side-by-side editing and reading for better productivity |
 | **Focus Mode** | Distraction-free writing with Vim keybindings and centered layout |
 | **Wiki-link** | `[[note-name]]` with `Ctrl+Click` navigation and autocomplete |
-| **Citation** | `@citation-key` with autocomplete from Papis library |
-| **Global Search** | Search across all notes, literature, and PDF annotations simultaneously |
-| **PDF Viewer** | Render via QtPDF or PyMuPDF, highlight & JSON annotations |
+| **Tags** | Support for `#tag` with dedicated sidebar management |
+| **Citation** | `@citation-key` with autocomplete and configurable CSL styles |
+| **Global Search** | High-performance SQLite FTS5 search across all vault data |
+| **PDF Viewer** | Render via QtPDF or PyMuPDF, highlight & JSON annotations, toggleable panel |
 | **Backlink Graph** | Visualization of note network, interactive |
-| **Papis Bridge** | Browse, import, and export BibTeX from Papis library |
 | **Git Sync** | Manual commit, pull, push; visual conflict resolution |
+| **CLI (`ntr`)** | Manage vault, search, and sync via terminal |
+| **REST API** | Lightweight HTTP interface for integration |
+| **Encryption** | Transparent vault encryption using **age** |
 | **Dark Mode** | Light / Dark / System — automatically follows OS theme |
 
 ---
@@ -97,12 +101,12 @@ pip install -e ".[all]"
 #### 3. Optional Dependencies
 | Feature | Command |
 |-------|----------|
-| Papis literature management | `pip install -e ".[papis]"` |
+| Papis & CSL Citations | `pip install -e ".[papis]"` |
 | PyMuPDF PDF renderer | `pip install -e ".[pymupdf]"` |
-| Fuzzy search | `pip install -e ".[search]"` |
+| Fuzzy search (literature) | `pip install -e ".[search]"` |
 | Backlink graph (NetworkX) | `pip install -e ".[graph]"` |
 | File watcher (live reload) | `pip install -e ".[watch]"` |
-| Markdown preview | `pip install -e ".[markdown]"` |
+| Markdown & Math preview | `pip install -e ".[markdown]"` |
 
 
 ---
@@ -165,22 +169,52 @@ Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Noteration.lnk" 
 
 ## Vault Structure
 
+A Noteration vault is a standard directory that remains fully functional even without the app.
+
 ```
-~/noteration-vault/
+~/research-vault/
 ├── .noteration/
-│   ├── config.toml          # Main configuration
-│   ├── db.sqlite            # Cache & link graph
-│   └── link_graph.json      # Backlink graph (JSON)
-├── notes/                   # Markdown files
+│   ├── config.toml          # Main configuration (Schema v1)
+│   ├── search.db            # SQLite FTS5 index & metadata
+│   └── link_graph.json      # Serialized backlink network
+├── notes/                   # Your Markdown notes
 │   ├── index.md
-│   └── research-topic.md
-├── literature/              # Managed by Papis
-├── annotations/             # PDF annotations (JSON, synced via Git)
-└── attachments/             # Images and attachments
+│   └── methodology.md
+├── literature/              # Managed by Papis (info.yaml + PDFs)
+├── annotations/             # PDF annotations (JSON)
+└── attachments/             # Images and other project assets
 ```
 
 > [!TIP]
 > **Git Synchronization:** Noteration automatically ignores large binary files (PDFs) and internal caches (`db.sqlite`, `link_graph.json`) to prevent merge conflicts and repository bloat. Only your notes, metadata, and annotations are synchronized.
+
+### Vault Encryption
+Noteration supports transparent vault encryption using the [age](https://age-encryption.org) format, with cryptographic operations natively integrated into the application. Encryption can be enabled or permanently disabled at any time through the settings.
+
+---
+
+## CLI & REST API
+
+Noteration provides powerful terminal and programmatic access via `ntr` and `ntr-api`.
+
+### Command Line Interface (`ntr`)
+Manage your vault, search, and sync directly from the terminal.
+```bash
+# Search across notes
+ntr search "machine learning"
+
+# Sync all changes
+ntr sync all -m "Update chapter 2"
+```
+See the [CLI User Guide](noteration/docs/user_guide_cli.md) for details.
+
+### REST API (`ntr-api`)
+Expose your vault via HTTP for integration with external tools.
+```bash
+# Start the API server
+ntr api start --port 8765
+```
+See the [REST API User Guide](noteration/docs/user_guide_api.md) for details.
 
 ---
 
@@ -218,23 +252,29 @@ sidebar_visible = true
 
 ## Project Structure
 
+Noteration follows a decoupled architecture separating business logic from the GUI.
+
 ```
 noteration/ (repository root)
 ├── noteration/ (package)
-│   ├── assets/              # Icons and static assets
-│   ├── docs/                # User guides and documentation
-│   ├── app.py               # Bootstrap & QApplication
-│   ├── config.py            # TOML Configuration
-│   ├── db/                  # Link graph & layout engine
-│   ├── dialogs/             # Dialogs (vault, note, settings, conflict)
-│   ├── editor/              # Find/Replace, syntax highlight, wiki-link
-│   ├── literature/          # Papis bridge & BibTeX export
-│   ├── pdf/                 # PDF reader & annotations
-│   ├── search/              # Global vault search
-│   ├── sync/                # Git engine
-│   └── ui/                  # Main window, tabs, sidebar, graph
-├── tests/                   # Pytest test suite
-└── pyproject.toml
+│   ├── core/                # Pure Python business logic (VaultCore)
+│   ├── cli/                 # Command Line Interface (ntr)
+│   ├── api/                 # REST API Server (ntr-api)
+│   ├── controllers/         # Qt Adapters (Index, Sync, Library)
+│   ├── search/              # SQLite FTS5 engine & Search logic
+│   ├── literature/          # Papis bridge & CSL rendering
+│   ├── ui/                  # PySide6 Components (MainWindow, Tabs)
+│   ├── editor/              # Markdown logic (Highlighter, MathJax)
+│   ├── pdf/                 # PDF Engine (PyMuPDF / QtPDF)
+│   ├── sync/                # GitPython synchronization engine
+│   ├── dialogs/             # UI Dialogs (Settings, Encryption, Search)
+│   ├── db/                  # Graph database & layout logic
+│   ├── utils/               # Export (Pandoc), Encryption (age)
+│   ├── docs/                # In-app help (User Guide)
+│   └── assets/              # App icons and logos
+├── noteration-web/          # Product landing page source
+├── tests/                   # Pytest suite (Unit & Integration)
+└── pyproject.toml           # Build system and dependencies
 ```
 
 ---
@@ -250,9 +290,8 @@ pip install -e ".[all,dev]"
 # Run tests
 pytest -v
 mypy .
-
-# Linting
 ruff check .
+ruff check --select S .
 ```
 
 ---
@@ -272,5 +311,5 @@ Created by **[lilamr](https://github.com/lilamr)**.
 ---
 
 <p align="center">
-  Built with PySide6 · PyMuPDF · GitPython · NetworkX · Papis
+  Built with PySide6 · PyMuPDF · GitPython · NetworkX · Papis · MathJax
 </p>

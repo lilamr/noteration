@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "noteration"
-version = "1.2.0"
+version = "2.0.0"
 description = "Research literature note-taking app: Markdown editor + PDF viewer + Papis + GitHub sync"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,20 +13,30 @@ keywords = ["research", "notes", "markdown", "pdf", "papis", "literature"]
 
 # Dependensi inti — semua tersedia di PyPI standar
 dependencies = [
-    "PySide6>=6.4",        # GUI (6.4+ sudah cukup; 6.6 untuk QtPdf native)
-    "tomli-w>=1.0",        # tulis config.toml (baca pakai tomllib stdlib Python 3.11+)
-    "gitpython>=3.1",      # GitHub sync
-    "pyyaml>=6.0",         # baca info.yaml Papis
+    "PySide6==6.11.1",        # GUI (6.4+ sudah cukup; 6.6 untuk QtPdf native)
+    "tomli-w==1.2.0",        # tulis config.toml (baca pakai tomllib stdlib Python 3.11+)
+    "gitpython==3.1.50",      # GitHub sync
+    "pyyaml==6.0.3",         # baca info.yaml Papis
+    "requests==2.33.1",      # API calls
+    "pyrage>=1.3.0",         # age encryption
 ]
 
 [project.optional-dependencies]
-papis   = ["papis>=0.13"]                       # manajemen literatur penuh
-pymupdf = ["pymupdf>=1.23"]                     # PDF renderer + text extraction
-search  = ["thefuzz[speedup]>=0.20"]            # fuzzy search literatur
-graph   = ["networkx>=3.0"]                     # backlink graph (matplotlib opsional)
-watch   = ["watchdog>=3.0"]                     # file watching untuk live reload
-markdown = ["markdown>=3.0"]                    # Markdown → HTML rendering untuk preview
+cli     = ["click>=8.1.0"]
+api     = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pydantic>=2.0",
+]
+papis   = ["papis==0.15.0", "citeproc-py==0.9.3", "citeproc-py-styles==0.1.5"]     # manajemen literatur penuh
+pymupdf = ["pymupdf==1.27.2.3"]                     # PDF renderer + text extraction
+search  = ["thefuzz[speedup]==0.22.1"]            # fuzzy search literatur
+graph   = ["networkx==3.6.1"]                     # backlink graph (matplotlib opsional)
+watch    = ["watchdog==6.0.0"]                     # file watching untuk live reload
+markdown = ["markdown==3.10.2", "pymdown-extensions==10.21.3"] # Markdown → HTML rendering untuk preview
 all = [
+    "noteration[cli]",
+    "noteration[api]",
     "noteration[papis]",
     "noteration[pymupdf]",
     "noteration[search]",
@@ -35,14 +45,18 @@ all = [
     "noteration[markdown]",
 ]
 dev = [
-    "pytest>=7",
-    "pytest-qt>=4",
-    "ruff>=0.1",
-    "mypy>=1.0",
+    "pytest==9.0.3",
+    "pytest-qt==4.5.0",
+    "ruff==0.15.15",
+    "mypy==2.1.0",
 ]
 
 [project.gui-scripts]
 noteration = "noteration.app:main"
+
+[project.scripts]
+ntr = "noteration.cli.main:cli"
+ntr-api = "noteration.api.runner:main"
 
 [tool.setuptools.packages.find]
 where   = ["."]
@@ -62,7 +76,7 @@ target-version = "py311"
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101"]  # Asserts are expected in tests
 "noteration/db/layout_engine.py" = ["S311"]  # Random is fine for visual layout
-"noteration/literature/doi_fetcher.py" = ["S310"]  # Audited URL opening
+"noteration/literature/doi_fetcher.py" = ["S310", "S314"]  # Audited URL opening and XML parsing
 "noteration/sync/updater.py" = ["S310", "S602", "S603", "S607"]  # Audited update process
 "noteration/literature/papis_bridge.py" = ["S603"]  # Audited subprocess call
 "noteration/ui/editor_tab.py" = ["S603", "S607"]  # Audited xdg-open call

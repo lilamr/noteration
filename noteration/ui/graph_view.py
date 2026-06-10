@@ -1,5 +1,4 @@
-"""
-noteration/ui/graph_view.py
+"""noteration/ui/graph_view.py
 
 Graph visualization widget using QGraphicsView.
 Similar to Obsidian local graph - interactive with zoom, pan, node drag.
@@ -7,27 +6,46 @@ Similar to Obsidian local graph - interactive with zoom, pan, node drag.
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from noteration.vault_manager import VaultManager
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGraphicsView,
-    QGraphicsScene, QGraphicsEllipseItem, QGraphicsLineItem,
-    QGraphicsTextItem, QPushButton, QLabel,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGraphicsView,
+    QGraphicsScene,
+    QGraphicsEllipseItem,
+    QGraphicsLineItem,
+    QGraphicsTextItem,
+    QPushButton,
+    QLabel,
 )
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import (
-    QFont, QColor, QPen, QBrush, QPainter, QWheelEvent, QPalette,
+    QFont,
+    QColor,
+    QPen,
+    QBrush,
+    QPainter,
+    QWheelEvent,
+    QPalette,
 )
 
-from noteration.db.link_graph import LinkGraph
 from noteration.db.layout_engine import LayoutEngine
 
 
 class GraphNodeItem(QGraphicsEllipseItem):
-    def __init__(self, node_name: str, radius: float = 12.0, palette: QPalette | None = None) -> None:
+    def __init__(
+        self, node_name: str, radius: float = 12.0, palette: QPalette | None = None
+    ) -> None:
         super().__init__(-radius, -radius, radius * 2, radius * 2)
         self.node_name = node_name
         self._palette = palette
+        self._radius = radius
+        self._custom_color: QColor | None = None
 
         self.setFlag(QGraphicsEllipseItem.GraphicsItemFlag.ItemIsSelectable)
         self.setAcceptHoverEvents(True)
@@ -36,20 +54,28 @@ class GraphNodeItem(QGraphicsEllipseItem):
         self.setPen(QPen(Qt.PenStyle.NoPen))
 
     def _update_colors(self) -> None:
-        is_dark = self._palette.color(QPalette.ColorRole.Window).lightness() < 128 if self._palette else False
-        
+        is_dark = (
+            self._palette.color(QPalette.ColorRole.Window).lightness() < 128
+            if self._palette
+            else False
+        )
+
         if is_dark:
-            self._default_brush = QBrush(QColor("#64B5F6"))
+            self._default_brush = QBrush(self._custom_color or QColor("#64B5F6"))
             self._hover_brush = QBrush(QColor("#90CAF9"))
             self._current_brush = QBrush(QColor("#FF7043"))
             self._orphan_brush = QBrush(QColor("#757575"))
         else:
-            self._default_brush = QBrush(QColor("#42A5F5"))
+            self._default_brush = QBrush(self._custom_color or QColor("#42A5F5"))
             self._hover_brush = QBrush(QColor("#1E88E5"))
             self._current_brush = QBrush(QColor("#FF5722"))
             self._orphan_brush = QBrush(QColor("#BDBDBD"))
-        
+
         self.setBrush(self._default_brush)
+
+    def set_custom_color(self, color: QColor) -> None:
+        self._custom_color = color
+        self._update_colors()
 
     def set_highlight(self, is_current: bool = False, is_orphan: bool = False) -> None:
         if is_current:
@@ -92,14 +118,14 @@ class GraphView(QWidget):
 
     def __init__(
         self,
-        graph: LinkGraph,
-        vault_path: Path,
+        vault: "VaultManager",
         current_note: str = "",
         parent=None,
     ) -> None:
         super().__init__(parent)
-        self._graph = graph
-        self._vault_path = vault_path
+        self.vault = vault
+        self._graph = vault.graph
+        self._vault_path = vault.vault_path
         self._current_note = current_note
 
         self._node_items: dict[str, GraphNodeItem] = {}
@@ -120,6 +146,13 @@ class GraphView(QWidget):
         self._scene_height = 400.0
 
         self._setup_ui()
+
+        # Debounce refresh signal to avoid redundant scene rebuilds
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.setInterval(500)
+        self._refresh_timer.timeout.connect(self._build_scene)
+
         self._build_scene()
 
     def _setup_ui(self) -> None:
@@ -176,6 +209,7 @@ class GraphView(QWidget):
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
+
         if event.type() == QEvent.Type.PaletteChange:
             self._update_scene_background()
             self.refresh()
@@ -230,9 +264,34 @@ class GraphView(QWidget):
                 self._scene.addItem(edge)
                 self._edge_items.append(edge)
 
+        # Pre-calculate colors for categories
+        color_map: dict[str, QColor] = {}
+
+        def get_color_for_category(cat: str) -> QColor:
+            if cat not in color_map:
+                # Use a stable hash-based color
+                import hashlib
+
+                h = hashlib.sha256(cat.encode()).digest()
+                # Ensure color is not too dark or too light
+                color_map[cat] = QColor(h[0], h[1], h[2]).lighter(120)
+            return color_map[cat]
+
         for node, (x, y) in positions.items():
-            node_item = GraphNodeItem(node, palette=pal)
+            # Calculate radius based on degree
+            backlinks = self._graph.backlinks(node)
+            radius = 6.0 + min(20.0, len(backlinks) * 2.5)
+
+            node_item = GraphNodeItem(node, radius=radius, palette=pal)
             node_item.setPos(x, y)
+
+            # Assign color based on folder or tags
+            tags = self.vault.get_tags_for_note(node)
+            if tags:
+                node_item.set_custom_color(get_color_for_category(tags[0]))
+            elif "/" in node:
+                folder = node.split("/")[0]
+                node_item.set_custom_color(get_color_for_category(folder))
 
             is_orphan = node in orphans
             if node == self._current_note:
@@ -244,7 +303,7 @@ class GraphView(QWidget):
             self._node_items[node] = node_item
 
             if self._show_labels:
-                label = GraphLabelItem(node, x + 14, y - 6, label_color)
+                label = GraphLabelItem(node, x + radius + 2, y - 6, label_color)
                 if is_orphan and not self._show_orphans:
                     label.setVisible(False)
                 self._scene.addItem(label)
@@ -341,6 +400,7 @@ class GraphView(QWidget):
             self.node_clicked.emit(item.node_name)
         # Pass to default handler
         from PySide6.QtWidgets import QGraphicsView
+
         QGraphicsView.mousePressEvent(self._view, event)
 
     def _on_wheel(self, event: QWheelEvent) -> None:
@@ -362,8 +422,8 @@ class GraphView(QWidget):
                 item.set_highlight(is_orphan=True)
 
     def refresh(self) -> None:
-        self._build_scene()
-        # Apply current orphan toggle state
+        self._refresh_timer.start()
+        # Apply current orphan toggle state (will be re-applied after rebuild)
         self._toggle_orphans(self._show_orphans)
 
     def set_viewport_size(self, width: float, height: float) -> None:

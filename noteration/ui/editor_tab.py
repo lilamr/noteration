@@ -1,5 +1,4 @@
-"""
-Markdown editor tab with syntax highlighting, citation autocomplete, and wiki-link support.
+"""Markdown editor tab with syntax highlighting, citation autocomplete, and wiki-link support.
 """
 
 from __future__ import annotations
@@ -9,24 +8,44 @@ import re
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from enum import Enum
 
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QPlainTextEdit, QTextEdit,
-    QApplication, QStackedWidget, QToolBar, QSizePolicy, QFileDialog,
-    QMessageBox, QLineEdit, QLabel,
+    QWidget,
+    QHBoxLayout,
+    QVBoxLayout,
+    QPlainTextEdit,
+    QTextEdit,
+    QApplication,
+    QStackedWidget,
+    QToolBar,
+    QSizePolicy,
+    QLineEdit,
+    QLabel,
 )
 from PySide6.QtCore import Qt, Signal, QRect, QSize, QTimer, QUrl
 from PySide6.QtGui import (
-    QFont, QPainter, QColor, QTextFormat, QTextDocument, QTextCursor,
-    QPalette, QMouseEvent, QKeyEvent, QDragEnterEvent, QDropEvent, QImage,
+    QFont,
+    QPainter,
+    QColor,
+    QTextFormat,
+    QTextDocument,
+    QTextCursor,
+    QPalette,
+    QMouseEvent,
+    QKeyEvent,
+    QDragEnterEvent,
+    QDropEvent,
+    QImage,
 )
 
 from noteration.config import NoterationConfig
 from noteration.editor.syntax_highlighter import MarkdownHighlighter
 from noteration.editor.wiki_links import (
-    parse_wiki_links, parse_citations, extract_headings,
+    parse_wiki_links,
+    parse_citations,
+    extract_headings,
 )
 from noteration.editor.find_replace import FindReplaceDialog
 from noteration.logger import get_logger
@@ -38,13 +57,15 @@ if TYPE_CHECKING:
 
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
-    from PySide6.QtWebEngineCore import QWebEnginePage
+    from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
+
     _HAS_WEBENGINE = True
 except ImportError:
     _HAS_WEBENGINE = False
 
 try:
     import markdown as _markdown_lib  # type: ignore[import-untyped]
+
     _HAS_MARKDOWN = True
 except ImportError:
     _HAS_MARKDOWN = False
@@ -57,12 +78,15 @@ class VimMode(Enum):
     LINE_VISUAL = "LINE_VISUAL"
     COMMAND = "COMMAND"
 
+
 # =========================================================================
 # VimCommandField
 # =========================================================================
 
+
 class VimCommandField(QLineEdit):
     """Small command field for Vim-like commands (e.g., :w, :q)."""
+
     command_entered = Signal(str)
     esc_pressed = Signal()
 
@@ -87,12 +111,15 @@ class VimCommandField(QLineEdit):
         else:
             super().keyPressEvent(event)
 
+
 # =========================================================================
 # LineNumberArea
 # =========================================================================
 
+
 class LineNumberArea(QWidget):
     """Small side panel for displaying line numbers in the editor."""
+
     def __init__(self, editor: "MarkdownEditor") -> None:
         super().__init__(editor)
         self._editor = editor
@@ -100,7 +127,7 @@ class LineNumberArea(QWidget):
     def sizeHint(self) -> QSize:
         return QSize(self._editor.line_number_area_width(), 0)
 
-    def paintEvent(self, event) -> None:          # type: ignore[override]
+    def paintEvent(self, event) -> None:  # type: ignore[override]
         self._editor.line_number_area_paint_event(event)
 
 
@@ -108,9 +135,9 @@ class LineNumberArea(QWidget):
 # MarkdownEditor
 # =========================================================================
 
+
 class MarkdownEditor(QPlainTextEdit):
-    """
-    Core Markdown text editor component.
+    """Core Markdown text editor component.
     Includes syntax highlighting, line numbers, active line highlighting,
     and wiki-link navigation via Ctrl+Click.
     """
@@ -121,6 +148,8 @@ class MarkdownEditor(QPlainTextEdit):
     vim_mode_changed = Signal(VimMode)
     vim_command_requested = Signal()
     vim_exit_requested = Signal()
+    view_mode_requested = Signal(bool)
+    export_requested = Signal(str)
 
     def __init__(self, config: NoterationConfig, parent=None) -> None:
         super().__init__(parent)
@@ -148,9 +177,7 @@ class MarkdownEditor(QPlainTextEdit):
             self._lnum_area.hide()
 
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-        self.setTabStopDistance(
-            config.font_size * config.get("editor", "tab_width", 2)
-        )
+        self.setTabStopDistance(config.font_size * config.get("editor", "tab_width", 2))
 
         self.setAcceptDrops(True)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -175,13 +202,13 @@ class MarkdownEditor(QPlainTextEdit):
         self._vim_mode = mode
         # In Normal, Visual, and Command modes, the editor is effectively read-only for standard input
         self.setReadOnly(self._read_only or mode != VimMode.INSERT)
-        
+
         if mode in (VimMode.VISUAL, VimMode.LINE_VISUAL):
             if self._visual_anchor == -1:
                 self._visual_anchor = self.textCursor().position()
         else:
             self._visual_anchor = -1
-            
+
         self.vim_mode_changed.emit(mode)
         self._highlight_current_line()
 
@@ -205,18 +232,15 @@ class MarkdownEditor(QPlainTextEdit):
         if dy:
             self._lnum_area.scroll(0, dy)
         else:
-            self._lnum_area.update(
-                0, rect.y(), self._lnum_area.width(), rect.height()
-            )
+            self._lnum_area.update(0, rect.y(), self._lnum_area.width(), rect.height())
         if rect.contains(self.viewport().rect()):
             self.update_line_number_area_width()
 
-    def resizeEvent(self, event) -> None:          # type: ignore[override]
+    def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
         cr = self.contentsRect()
         self._lnum_area.setGeometry(
-            QRect(cr.left(), cr.top(),
-                  self.line_number_area_width(), cr.height())
+            QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height())
         )
 
     def line_number_area_paint_event(self, event) -> None:
@@ -227,10 +251,7 @@ class MarkdownEditor(QPlainTextEdit):
         )
         block = self.firstVisibleBlock()
         block_num = block.blockNumber()
-        top = round(
-            self.blockBoundingGeometry(block)
-            .translated(self.contentOffset()).top()
-        )
+        top = round(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
         bottom = top + round(self.blockBoundingRect(block).height())
         current = self.textCursor().blockNumber()
 
@@ -239,7 +260,8 @@ class MarkdownEditor(QPlainTextEdit):
                 color = QColor("#444") if block_num == current else QColor("#bbb")
                 painter.setPen(color)
                 painter.drawText(
-                    0, top,
+                    0,
+                    top,
                     self._lnum_area.width() - 4,
                     self.fontMetrics().height(),
                     Qt.AlignmentFlag.AlignRight,
@@ -262,8 +284,7 @@ class MarkdownEditor(QPlainTextEdit):
                 sel.format.setBackground(QColor("#3A3A3A"))
             else:
                 sel.format.setBackground(QColor("#F5F5FF"))
-            sel.format.setProperty(
-                QTextFormat.Property.FullWidthSelection, True)
+            sel.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             sel.cursor = self.textCursor()
             sel.cursor.clearSelection()
             extras.append(sel)
@@ -286,8 +307,7 @@ class MarkdownEditor(QPlainTextEdit):
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if not self._vim_enabled:
             if event.key() == Qt.Key.Key_Tab:
-                self.insertPlainText(
-                    " " * self.config.get("editor", "tab_width", 2))
+                self.insertPlainText(" " * self.config.get("editor", "tab_width", 2))
                 return
             if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
                 if event.key() == Qt.Key.Key_V:
@@ -314,11 +334,11 @@ class MarkdownEditor(QPlainTextEdit):
         # Vim handling
         key = event.key()
         text = event.text()
-        
+
         if key == Qt.Key.Key_Escape:
             if self._vim_mode == VimMode.NORMAL:
                 self.vim_exit_requested.emit()
-            
+
             self._set_vim_mode(VimMode.NORMAL)
             cursor = self.textCursor()
             cursor.clearSelection()
@@ -362,7 +382,7 @@ class MarkdownEditor(QPlainTextEdit):
                 cursor.movePosition(QTextCursor.MoveOperation.End, move_mode)
             else:
                 cursor.movePosition(QTextCursor.MoveOperation.Start, move_mode)
-        
+
         # State transitions
         elif self._vim_mode == VimMode.NORMAL:
             if text == "i":
@@ -380,7 +400,9 @@ class MarkdownEditor(QPlainTextEdit):
                 self._set_vim_mode(VimMode.LINE_VISUAL)
                 cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
                 self._visual_anchor = cursor.position()
-                cursor.movePosition(QTextCursor.MoveOperation.EndOfLine, QTextCursor.MoveMode.KeepAnchor)
+                cursor.movePosition(
+                    QTextCursor.MoveOperation.EndOfLine, QTextCursor.MoveMode.KeepAnchor
+                )
             elif text == ":":
                 self.vim_command_requested.emit()
             elif text == "u":
@@ -393,7 +415,7 @@ class MarkdownEditor(QPlainTextEdit):
                 # If no Vim command matches, allow standard processing
                 super().keyPressEvent(event)
                 return
-        
+
         elif self._vim_mode in (VimMode.VISUAL, VimMode.LINE_VISUAL):
             if text == "y":
                 self.copy()
@@ -515,11 +537,11 @@ class MarkdownEditor(QPlainTextEdit):
     def _open_find_replace(self) -> None:
         """Open the find/replace dialog and initialize with selection."""
         dlg = FindReplaceDialog(self)
-        
+
         cursor = self.textCursor()
         if cursor.hasSelection():
             dlg.set_initial_text(cursor.selectedText())
-            
+
         dlg.find_next_requested.connect(self._find_next)
         dlg.replace_requested.connect(self._replace)
         dlg.replace_all_requested.connect(self._replace_all)
@@ -532,18 +554,19 @@ class MarkdownEditor(QPlainTextEdit):
             flags |= QTextDocument.FindFlag.FindCaseSensitively
         if whole:
             flags |= QTextDocument.FindFlag.FindWholeWords
-            
+
         if regex:
             from PySide6.QtCore import QRegularExpression
+
             re_flags = QRegularExpression.PatternOption.NoPatternOption
             if not case:
                 re_flags |= QRegularExpression.PatternOption.CaseInsensitiveOption
-            
+
             rx = QRegularExpression(query, re_flags)
             found = self.find(rx, flags)
         else:
             found = self.find(query, flags)
-            
+
         if not found:
             # Wrap around from the start of the document
             cursor = self.textCursor()
@@ -551,6 +574,7 @@ class MarkdownEditor(QPlainTextEdit):
             self.setTextCursor(cursor)
             if regex:
                 from PySide6.QtCore import QRegularExpression
+
                 re_flags = QRegularExpression.PatternOption.NoPatternOption
                 if not case:
                     re_flags |= QRegularExpression.PatternOption.CaseInsensitiveOption
@@ -570,32 +594,35 @@ class MarkdownEditor(QPlainTextEdit):
         match = False
         if regex:
             import re
+
             re_flags = 0 if case else re.IGNORECASE
             if re.fullmatch(query, selected, flags=re_flags):
                 match = True
         else:
             if case:
-                match = (selected == query)
+                match = selected == query
             else:
-                match = (selected.lower() == query.lower())
-                
+                match = selected.lower() == query.lower()
+
         if match:
             cursor.insertText(replace_text)
             self._find_next(query, case, whole, regex)
         else:
             self._find_next(query, case, whole, regex)
 
-    def _replace_all(self, query: str, replace_text: str, case: bool, whole: bool, regex: bool) -> None:
+    def _replace_all(
+        self, query: str, replace_text: str, case: bool, whole: bool, regex: bool
+    ) -> None:
         """Replace all occurrences in the entire document."""
         old_cursor = self.textCursor()
-        
+
         cursor = self.textCursor()
         cursor.movePosition(cursor.MoveOperation.Start)
         self.setTextCursor(cursor)
-        
+
         while self._find_next(query, case, whole, regex):
             self.textCursor().insertText(replace_text)
-            
+
         self.setTextCursor(old_cursor)
 
     # ── Mode switching ────────────────────────────────────────────────
@@ -606,23 +633,12 @@ class MarkdownEditor(QPlainTextEdit):
         self.setReadOnly(enabled)
 
     def _request_view_mode(self, enabled: bool) -> None:
-        """Request the parent container to toggle mode."""
-        parent = self.parent()
-        while parent is not None:
-            if hasattr(parent, "set_view_mode") and hasattr(parent, "_stack"):
-                parent.set_view_mode(enabled)
-                return
-            parent = parent.parent() if hasattr(parent, "parent") else None
-        self.set_view_mode(enabled)
+        """Signal that view mode is requested."""
+        self.view_mode_requested.emit(enabled)
 
     def _request_export(self, fmt: str) -> None:
-        """Request the parent container to perform a file export."""
-        parent = self.parent()
-        while parent is not None:
-            if hasattr(parent, "export_as"):
-                parent.export_as(fmt)
-                return
-            parent = parent.parent() if hasattr(parent, "parent") else None
+        """Signal that export is requested."""
+        self.export_requested.emit(fmt)
 
 
 # =========================================================================
@@ -753,57 +769,101 @@ a.wikilink:hover {
 """
 
 _MARKDOWN_EXTENSIONS = [
-    "extra",          # tables, footnotes, attr_list, def_list, abbr
-    "fenced_code",    # ``` code blocks
-    "nl2br",          # newline → <br>
-    "sane_lists",     # correct list behavior
-    "toc",            # heading anchors
+    "pymdownx.arithmatex",  # Better LaTeX support
+    "pymdownx.superfences",  # Support for nested fences and better code blocks
+    "pymdownx.tasklist",  # - [ ] Checklists
+    "pymdownx.tilde",  # ~~strikethrough~~
+    "pymdownx.caret",  # ^^superscript^^
+    "pymdownx.mark",  # ==highlight==
+    "extra",  # tables, footnotes, attr_list, def_list, abbr
+    "sane_lists",  # correct list behavior
+    "toc",  # heading anchors
 ]
 
 
-def _md_to_html(text: str, base_url: str = "", theme: str = "light") -> str:
-    """
-    Convert Markdown content to a self-contained HTML document.
+def _md_to_html(
+    text: str, base_url: str = "", theme: str = "light", vault: "VaultManager" | None = None
+) -> str:
+    """Convert Markdown content to a self-contained HTML document.
     Handles wiki-links, citations, and theme-specific syntax coloring.
     """
     import re
-    from noteration.ui.theme import ThemeMode, _DARK_COLORS, _LIGHT_COLORS, get_syntax_palette, get_effective_mode
+    from noteration.ui.theme import (
+        ThemeMode,
+        _DARK_COLORS,
+        _LIGHT_COLORS,
+        get_syntax_palette,
+        get_effective_mode,
+    )
+    from noteration.editor.wiki_links import parse_citations
 
     mode = get_effective_mode(theme)
     palette = get_syntax_palette(mode)
     base_colors = _DARK_COLORS if mode == ThemeMode.DARK else _LIGHT_COLORS
 
-    def get_hex(role): return base_colors.get(role, "#000000")
-    
+    def get_hex(role):
+        return base_colors.get(role, "#000000")
+
     css_vars = f"""
     :root {{
       --bg:      {get_hex(QPalette.ColorRole.Base)};
       --text:    {get_hex(QPalette.ColorRole.Text)};
       --muted:   {get_hex(QPalette.ColorRole.PlaceholderText)};
       --border:  {get_hex(QPalette.ColorRole.Mid)};
-      --code-bg: {palette.get("code_block", ("","#f6f8fa"))[1]};
+      --code-bg: {palette.get("code_block", ("", "#f6f8fa"))[1]};
       --link:    {get_hex(QPalette.ColorRole.Link)};
       --bq-border: {get_hex(QPalette.ColorRole.Highlight)};
-      --bq-bg:   {palette.get("quote", ("","#f9f9f9"))[1]};
-      --wiki-bg: {palette.get("wiki", ("","#EEEDFE"))[1]};
-      --wiki-fg: {palette.get("wiki", ("#534AB7",""))[0]};
-      --cite-bg: {palette.get("citation", ("","#E1F5EE"))[1]};
-      --cite-fg: {palette.get("citation", ("#0F6E56",""))[0]};
+      --bq-bg:   {palette.get("quote", ("", "#f9f9f9"))[1]};
+      --wiki-bg: {palette.get("wiki", ("", "#EEEDFE"))[1]};
+      --wiki-fg: {palette.get("wiki", ("#534AB7", ""))[0]};
+      --cite-bg: {palette.get("cite", ("", "#E1F5EE"))[1]};
+      --cite-fg: {palette.get("cite", ("#0F6E56", ""))[0]};
     }}
     """
-    
+
+    # Locate local MathJax library
+    import noteration
+
+    assets_js = Path(noteration.__file__).parent / "assets" / "js"
+    mathjax_url = (assets_js / "tex-mml-chtml.js").as_uri()
+
     if _HAS_MARKDOWN:
         body = _markdown_lib.markdown(
-            text, extensions=_MARKDOWN_EXTENSIONS,
+            text,
+            extensions=_MARKDOWN_EXTENSIONS,
+            extension_configs={
+                "pymdownx.arithmatex": {
+                    "generic": True,
+                }
+            },
         )
     else:
         import html as _html
+
         body = f"<pre>{_html.escape(text)}</pre>"
+
+    # Preparation for CSL rendering
+    citation_map = {}
+    if vault and vault.csl.is_available():
+        # Parse all citations in the text
+        raw_citations = parse_citations(text)
+        keys = list(set(c.key for c in raw_citations))
+
+        # Look up entries in Papis
+        entries = []
+        for k in keys:
+            e = vault.papis.get(k)
+            if e:
+                entries.append(e)
+
+        # Render them as a batch
+        if entries:
+            citation_map = vault.csl.render_citations(entries)
 
     def _safe_replace(html: str) -> str:
         """Inject wiki-link badges and citations without breaking code blocks."""
-        parts = re.split(r'(<code.*?>.*?</code>|<pre.*?>.*?</pre>)', html, flags=re.DOTALL)
-        
+        parts = re.split(r"(<code.*?>.*?</code>|<pre.*?>.*?</pre>)", html, flags=re.DOTALL)
+
         def _wikilink_sub(m: re.Match) -> str:
             target = m.group(1).strip()
             href = "noteration://wiki/" + target.replace(" ", "%20")
@@ -811,43 +871,74 @@ def _md_to_html(text: str, base_url: str = "", theme: str = "light") -> str:
 
         new_parts = []
         for p in parts:
-            if p.startswith(('<code', '<pre')):
+            if p.startswith(("<code", "<pre")):
                 new_parts.append(p)
             else:
-                p = re.sub(r'\[\[([^\]]+)\]\]', _wikilink_sub, p)
-                p = re.sub(
-                    r'(@[A-Za-z][A-Za-z0-9_:\-]+)',
-                    r'<span class="citation">\1</span>',
-                    p,
-                )
+                p = re.sub(r"\[\[([^\]]+)\]\]", _wikilink_sub, p)
+
+                # Replace citations with rendered versions if available
+                def _cite_sub(m: re.Match) -> str:
+                    key = m.group(1)
+                    display = citation_map.get(key, f"@{key}")
+                    return f'<span class="citation" title="Source: {key}">{display}</span>'
+
+                p = re.sub(r"@([A-Za-z][A-Za-z0-9_:\-]+)", _cite_sub, p)
                 new_parts.append(p)
         return "".join(new_parts)
 
     body = _safe_replace(body)
 
-    base_tag = f'<base href="{base_url}">' if base_url else ""
-    return f"""<!DOCTYPE html>
+    base_tag = '<base href="{}">'.format(base_url) if base_url else ""
+    html_template = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  {base_tag}
+  %BASE_TAG%
   <style>
-    {_PREVIEW_CSS}
-    {css_vars}
+    %STYLE%
+    %CSS_VARS%
+    /* Disable MathJax context menu by ignoring mouse events */
+    .MathJax { pointer-events: none !important; }
   </style>
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      options: {
+        processHtmlClass: 'arithmatex'
+      },
+      menuSettings: {
+        context: 'None'
+      }
+    };
+  </script>
+  <script src="%MATHJAX_URL%"></script>
 </head>
 <body>
-{body}
+<div class="markdown-body">
+%BODY%
+</div>
 </body>
 </html>"""
+    return (
+        html_template.replace("%BASE_TAG%", base_tag)
+        .replace("%STYLE%", _PREVIEW_CSS)
+        .replace("%CSS_VARS%", css_vars)
+        .replace("%MATHJAX_URL%", mathjax_url)
+        .replace("%BODY%", body)
+    )
 
 
 if _HAS_WEBENGINE:
+
     class _NoterationPage(QWebEnginePage):
+        """Intercept navigation requests to handle wiki-links and external URLs.
         """
-        Intercept navigation requests to handle wiki-links and external URLs.
-        """
+
         link_clicked = Signal(str)
 
         def acceptNavigationRequest(
@@ -857,6 +948,7 @@ if _HAS_WEBENGINE:
             is_main_frame: bool,
         ) -> bool:
             from PySide6.QtCore import QUrl as QUrlClass
+
             if isinstance(url, str):
                 url = QUrlClass(url)
             scheme = url.scheme()
@@ -874,6 +966,7 @@ if _HAS_WEBENGINE:
             if scheme in ("http", "https", "ftp"):
                 import subprocess
                 import shutil
+
                 xdg_open = shutil.which("xdg-open")
                 if xdg_open:
                     subprocess.Popen([xdg_open, url_str])  # nosec S603
@@ -883,12 +976,12 @@ if _HAS_WEBENGINE:
 
 
 class MarkdownPreview(QWidget):
-    """
-    Preview component for rendered Markdown.
+    """Preview component for rendered Markdown.
     Uses QWebEngineView for rich rendering or QTextBrowser as a fallback.
     """
 
     link_clicked = Signal(str)
+    export_requested = Signal(str)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -902,6 +995,19 @@ class MarkdownPreview(QWidget):
             self._view = QWebEngineView()
             self._page = _NoterationPage(self)
             self._page.link_clicked.connect(self.link_clicked)
+
+            # Security: Allow local content to access local file URLs for MathJax and images
+            settings = self._page.settings()
+            settings.setAttribute(
+                QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, False
+            )
+            settings.setAttribute(
+                QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True
+            )
+            settings.setAttribute(
+                QWebEngineSettings.WebAttribute.JavascriptEnabled, True
+            )  # Required for MathJax
+
             self._view.setPage(self._page)
             self._view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             self._view.customContextMenuRequested.connect(self._handle_context_menu)
@@ -910,6 +1016,7 @@ class MarkdownPreview(QWidget):
             self._use_webengine = True
         else:
             from PySide6.QtWidgets import QTextBrowser
+
             self._tb = QTextBrowser()
             self._tb.setOpenExternalLinks(False)
             self._tb.setOpenLinks(False)
@@ -923,36 +1030,51 @@ class MarkdownPreview(QWidget):
     def _handle_context_menu(self, pos) -> None:
         """View-mode context menu with export options."""
         from PySide6.QtWidgets import QMenu
+
         menu = QMenu(self)
-        
+
         copy = menu.addAction("Copy")
         menu.addSeparator()
-        
+
         export_menu = menu.addMenu("📥 Export")
-        export_html = export_menu.addAction("Export to HTML")
-        export_pdf = export_menu.addAction("Export to PDF")
-        export_txt = export_menu.addAction("Export to TXT")
-        
+        export_html = export_menu.addAction("HTML")
+        export_pdf = export_menu.addAction("PDF")
+        export_docx = export_menu.addAction("DOCX")
+        export_odt = export_menu.addAction("ODT")
+        export_latex = export_menu.addAction("LaTeX")
+        export_txt = export_menu.addAction("Plain Text (TXT)")
+
         sender_obj = self.sender()
-        sender = sender_obj if isinstance(sender_obj, QWidget) else (self._view if self._use_webengine else self._tb)
-        
+        sender = (
+            sender_obj
+            if isinstance(sender_obj, QWidget)
+            else (self._view if self._use_webengine else self._tb)
+        )
+
         chosen = menu.exec(sender.mapToGlobal(pos))
         if not chosen:
             return
-            
+
         if chosen == copy:
             if self._use_webengine:
                 self._view.triggerPageAction(QWebEnginePage.WebAction.Copy)
             else:
                 self._tb.copy()
-        elif chosen in [export_html, export_pdf, export_txt]:
-            fmt = "html" if chosen == export_html else ("pdf" if chosen == export_pdf else "txt")
-            parent = self.parent()
-            while parent:
-                if hasattr(parent, "export_as"):
-                    parent.export_as(fmt)
-                    break
-                parent = parent.parent() if hasattr(parent, "parent") else None
+        elif chosen in [export_html, export_pdf, export_txt, export_docx, export_odt, export_latex]:
+            if chosen == export_html:
+                fmt = "html"
+            elif chosen == export_pdf:
+                fmt = "pdf"
+            elif chosen == export_txt:
+                fmt = "txt"
+            elif chosen == export_docx:
+                fmt = "docx"
+            elif chosen == export_odt:
+                fmt = "odt"
+            else:
+                fmt = "latex"
+
+            self.export_requested.emit(fmt)
 
     def _on_tb_anchor(self, url: QUrl) -> None:
         """Handle link clicks in the fallback text browser."""
@@ -962,6 +1084,7 @@ class MarkdownPreview(QWidget):
         elif scheme in ("http", "https"):
             import subprocess
             import shutil
+
             xdg_open = shutil.which("xdg-open")
             if xdg_open:
                 subprocess.Popen([xdg_open, url.toString()])  # nosec S603
@@ -969,37 +1092,41 @@ class MarkdownPreview(QWidget):
     def shutdown(self) -> None:
         """Explicitly cleanup WebEngine resources to avoid profile release warnings."""
         if self._use_webengine:
-            import shiboken6
-            
+            # 0. Ensure Qt application is still active before GUI cleanup.
+            from PySide6.QtWidgets import QApplication
+            if not QApplication.instance():
+                return
+
             # 1. Detach and hide the view
             if hasattr(self, "_view") and self._view:
                 self._view.hide()
                 self._view.setPage(None)  # type: ignore[arg-type]
-            
+
             # 2. Forcefully delete the page first
             if hasattr(self, "_page") and self._page:
                 self._page.setParent(None)
                 try:
-                    shiboken6.delete(self._page)
+                    self._page.deleteLater()
                 except Exception as e:
                     logger.debug(f"Shiboken delete _page failed: {e}")
-                self._page = None # type: ignore
-            
+                self._page = None  # type: ignore
+
             # 3. Forcefully delete the view
             if hasattr(self, "_view") and self._view:
                 self._view.setParent(None)
                 try:
-                    shiboken6.delete(self._view)
+                    self._view.deleteLater()
                 except Exception as e:
                     logger.debug(f"Shiboken delete _view failed: {e}")
-                self._view = None # type: ignore
-            
-            # 4. Process any remaining events
-            from PySide6.QtWidgets import QApplication
-            for _ in range(5):
-                QApplication.processEvents()
+                self._view = None  # type: ignore
 
-    def set_content(self, markdown_text: str, base_path: Path | None = None, theme: str = "light") -> None:
+    def set_content(
+        self,
+        markdown_text: str,
+        base_path: Optional[Path] = None,
+        theme: str = "light",
+        vault: Optional["VaultManager"] = None,
+    ) -> None:
         """Update the displayed content."""
         base_url = QUrl()
         if base_path and base_path.exists():
@@ -1008,31 +1135,34 @@ class MarkdownPreview(QWidget):
                 base_dir += "/"
             base_url = QUrl.fromLocalFile(base_dir)
 
-        html = _md_to_html(markdown_text, base_url.toString(), theme=theme)
+        html = _md_to_html(markdown_text, base_url.toString(), theme=theme, vault=vault)
 
         if self._use_webengine:
             self._page.setHtml(html, base_url)
         else:
             self._tb.setHtml(html)
 
+
 # =========================================================================
 # EditorTab
 # =========================================================================
 
+
 class EditorTab(QWidget):
-    """
-    Complete tab implementation for Markdown editing and previewing.
+    """Complete tab implementation for Markdown editing and previewing.
     Orchestrates the editor, previewer, and metadata extraction.
     """
 
-    cursor_moved       = Signal(int, int)
-    content_changed    = Signal()
-    wiki_link_clicked  = Signal(str)
-    headings_changed   = Signal(list)
-    citations_changed  = Signal(list)
+    cursor_moved = Signal(int, int)
+    content_changed = Signal()
+    wiki_link_clicked = Signal(str)
+    headings_changed = Signal(list)
+    citations_changed = Signal(list)
     word_count_changed = Signal(int)
-    save_requested     = Signal()
+    save_requested = Signal()
     focus_mode_exit_requested = Signal()
+    view_mode_requested = Signal(bool)
+    export_requested = Signal(str)
 
     def __init__(
         self,
@@ -1041,13 +1171,13 @@ class EditorTab(QWidget):
         parent=None,
     ) -> None:
         super().__init__(parent)
-        self.file_path   = file_path
-        self.vault       = vault
-        self.vault_path  = vault.vault_path
-        self.config      = vault.config
+        self.file_path = file_path
+        self.vault = vault
+        self.vault_path = vault.vault_path
+        self.config = vault.config
         self.is_modified = False
         self._is_focus_mode = False
-        
+
         # Performance cache
         self._last_parsed_hash = 0
 
@@ -1068,17 +1198,18 @@ class EditorTab(QWidget):
         )
 
         from PySide6.QtGui import QActionGroup
+
         self._act_edit = self._tab_toolbar.addAction("✎  Edit")
         self._act_edit.setCheckable(True)
         self._act_edit.setChecked(True)
         self._act_edit.setToolTip("Edit mode — Ctrl+Shift+V")
-        self._act_edit.triggered.connect(lambda: self.set_view_mode(False))
+        self._act_edit.triggered.connect(lambda: self.view_mode_requested.emit(False))
 
         self._act_view = self._tab_toolbar.addAction("👁  View")
         self._act_view.setCheckable(True)
         self._act_view.setChecked(False)
         self._act_view.setToolTip("Preview render mode — Ctrl+Shift+V")
-        self._act_view.triggered.connect(lambda: self.set_view_mode(True))
+        self._act_view.triggered.connect(lambda: self.view_mode_requested.emit(True))
 
         _grp = QActionGroup(self._tab_toolbar)
         _grp.setExclusive(True)
@@ -1095,17 +1226,20 @@ class EditorTab(QWidget):
         self._editor_container = QWidget()
         self._editor_layout = QVBoxLayout(self._editor_container)
         self._editor_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         self._editor = MarkdownEditor(self.config)
         self._editor.wiki_link_activated.connect(self.wiki_link_clicked)
         self._editor.cursorPositionChanged.connect(self._on_cursor_moved)
         self._editor.textChanged.connect(self._on_text_changed)
         self._editor.image_dropped.connect(self._on_image_dropped)
         self._editor.image_pasted.connect(self._on_image_pasted)
-        
+
         self._editor.vim_command_requested.connect(self._on_vim_command_requested)
         self._editor.vim_mode_changed.connect(self._on_vim_mode_changed)
         self._editor.vim_exit_requested.connect(self.focus_mode_exit_requested)
+
+        self._editor.view_mode_requested.connect(self.set_view_mode)
+        self._editor.export_requested.connect(self.export_as)
 
         self._editor_layout.addWidget(self._editor)
         self._stack.addWidget(self._editor_container)
@@ -1113,29 +1247,32 @@ class EditorTab(QWidget):
         # 2. Preview
         self._preview = MarkdownPreview()
         self._preview.link_clicked.connect(self._on_preview_link)
+        self._preview.export_requested.connect(self.export_as)
         self._stack.addWidget(self._preview)
 
         # 3. Focus View
         self._focus_view = QWidget()
         self._focus_layout = QVBoxLayout(self._focus_view)
         self._focus_layout.setContentsMargins(0, 40, 0, 20)
-        
+
         self._centered_layout = QHBoxLayout()
         self._centered_layout.addStretch()
         # Editor will be reparented here in set_focus_mode
         self._centered_layout.addStretch()
         self._focus_layout.addLayout(self._centered_layout)
-        
+
         self._vim_cmd_field = VimCommandField()
         self._vim_cmd_field.command_entered.connect(self._handle_vim_command)
         self._vim_cmd_field.esc_pressed.connect(lambda: self._editor.setFocus())
         self._focus_layout.addWidget(self._vim_cmd_field, 0, Qt.AlignmentFlag.AlignCenter)
         self._vim_cmd_field.setFixedWidth(1000)
-        
+
         self._focus_status = QLabel()
-        self._focus_status.setStyleSheet("color: palette(window-text); font-size: 11px; margin-top: 10px;")
+        self._focus_status.setStyleSheet(
+            "color: palette(window-text); font-size: 11px; margin-top: 10px;"
+        )
         self._focus_layout.addWidget(self._focus_status, 0, Qt.AlignmentFlag.AlignCenter)
-        
+
         self._stack.addWidget(self._focus_view)
         self._stack.setCurrentIndex(0)
 
@@ -1153,11 +1290,13 @@ class EditorTab(QWidget):
         if self.vault.papis:
             try:
                 from noteration.editor.citation_completer import CitationCompleter
+
                 self._completer = CitationCompleter(self._editor, self.vault.papis, self)
             except Exception as e:
                 logger.warning(f"Citation completer initialization failed: {e}")
         # Global shortcut for mode toggling
         from PySide6.QtGui import QKeySequence, QShortcut
+
         _sc = QShortcut(QKeySequence("Ctrl+Shift+V"), self)
         _sc.activated.connect(lambda: self.set_view_mode(not self._is_view_mode))
 
@@ -1165,12 +1304,14 @@ class EditorTab(QWidget):
 
     def _update_highlighter_theme(self) -> None:
         from noteration.ui.theme import get_effective_mode, get_syntax_palette
+
         mode = get_effective_mode(self.config.theme)
         palette = get_syntax_palette(mode)
         self._editor._highlighter.set_palette(palette)
 
     def changeEvent(self, event) -> None:
         from PySide6.QtCore import QEvent
+
         if event.type() == QEvent.Type.PaletteChange:
             self._update_highlighter_theme()
             if self._is_view_mode:
@@ -1187,9 +1328,30 @@ class EditorTab(QWidget):
         self._emit_parsed_signals()
 
     def save(self) -> None:
-        self.file_path.write_text(self._editor.toPlainText(), encoding="utf-8")
+        text = self._editor.toPlainText()
+        self.file_path.write_text(text, encoding="utf-8")
         self.is_modified = False
         self._update_focus_status()
+
+        # Explicitly index the updated tags for this note upon save
+        if self.vault.core.fts:
+            # Calculate note_id locally since _get_note_id belongs to MainWindow
+            try:
+                rel = self.file_path.relative_to(self.vault_path / "notes")
+                note_id = str(rel.with_suffix(""))
+            except ValueError:
+                note_id = self.file_path.stem
+
+            tags = set(re.findall(r"(?:^|\s)#([\w-]+)", text))
+            try:
+                self.vault.core.fts.index_tags(note_id, list(tags), "note")
+                self.vault.tags_updated.emit()
+            except Exception as e:
+                logger.error(f"Failed to index tags for note {note_id}: {e}")
+
+        # Ensure the file is tracked by Git
+        if self.vault.core.git_repo:
+            self.vault.request_git_status()
 
     def set_line_numbers_visible(self, visible: bool) -> None:
         self._editor.set_line_numbers_visible(visible)
@@ -1199,12 +1361,12 @@ class EditorTab(QWidget):
     def set_focus_mode(self, enabled: bool) -> None:
         self._is_focus_mode = enabled
         self._tab_toolbar.setVisible(not enabled)
-        
+
         if enabled:
             # Save the current mode before switching to Focus View
             is_preview = self._is_view_mode
             self._editor.set_vim_enabled(True)
-            
+
             # Dynamic width calculation
             width = self.width() // 2 if self.width() > 100 else 800
             target_w = max(600, width)
@@ -1212,7 +1374,7 @@ class EditorTab(QWidget):
             self._preview.setFixedWidth(target_w)
             self._vim_cmd_field.setFixedWidth(target_w)
             self._focus_status.setFixedWidth(target_w)
-            
+
             if is_preview:
                 self._centered_layout.insertWidget(1, self._preview)
                 self._editor.hide()
@@ -1221,7 +1383,7 @@ class EditorTab(QWidget):
                 self._centered_layout.insertWidget(1, self._editor)
                 self._preview.hide()
                 self._editor.show()
-                
+
             self._stack.setCurrentIndex(2)
             self._update_focus_status()
         else:
@@ -1230,16 +1392,16 @@ class EditorTab(QWidget):
             self._editor.setMaximumWidth(16777215)
             self._preview.setMinimumWidth(0)
             self._preview.setMaximumWidth(16777215)
-            
+
             # Reparent both back to their containers to be safe
             self._editor_layout.addWidget(self._editor)
-            # Preview doesn't have a dedicated layout container in the stack, 
+            # Preview doesn't have a dedicated layout container in the stack,
             # so we just add it to the stack (it will be index 1)
             self._stack.insertWidget(1, self._preview)
-            
+
             self._editor.show()
             self._preview.show()
-            
+
             # Restore standard view (Edit or Preview)
             self._stack.setCurrentIndex(1 if self._is_view_mode else 0)
             self._vim_cmd_field.hide()
@@ -1247,16 +1409,16 @@ class EditorTab(QWidget):
     def _update_focus_status(self) -> None:
         if not self._is_focus_mode:
             return
-            
+
         cursor = self._editor.textCursor()
         line = cursor.blockNumber() + 1
         col = cursor.columnNumber() + 1
         mode = self._editor._vim_mode.value
-        
+
         status = f"VIM: {mode}  |  Ln {line}, Col {col}"
         if self.is_modified:
             status += "  [modified]"
-        
+
         self._focus_status.setText(status)
 
     def resizeEvent(self, event) -> None:
@@ -1298,12 +1460,16 @@ class EditorTab(QWidget):
         if self._is_focus_mode:
             original_text = self._focus_status.text()
             self._focus_status.setText(msg)
-            self._focus_status.setStyleSheet("color: palette(highlight); font-weight: bold; margin-top: 10px;")
+            self._focus_status.setStyleSheet(
+                "color: palette(highlight); font-weight: bold; margin-top: 10px;"
+            )
             QTimer.singleShot(2000, lambda: self._restore_focus_status(original_text))
 
     def _restore_focus_status(self, text: str) -> None:
         self._focus_status.setText(text)
-        self._focus_status.setStyleSheet("color: palette(window-text); font-size: 11px; margin-top: 10px;")
+        self._focus_status.setStyleSheet(
+            "color: palette(window-text); font-size: 11px; margin-top: 10px;"
+        )
         self._update_focus_status()
 
     def shutdown(self) -> None:
@@ -1318,10 +1484,11 @@ class EditorTab(QWidget):
     def set_view_mode(self, enabled: bool) -> None:
         """Toggle between raw editing and HTML preview."""
         from PySide6.QtWidgets import QApplication
+
         self._is_view_mode = enabled
         self._act_edit.setChecked(not enabled)
         self._act_view.setChecked(enabled)
-        
+
         if enabled:
             self._refresh_preview()
             if self._is_focus_mode:
@@ -1350,6 +1517,7 @@ class EditorTab(QWidget):
             self._editor.toPlainText(),
             base_path=self.vault_path,
             theme=self.config.theme,
+            vault=self.vault,
         )
 
     def _on_preview_link(self, target: str) -> None:
@@ -1393,6 +1561,7 @@ class EditorTab(QWidget):
 
     def _on_image_pasted(self, image) -> None:
         from PySide6.QtGui import QImage
+
         if isinstance(image, QImage):
             self._paste_image_from_clipboard(image)
 
@@ -1400,12 +1569,12 @@ class EditorTab(QWidget):
         """Persist a clipboard image and insert it into the document."""
         attachments_dir = self.vault_path / "attachments"
         attachments_dir.mkdir(parents=True, exist_ok=True)
-        
+
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         uid = uuid.uuid4().hex[:6]
         filename = f"{ts}_{uid}.png"
         dest = attachments_dir / filename
-        
+
         image.save(str(dest))
         self.insert_image(f"attachments/{filename}")
 
@@ -1442,7 +1611,7 @@ class EditorTab(QWidget):
             flags |= QTextDocument.FindFlag.FindCaseSensitively
         if whole:
             flags |= QTextDocument.FindFlag.FindWholeWords
-        
+
         new_cursor = doc.find(query, start_pos, flags)
         if new_cursor.isNull():
             new_cursor = doc.find(query, 0, flags)
@@ -1450,19 +1619,24 @@ class EditorTab(QWidget):
             self._editor.setTextCursor(new_cursor)
             self._editor.setFocus()
 
-    def _on_replace(self, query: str, replace_text: str, case: bool, whole: bool, regex: bool) -> None:
+    def _on_replace(
+        self, query: str, replace_text: str, case: bool, whole: bool, regex: bool
+    ) -> None:
         cursor = self._editor.textCursor()
         if cursor.hasSelection():
             selected = cursor.selectedText()
             import re as _re
+
             flags = 0 if case else _re.IGNORECASE
             if whole:
-                query = r'\b' + query + r'\b'
+                query = r"\b" + query + r"\b"
             if regex or _re.search(query, selected, flags):
                 cursor.insertText(replace_text)
         self._on_find_next(query, case, whole, regex)
 
-    def _on_replace_all(self, query: str, replace_text: str, case: bool, whole: bool, regex: bool) -> None:
+    def _on_replace_all(
+        self, query: str, replace_text: str, case: bool, whole: bool, regex: bool
+    ) -> None:
         doc = self._editor.document()
         cursor = QTextCursor(doc)
         flags = QTextDocument.FindFlag(0)
@@ -1492,46 +1666,48 @@ class EditorTab(QWidget):
     def word_count(self) -> int:
         """Calculate word count, excluding YAML front-matter and code blocks."""
         text = self._editor.toPlainText()
-        text = re.sub(r'^---\n.*?\n---\n', '', text, flags=re.DOTALL)
-        text = re.sub(r'```.*?```',        '', text, flags=re.DOTALL)
-        text = re.sub(r'`[^`]+`',          '', text)
-        return len(re.findall(r'\b\w+\b', text))
+        text = re.sub(r"^---\n.*?\n---\n", "", text, flags=re.DOTALL)
+        text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+        text = re.sub(r"`[^`]+`", "", text)
+        return len(re.findall(r"\b\w+\b", text))
 
     def export_as(self, fmt: str) -> None:
-        """Export document content to external formats."""
-        if fmt == "txt":
-            path, _ = QFileDialog.getSaveFileName(
-                self, "Export to TXT", str(self.file_path.with_suffix(".txt")),
-                "Text Files (*.txt);;All Files (*)"
+        """Export document content to external formats using Pandoc."""
+        # Perform the actual export logic here
+        import subprocess
+        import shutil
+
+        pandoc = shutil.which("pandoc")
+        if not pandoc:
+            from PySide6.QtWidgets import QMessageBox
+
+            QMessageBox.critical(self, "Pandoc Not Found", "Pandoc is required for export.")
+            return
+
+        from PySide6.QtWidgets import QFileDialog
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Export to {fmt.upper()}",
+            str(self.vault_path / f"{self.file_path.stem}.{fmt}"),
+            f"{fmt.upper()} Files (*.{fmt})",
+        )
+        if path:
+            result = subprocess.run(
+                [pandoc, str(self.file_path), "--resource-path", str(self.vault_path), "-o", path],
+                capture_output=True,
+                text=True,
             )
-            if path:
-                Path(path).write_text(self._editor.toPlainText(), encoding="utf-8")
-                self.vault.status_message.emit(f"Exported to {path}", 3000)
-        
-        elif fmt == "html":
-            path, _ = QFileDialog.getSaveFileName(
-                self, "Export to HTML", str(self.file_path.with_suffix(".html")),
-                "HTML Files (*.html);;All Files (*)"
-            )
-            if path:
-                html = _md_to_html(self._editor.toPlainText(), theme=self.config.theme)
-                Path(path).write_text(html, encoding="utf-8")
-                self.vault.status_message.emit(f"Exported to {path}", 3000)
-        
-        elif fmt == "pdf":
-            if not self._is_view_mode:
-                self.set_view_mode(True)
-            
-            path, _ = QFileDialog.getSaveFileName(
-                self, "Export to PDF", str(self.file_path.with_suffix(".pdf")),
-                "PDF Files (*.pdf);;All Files (*)"
-            )
-            if path:
-                if self._preview._use_webengine:
-                    self._preview._page.printToPdf(path)
-                    self.vault.status_message.emit(f"Exporting to PDF: {path}", 3000)
-                else:
-                    QMessageBox.warning(self, "Feature Limited", "PDF export requires QtWebEngine.")
+            from PySide6.QtWidgets import QMessageBox
+
+            if result.returncode == 0:
+                QMessageBox.information(self, "Export Finished", f"Exported to {path}")
+            else:
+                QMessageBox.critical(self, "Export Failed", f"Export failed:\n{result.stderr}")
+
+    def _request_export(self, fmt: str) -> None:
+        """Emit signal that export is requested, used by context menu."""
+        self.export_requested.emit(fmt)
 
     # ── Event handlers ────────────────────────────────────────────────
 
@@ -1543,7 +1719,7 @@ class EditorTab(QWidget):
     def _on_text_changed(self) -> None:
         self.is_modified = True
         self.content_changed.emit()
-        if hasattr(self, '_debounce') and self._debounce:
+        if hasattr(self, "_debounce") and self._debounce:
             self._debounce.start()
         self._update_focus_status()
 
@@ -1551,16 +1727,16 @@ class EditorTab(QWidget):
         """Emit signals for sidebar and status bar updates with hash caching."""
         text = self._editor.toPlainText()
         current_hash = hash(text)
-        
+
         if current_hash == self._last_parsed_hash:
             return
-            
+
         self._last_parsed_hash = current_hash
         self.headings_changed.emit(self.headings())
         self.citations_changed.emit(self.citation_keys())
         self.word_count_changed.emit(self.word_count())
 
     def closeEvent(self, event) -> None:
-        if hasattr(self, '_debounce') and self._debounce:
+        if hasattr(self, "_debounce") and self._debounce:
             self._debounce.stop()
         super().closeEvent(event)

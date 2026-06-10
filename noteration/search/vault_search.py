@@ -1,5 +1,4 @@
-"""
-noteration/search/vault_search.py
+"""noteration/search/vault_search.py
 Global search engine for the vault: notes, literature, and annotations.
 """
 
@@ -7,9 +6,14 @@ from __future__ import annotations
 
 import re
 import json
+import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Dict, Tuple
+from typing import Literal, Dict, Tuple, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from noteration.search.fts_engine import FTSEngine
+    from noteration.core.repository import NoteRepository
 
 from noteration.logger import get_logger
 
@@ -17,41 +21,51 @@ logger = get_logger(__name__)
 
 
 @dataclass
-
 class SearchResult:
     """A single search result."""
+
     type: Literal["note", "literature", "annotation"]
-    title: str           # Title/filename
-    snippet: str         # Text snippet with keyword
-    path: Path | None    # Path to file (for navigation)
+    title: str  # Title/filename
+    snippet: str  # Text snippet with keyword
+    path: Path | None  # Path to file (for navigation)
     papis_key: str = ""  # (Optional) for literature/annotation
-    page: int | None = None   # (Optional) for annotation
-    annotation_id: str = ""   # (Optional) for annotation
+    page: int | None = None  # (Optional) for annotation
+    annotation_id: str = ""  # (Optional) for annotation
     score: float = 0.0  # Relevance score
 
 
 class VaultSearch:
     """Comprehensive search engine for the vault."""
 
-    def __init__(self, vault_path: Path, papis_bridge=None) -> None:
+    def __init__(
+        self,
+        vault_path: Path,
+        papis_bridge=None,
+        fts_engine: Optional[FTSEngine] = None,
+        notes: Optional[NoteRepository] = None,
+    ) -> None:
         self.vault_path = vault_path
-        
+        self._lock = threading.RLock()
+        self.fts = fts_engine
+        self.notes = notes
+
         # Handle if papis_bridge is a Path (not a PapisBridge instance)
-        if papis_bridge is not None and not hasattr(papis_bridge, 'all_entries'):
+        if papis_bridge is not None and not hasattr(papis_bridge, "all_entries"):
             # It might be a Path, try to create a PapisBridge
             try:
                 from noteration.literature.papis_bridge import PapisBridge
+
                 if isinstance(papis_bridge, Path):
                     papis_bridge = PapisBridge(papis_bridge)
                     print("[INFO] Converted Path to PapisBridge")
             except Exception as e:
                 print(f"[WARNING] Failed to convert to PapisBridge: {e}")
                 papis_bridge = None
-        
+
         self.papis = papis_bridge
         self._notes_dir = vault_path / "notes"
         self._annotations_dir = vault_path / "annotations"
-        
+
         # Cache for note contents to speed up repeated searches
         # key: str(path), value: (mtime, content)
         self._note_cache: Dict[str, Tuple[float, str]] = {}
@@ -62,58 +76,138 @@ class VaultSearch:
         case_sensitive: bool = False,
         use_regex: bool = False,
         max_results: int = 200,
+        abort_event: threading.Event | None = None,
     ) -> list[SearchResult]:
         """Search across the entire vault: notes, literature, annotations."""
-        results: list[SearchResult] = []
-        
-        if not query.strip():
-            return results
+        with self._lock:
+            results: list[SearchResult] = []
 
-        flags = 0 if case_sensitive else re.IGNORECASE
-        try:
-            if not use_regex:
-                # Escape regex special chars
-                query_re = re.compile(re.escape(query), flags)
+            if not query.strip():
+                return results
+
+            # Handle #tag search explicitly if FTS is available
+            if query.startswith("#") and self.fts and not use_regex:
+                tag_name = query[1:]
+                # 1. Notes with this tag
+                note_ids = self.fts.get_notes_with_tag(tag_name)
+                for nid in note_ids:
+                    md_file = self.vault_path / "notes" / f"{nid}.md"
+                    results.append(
+                        SearchResult(
+                            type="note",
+                            title=md_file.name,
+                            snippet=f"Tag: #{tag_name}",
+                            path=md_file,
+                            score=100.0,  # High priority
+                        )
+                    )
+                # 2. Literature with this tag
+                lit_keys = self.fts.get_literature_with_tag(tag_name)
+                for key in lit_keys:
+                    entry = self.papis.get(key) if self.papis else None
+                    results.append(
+                        SearchResult(
+                            type="literature",
+                            title=entry.title if entry else key,
+                            snippet=f"Tag: #{tag_name}",
+                            path=None,
+                            papis_key=key,
+                            score=100.0,
+                        )
+                    )
+                return results
+
+            # 1. Search notes (Prefer FTS if available and not using regex)
+            if self.fts and not use_regex:
+                results.extend(self._search_notes_fts(query, max_results))
             else:
-                query_re = re.compile(query, flags)
-        except re.error:
-            # Invalid regex, return empty results
+                flags = 0 if case_sensitive else re.IGNORECASE
+                query_re: re.Pattern[str] | None = None
+                try:
+                    if not use_regex:
+                        query_re = re.compile(re.escape(query), flags)
+                    else:
+                        query_re = re.compile(query, flags)
+                except re.error:
+                    return []
+                results.extend(self._search_notes(query_re, abort_event))
+
+            if abort_event and abort_event.is_set():
+                return results
+
+            # 2. Search literature & 3. Annotations
+            # Need a pattern for literature/annotations
+            flags = 0 if case_sensitive else re.IGNORECASE
+            query_re = None
+            try:
+                if not use_regex:
+                    query_re = re.compile(re.escape(query), flags)
+                else:
+                    query_re = re.compile(query, flags)
+            except re.error:
+                pass
+
+            if query_re:
+                results.extend(self._search_literature(query_re, abort_event))
+                if abort_event and abort_event.is_set():
+                    return results
+
+                results.extend(self._search_annotations(query_re, abort_event))
+
+            # Sort by score (descending)
+            results.sort(key=lambda r: r.score, reverse=True)
+            return results[:max_results]
+
+    def _search_notes_fts(self, query: str, limit: int) -> list[SearchResult]:
+        """Use SQLite FTS5 for fast note searching."""
+        if not self.fts:
             return []
 
-        # 1. Search notes
-        results.extend(self._search_notes(query_re))
-        # 2. Search literature
-        results.extend(self._search_literature(query_re))
-        # 3. Search annotations
-        results.extend(self._search_annotations(query_re))
-
-        # Sort by score (descending)
-        results.sort(key=lambda r: r.score, reverse=True)
-        return results[:max_results]
+        fts_results = self.fts.search_notes(query, limit=limit)
+        results = []
+        for r in fts_results:
+            note_id = r["note_id"]
+            md_file = self.vault_path / "notes" / f"{note_id}.md"
+            results.append(
+                SearchResult(
+                    type="note",
+                    title=r["title"],
+                    snippet=r["snippet"],
+                    path=md_file if md_file.exists() else None,
+                    score=r["score"],
+                )
+            )
+        return results
 
     def _get_note_content(self, md_file: Path) -> str | None:
         """Get note content with caching based on mtime."""
         path_str = str(md_file)
-        try:
-            mtime = md_file.stat().st_mtime
-            if path_str in self._note_cache:
-                cached_mtime, content = self._note_cache[path_str]
-                if mtime == cached_mtime:
-                    return content
-            
-            content = md_file.read_text(encoding="utf-8")
-            self._note_cache[path_str] = (mtime, content)
-            return content
-        except Exception:
-            return None
+        with self._lock:
+            try:
+                mtime = md_file.stat().st_mtime
+                if path_str in self._note_cache:
+                    cached_mtime, content = self._note_cache[path_str]
+                    if mtime == cached_mtime:
+                        return content
 
-    def _search_notes(self, pattern: re.Pattern) -> list[SearchResult]:
+                content = md_file.read_text(encoding="utf-8")
+                self._note_cache[path_str] = (mtime, content)
+                return content
+            except Exception:
+                return None
+
+    def _search_notes(
+        self, pattern: re.Pattern, abort_event: threading.Event | None = None
+    ) -> list[SearchResult]:
         """Search all .md files in the notes/ folder."""
         results: list[SearchResult] = []
-        if not self._notes_dir.exists():
+        if not self.notes:
             return results
 
-        for md_file in self._notes_dir.rglob("*.md"):
+        for md_file in self.notes.list_notes():
+            if abort_event and abort_event.is_set():
+                break
+
             text = self._get_note_content(md_file)
             if text is None:
                 continue
@@ -126,7 +220,7 @@ class VaultSearch:
             score = len(matches) * 10
             for m in matches:
                 # Bonus if in the title (first few lines)
-                line_num = text[:m.start()].count("\n") + 1
+                line_num = text[: m.start()].count("\n") + 1
                 if line_num <= 3:
                     score += 5
 
@@ -144,16 +238,20 @@ class VaultSearch:
             if first_line.startswith("#"):
                 title = first_line.lstrip("#").strip()
 
-            results.append(SearchResult(
-                type="note",
-                title=title,
-                snippet=snippet,
-                path=md_file,
-                score=score,
-            ))
+            results.append(
+                SearchResult(
+                    type="note",
+                    title=title,
+                    snippet=snippet,
+                    path=md_file,
+                    score=score,
+                )
+            )
         return results
 
-    def _search_literature(self, pattern: re.Pattern) -> list[SearchResult]:
+    def _search_literature(
+        self, pattern: re.Pattern, abort_event: threading.Event | None = None
+    ) -> list[SearchResult]:
         """Search literature metadata (Papis)."""
         results: list[SearchResult] = []
         if not self.papis:
@@ -166,18 +264,26 @@ class VaultSearch:
             return results
 
         for entry in entries:
+            if abort_event and abort_event.is_set():
+                break
+
             # Combine all text fields for searching
-            searchable = " ".join(filter(None, [
-                entry.title,
-                entry.author,
-                entry.journal,
-                entry.publisher,
-                entry.abstract,
-                entry.doi,
-                entry.isbn,
-                " ".join(entry.tags),
-                " ".join(entry.collections),
-            ]))
+            searchable = " ".join(
+                filter(
+                    None,
+                    [
+                        entry.title,
+                        entry.author,
+                        entry.journal,
+                        entry.publisher,
+                        entry.abstract,
+                        entry.doi,
+                        entry.isbn,
+                        " ".join(entry.tags),
+                        " ".join(entry.collections),
+                    ],
+                )
+            )
             matches = list(pattern.finditer(searchable))
             if not matches:
                 continue
@@ -207,23 +313,30 @@ class VaultSearch:
             snippet = " | ".join(snippet_parts)
             snippet = pattern.sub(lambda m: f"**{m.group()}**", snippet)
 
-            results.append(SearchResult(
-                type="literature",
-                title=f"{entry.author or 'Unknown'} - {entry.title or entry.key}",
-                snippet=snippet,
-                path=None,
-                papis_key=entry.key,
-                score=score,
-            ))
+            results.append(
+                SearchResult(
+                    type="literature",
+                    title=f"{entry.author or 'Unknown'} - {entry.title or entry.key}",
+                    snippet=snippet,
+                    path=None,
+                    papis_key=entry.key,
+                    score=score,
+                )
+            )
         return results
 
-    def _search_annotations(self, pattern: re.Pattern) -> list[SearchResult]:
+    def _search_annotations(
+        self, pattern: re.Pattern, abort_event: threading.Event | None = None
+    ) -> list[SearchResult]:
         """Search PDF annotation JSON files."""
         results: list[SearchResult] = []
         if not self._annotations_dir.exists():
             return results
 
         for json_file in self._annotations_dir.glob("*.json"):
+            if abort_event and abort_event.is_set():
+                break
+
             try:
                 with open(json_file) as f:
                     data = json.load(f)
@@ -267,14 +380,16 @@ class VaultSearch:
                 snippet = " | ".join(snippet_parts)
                 snippet = pattern.sub(lambda m: f"**{m.group()}**", snippet)
 
-                results.append(SearchResult(
-                    type="annotation",
-                    title=f"{papis_key} (p. {ann.get('page', '?') + 1})",
-                    snippet=snippet,
-                    path=None,
-                    papis_key=papis_key,
-                    page=ann.get("page", 0),
-                    annotation_id=ann.get("id", ""),
-                    score=score,
-                ))
+                results.append(
+                    SearchResult(
+                        type="annotation",
+                        title=f"{papis_key} (p. {ann.get('page', '?') + 1})",
+                        snippet=snippet,
+                        path=None,
+                        papis_key=papis_key,
+                        page=ann.get("page", 0),
+                        annotation_id=ann.get("id", ""),
+                        score=score,
+                    )
+                )
         return results

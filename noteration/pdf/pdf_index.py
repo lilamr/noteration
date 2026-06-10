@@ -1,10 +1,9 @@
-"""
-noteration/pdf/pdf_index.py
+"""noteration/pdf/pdf_index.py
 
 PDF metadata index in vault: SHA-256 hash, relative path, papis_key.
 Stored in .noteration/pdf_index.json.
 
-Used during cross-device synchronization so annotations can be 
+Used during cross-device synchronization so annotations can be
 matched to PDF files that may have different paths across machines.
 """
 
@@ -15,15 +14,17 @@ import threading
 from pathlib import Path
 from datetime import datetime, timezone
 
-from noteration.pdf.annotations import hash_pdf
+from noteration.logger import get_logger
+from noteration.pdf.annotations import calculate_file_hash
 
 
 _INDEX_FILE = ".noteration/pdf_index.json"
 
+logger = get_logger(__name__)
+
 
 class PdfIndex:
-    """
-    Stores a map: sha256_hash  →  { papis_key, path_relative, indexed_at }
+    """Stores a map: sha256_hash  →  { papis_key, path_relative, indexed_at }
 
     When opening a new PDF:
       1. Calculate its hash
@@ -31,6 +32,7 @@ class PdfIndex:
       3. If not, add it
       4. Return the registered papis_key
     """
+
     def __init__(self, vault_path: Path) -> None:
         self.vault_path = vault_path
         self._index_path = vault_path / _INDEX_FILE
@@ -46,9 +48,9 @@ class PdfIndex:
                 with open(self._index_path, encoding="utf-8") as f:
                     self._data = json.load(f)
                 return True
-            except Exception:
+            except Exception as e:
+                logger.error(f"Failed to load PDF index from {self._index_path}: {e}")
                 return False
-
 
     def save(self) -> None:
         with self._lock:
@@ -60,8 +62,7 @@ class PdfIndex:
                     json.dump(self._data, f, indent=2, ensure_ascii=False)
                 tmp_path.replace(self._index_path)
             except Exception as e:
-                import logging
-                logging.getLogger(__name__).error(f"Failed to save PDF index: {e}")
+                logger.error(f"Failed to save PDF index: {e}")
                 if tmp_path.exists():
                     tmp_path.unlink()
 
@@ -70,13 +71,16 @@ class PdfIndex:
     # ------------------------------------------------------------------
 
     def register(self, pdf_path: Path, papis_key: str) -> str:
-        """
-        Register PDF to index.
+        """Register PDF to index.
         Returns: hash string.
         """
         with self._lock:
-            pdf_hash = hash_pdf(pdf_path)
-            rel = str(pdf_path.relative_to(self.vault_path)) if pdf_path.is_relative_to(self.vault_path) else str(pdf_path)
+            pdf_hash = calculate_file_hash(pdf_path)
+            rel = (
+                str(pdf_path.relative_to(self.vault_path))
+                if pdf_path.is_relative_to(self.vault_path)
+                else str(pdf_path)
+            )
 
             self._data[pdf_hash] = {
                 "papis_key": papis_key,
@@ -97,13 +101,16 @@ class PdfIndex:
             return [v for v in self._data.values() if v.get("papis_key") == papis_key]
 
     def find_or_register(self, pdf_path: Path, papis_key: str) -> str:
-        """
-        If PDF already exists in index (by path), return its hash.
+        """If PDF already exists in index (by path), return its hash.
         Otherwise, register it first.
         """
         with self._lock:
             # Search by relative path
-            rel = str(pdf_path.relative_to(self.vault_path)) if pdf_path.is_relative_to(self.vault_path) else str(pdf_path)
+            rel = (
+                str(pdf_path.relative_to(self.vault_path))
+                if pdf_path.is_relative_to(self.vault_path)
+                else str(pdf_path)
+            )
             for h, v in self._data.items():
                 if v.get("path_relative") == rel:
                     return h
@@ -111,8 +118,7 @@ class PdfIndex:
             return self.register(pdf_path, papis_key)
 
     def resolve_pdf_path(self, papis_key: str) -> Path | None:
-        """
-        Find local PDF path based on papis_key.
+        """Find local PDF path based on papis_key.
         Cross-device: paths may differ, but the hash is the same.
         """
         with self._lock:
@@ -125,8 +131,7 @@ class PdfIndex:
             return None
 
     def scan_vault(self, literature_dir: Path | None = None, check_stop=None) -> int:
-        """
-        Scan the entire literature directory and register all PDFs not yet in the index.
+        """Scan the entire literature directory and register all PDFs not yet in the index.
         Returns: number of new PDFs registered.
         """
         with self._lock:
@@ -138,9 +143,9 @@ class PdfIndex:
             for pdf_path in lit_dir.rglob("*.pdf"):
                 if check_stop and check_stop():
                     break
-                
+
                 try:
-                    papis_key = pdf_path.parent.name   # use folder name as key
+                    papis_key = pdf_path.parent.name  # use folder name as key
                     rel = str(pdf_path.relative_to(self.vault_path))
 
                     already_indexed = any(
@@ -150,8 +155,7 @@ class PdfIndex:
                         self.register(pdf_path, papis_key)
                         count += 1
                 except Exception as e:
-                    import logging
-                    logging.getLogger(__name__).debug(f"Skipping PDF during scan ({pdf_path}): {e}")
+                    logger.debug(f"Skipping PDF during scan ({pdf_path}): {e}")
                     continue
 
             return count

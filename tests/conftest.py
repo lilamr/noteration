@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 import tempfile
 
+
 @pytest.fixture
 def temp_vault():
     """Fixture to create a temporary vault structure."""
@@ -12,7 +13,7 @@ def temp_vault():
     (tmp_dir / "annotations").mkdir()
     (tmp_dir / "attachments").mkdir()
     (tmp_dir / ".noteration").mkdir()
-    
+
     yield tmp_dir
-    
+
     shutil.rmtree(tmp_dir)

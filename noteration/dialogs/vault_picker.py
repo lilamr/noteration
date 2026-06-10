@@ -1,6 +1,4 @@
-"""
-noteration/dialogs/vault_picker.py
-Startup dialog for choosing or creating a research vault.
+"""Provide the startup dialog for choosing or creating a research vault.
 """
 
 from __future__ import annotations
@@ -8,8 +6,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget,
-    QListWidgetItem, QPushButton, QFileDialog, QMessageBox,
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QFileDialog,
+    QMessageBox,
     QMenu,
 )
 from PySide6.QtCore import Qt, QSize
@@ -25,6 +30,7 @@ def _load_known_vaults() -> list[dict]:
         return []
     try:
         import sys
+
         if sys.version_info >= (3, 11):
             import tomllib
         else:
@@ -37,7 +43,7 @@ def _load_known_vaults() -> list[dict]:
 
 
 def _save_vault(vault_path: Path, name: str) -> None:
-    """Add a new vault to the list."""
+    """Add a new vault to the persistent list."""
     _VAULTS_FILE.parent.mkdir(parents=True, exist_ok=True)
     vaults = _load_known_vaults()
     paths = [v.get("path", "") for v in vaults]
@@ -45,6 +51,7 @@ def _save_vault(vault_path: Path, name: str) -> None:
         vaults.append({"name": name, "path": str(vault_path)})
     try:
         import tomli_w
+
         # Atomic write
         tmp_path = _VAULTS_FILE.with_suffix(".tmp")
         with open(tmp_path, "wb") as f:
@@ -52,16 +59,18 @@ def _save_vault(vault_path: Path, name: str) -> None:
         tmp_path.replace(_VAULTS_FILE)
     except Exception as e:
         from noteration.logger import get_logger
+
         get_logger(__name__).debug(f"Failed to persist known vaults list: {e}")
 
 
 def _remove_vault(vault_path: Path) -> None:
-    """Remove a vault from the list."""
+    """Remove a vault from the persistent list."""
     _VAULTS_FILE.parent.mkdir(parents=True, exist_ok=True)
     vaults = _load_known_vaults()
     vaults = [v for v in vaults if v.get("path") != str(vault_path)]
     try:
         import tomli_w
+
         # Atomic write
         tmp_path = _VAULTS_FILE.with_suffix(".tmp")
         with open(tmp_path, "wb") as f:
@@ -69,16 +78,16 @@ def _remove_vault(vault_path: Path) -> None:
         tmp_path.replace(_VAULTS_FILE)
     except Exception as e:
         from noteration.logger import get_logger
+
         get_logger(__name__).debug(f"Failed to persist known vaults list: {e}")
 
 
 class VaultPickerDialog(QDialog):
-    """
-    Dialog that appears when the application first opens.
-    The user selects an existing vault or creates a new one.
+    """Display the dialog for selecting an existing vault or creating a new one.
     """
 
     def __init__(self, parent=None) -> None:
+        """Initialize the vault picker dialog."""
         super().__init__(parent)
         self.setWindowTitle("Noteration — Select Vault")
         self.setFixedSize(480, 380)
@@ -91,6 +100,7 @@ class VaultPickerDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _setup_ui(self) -> None:
+        """Set up the UI for the vault picker dialog."""
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -142,6 +152,7 @@ class VaultPickerDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _populate_vaults(self) -> None:
+        """Populate the vault list with known vaults."""
         self._list.clear()
         vaults = _load_known_vaults()
         for v in vaults:
@@ -155,6 +166,7 @@ class VaultPickerDialog(QDialog):
             self._list.setCurrentRow(0)
 
     def _show_context_menu(self, pos) -> None:
+        """Display the context menu for the vault list."""
         item = self._list.itemAt(pos)
         if not item:
             return
@@ -172,8 +184,10 @@ class VaultPickerDialog(QDialog):
             self._open_selected()
 
     def _remove_vault_item(self, path: str) -> None:
+        """Handle removing a vault from the list."""
         reply = QMessageBox.question(
-            self, "Remove Vault",
+            self,
+            "Remove Vault",
             f"Remove this vault from the list?\n\n{path}\n\n(The directory will not be deleted)",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -186,9 +200,8 @@ class VaultPickerDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _browse_vault(self) -> None:
-        path = QFileDialog.getExistingDirectory(
-            self, "Select Vault Directory", str(Path.home())
-        )
+        """Open a directory browser to select a vault to browse."""
+        path = QFileDialog.getExistingDirectory(self, "Select Vault Directory", str(Path.home()))
         if path:
             vault_path = Path(path)
             # Guess name from folder
@@ -197,7 +210,9 @@ class VaultPickerDialog(QDialog):
             self._populate_vaults()
 
     def _create_vault(self) -> None:
+        """Open the dialog to create a new vault."""
         from noteration.dialogs.new_vault import NewVaultDialog
+
         dlg = NewVaultDialog(self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             vault_path, name = dlg.result_vault()
@@ -206,11 +221,12 @@ class VaultPickerDialog(QDialog):
             self._populate_vaults()
 
     def _init_vault(self, vault_path: Path, name: str) -> None:
-        """Create a new vault directory structure."""
+        """Create the directory structure for a new vault."""
         for sub in [".noteration", "notes", "literature", "annotations", "attachments"]:
             (vault_path / sub).mkdir(parents=True, exist_ok=True)
 
     def _open_selected(self) -> None:
+        """Open the currently selected vault."""
         item = self._list.currentItem()
         if not item:
             return
@@ -226,6 +242,7 @@ class VaultPickerDialog(QDialog):
     # ------------------------------------------------------------------
 
     def selected_vault(self) -> Path:
+        """Return the path to the selected vault."""
         if self._selected_vault is None:
             raise RuntimeError("Selected vault requested before dialog completion.")
         return self._selected_vault

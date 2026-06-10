@@ -1,5 +1,4 @@
-"""
-noteration/literature/bibtex_export.py
+"""noteration/literature/bibtex_export.py
 
 Export Papis entries to BibTeX format.
 
@@ -22,57 +21,72 @@ from noteration.logger import get_logger
 from noteration.literature.papis_bridge import LiteratureEntry, PapisBridge
 from noteration.editor.wiki_links import parse_citations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from noteration.core.repository import NoteRepository
+
 logger = get_logger(__name__)
 
 
 # ── BibTeX Types ──────────────────────────────────────────────────────────
 
 _TYPE_MAP: dict[str, str] = {
-    "article":       "article",
-    "journal":       "article",
-    "book":          "book",
-    "inbook":        "inbook",
-    "incollection":  "incollection",
+    "article": "article",
+    "journal": "article",
+    "book": "book",
+    "inbook": "inbook",
+    "incollection": "incollection",
     "inproceedings": "inproceedings",
-    "conference":    "inproceedings",
-    "proceedings":   "proceedings",
-    "phdthesis":     "phdthesis",
+    "conference": "inproceedings",
+    "proceedings": "proceedings",
+    "phdthesis": "phdthesis",
     "mastersthesis": "mastersthesis",
-    "techreport":    "techreport",
-    "report":        "techreport",
-    "misc":          "misc",
-    "online":        "misc",
-    "preprint":      "misc",
-    "unpublished":   "unpublished",
-    "manual":        "manual",
-    "booklet":       "booklet",
+    "techreport": "techreport",
+    "report": "techreport",
+    "misc": "misc",
+    "online": "misc",
+    "preprint": "misc",
+    "unpublished": "unpublished",
+    "manual": "manual",
+    "booklet": "booklet",
 }
 
 # Fields handled explicitly — no need to rewrite from extra_fields to avoid duplication
 _HANDLED_FIELDS = frozenset(
-    {"type", "title", "author", "year", "journal", "doi", "abstract",
-     "tags", "keywords", "ref", "papis_id"}
+    {
+        "type",
+        "title",
+        "author",
+        "year",
+        "journal",
+        "doi",
+        "abstract",
+        "tags",
+        "keywords",
+        "ref",
+        "papis_id",
+    }
 )
 
 
 # ── Escaping ──────────────────────────────────────────────────────────────
 
+
 def _escape_bibtex(value: str) -> str:
     """Escape BibTeX special characters within a field value."""
     return (
-        value
-        .replace("&",  r"\&")
-        .replace("%",  r"\%")
-        .replace("_",  r"\_")
-        .replace("#",  r"\#")
-        .replace("~",  r"\~{}") 
-        .replace("^",  r"\^{}")
+        value.replace("&", r"\&")
+        .replace("%", r"\%")
+        .replace("_", r"\_")
+        .replace("#", r"\#")
+        .replace("~", r"\~{}")
+        .replace("^", r"\^{}")
     )
 
 
 def _format_author_bibtex(author: Any) -> str:
-    """
-    Convert author field to BibTeX format: "Family, Given and Family2, Given2".
+    """Convert author field to BibTeX format: "Family, Given and Family2, Given2".
     Supports three input formats produced by Papis:
       - str   : already in any format, return as is
       - list[str]  : join with " and "
@@ -88,7 +102,7 @@ def _format_author_bibtex(author: Any) -> str:
         for a in author:
             if isinstance(a, dict):
                 family = a.get("family", "").strip()
-                given  = a.get("given",  "").strip()
+                given = a.get("given", "").strip()
                 if family and given:
                     parts.append(f"{family}, {given}")
                 elif family:
@@ -103,12 +117,12 @@ def _format_author_bibtex(author: Any) -> str:
 
 # ── Core Converter ────────────────────────────────────────────────────────
 
+
 def entry_to_bibtex(
     entry: LiteratureEntry,
     extra_fields: dict[str, Any] | None = None,
 ) -> str:
-    """
-    Convert a single LiteratureEntry to a BibTeX string.
+    """Convert a single LiteratureEntry to a BibTeX string.
 
     Priority order for determining entry type:
       1. entry._raw["type"]    (from info.yaml)
@@ -139,11 +153,11 @@ def entry_to_bibtex(
         if v:
             lines.append(f"  {field} = {{{_escape_bibtex(v)}}},")
 
-    add("title",    entry.title)
-    add("author",   author_str)
-    add("year",     entry.year)
-    add("journal",  entry.journal)
-    add("doi",      entry.doi)
+    add("title", entry.title)
+    add("author", author_str)
+    add("year", entry.year)
+    add("journal", entry.journal)
+    add("doi", entry.doi)
     add("abstract", entry.abstract)
 
     if entry.tags:
@@ -164,8 +178,8 @@ def entry_to_bibtex(
 
 # ── BibTeXExporter ────────────────────────────────────────────────────────
 
-class BibtexExporter:
 
+class BibtexExporter:
     """Export Papis library to a .bib file."""
 
     def __init__(self, bridge: PapisBridge) -> None:
@@ -174,8 +188,7 @@ class BibtexExporter:
     # ── Public API ────────────────────────────────────────────────────
 
     def export_all(self, output_path: Path) -> int:
-        """
-        Export the entire library to a single .bib file.
+        """Export the entire library to a single .bib file.
         Equivalent to: papis export --all --output all.bib
         Returns: number of exported entries.
         """
@@ -183,8 +196,7 @@ class BibtexExporter:
         return self._write(entries, output_path)
 
     def export_keys(self, keys: list[str], output_path: Path) -> int:
-        """
-        Export only entries with specific keys.
+        """Export only entries with specific keys.
         Equivalent to: papis export --all --output out.bib <query>
         """
         key_set = set(keys)
@@ -192,20 +204,25 @@ class BibtexExporter:
         return self._write(entries, output_path)
 
     def export_from_note(self, note_path: Path, output_path: Path) -> int:
-        """
-        Export all @citations used in a single note file.
+        """Export all @citations used in a single note file.
         Equivalent to: papis export --all --output note.bib (then manual filter)
         """
         text = note_path.read_text(encoding="utf-8")
         cited_keys = [c.key for c in parse_citations(text)]
         return self.export_keys(cited_keys, output_path)
 
-    def export_from_vault(self, notes_dir: Path, output_path: Path) -> int:
-        """
-        Collect all @citations from the entire vault and export them.
+    def export_from_vault(self, notes: Path | NoteRepository, output_path: Path) -> int:
+        """Collect all @citations from the entire vault and export them.
         """
         cited_keys: set[str] = set()
-        for md_file in notes_dir.rglob("*.md"):
+
+        # Determine the note files
+        if hasattr(notes, "list_notes"):
+            note_files = notes.list_notes()
+        else:
+            note_files = list(notes.rglob("*.md"))
+
+        for md_file in note_files:
             try:
                 text = md_file.read_text(encoding="utf-8")
                 for c in parse_citations(text):
@@ -215,8 +232,7 @@ class BibtexExporter:
         return self.export_keys(list(cited_keys), output_path)
 
     def get_bibtex_string(self, key: str) -> str | None:
-        """
-        Return BibTeX string for a single @key (for clipboard pasting).
+        """Return BibTeX string for a single @key (for clipboard pasting).
         Reads type from entry._raw["type"] if available.
         """
         entry = self._bridge.get(key)
@@ -240,7 +256,5 @@ class BibtexExporter:
             body.append(entry_to_bibtex(e))
             body.append("")
 
-        output_path.write_text(
-            "\n".join(header + body), encoding="utf-8"
-        )
+        output_path.write_text("\n".join(header + body), encoding="utf-8")
         return len(entries)

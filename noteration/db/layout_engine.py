@@ -1,5 +1,4 @@
-"""
-noteration/db/layout_engine.py
+"""noteration/db/layout_engine.py
 
 Force-directed graph layout algorithm (spring-embedder).
 Computed on CPU - no external libraries required.
@@ -21,8 +20,7 @@ Point = tuple[float, float]
 
 
 class LayoutEngine:
-    """
-    Force-directed layout calculator.
+    """Force-directed layout calculator.
 
     Usage:
         engine = LayoutEngine(graph)  # graph: dict{node: [neighbors]}
@@ -103,15 +101,15 @@ class LayoutEngine:
 
                     dx = xa - xb
                     dy = ya - yb
-                    
+
                     # Quick Manhattan distance check for cutoff optimization
                     if abs(dx) > self.repulsion_cutoff or abs(dy) > self.repulsion_cutoff:
                         continue
-                        
+
                     dist_sq = dx * dx + dy * dy
                     if dist_sq < 1:
                         dist_sq = 1
-                    
+
                     dist = math.sqrt(dist_sq)
                     if dist > self.repulsion_cutoff:
                         continue
@@ -169,7 +167,7 @@ class LayoutEngine:
                 py = max(margin, min(self._height - margin, py))
 
                 self._positions[node] = (px, py)
-            
+
             # Simulated annealing cool down
             self.temperature *= self.cooling_rate
             if self.temperature < 0.005:

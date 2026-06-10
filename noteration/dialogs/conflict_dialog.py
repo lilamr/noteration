@@ -1,10 +1,7 @@
-"""
-noteration/dialogs/conflict_dialog.py
+"""Provide the Git conflict resolution dialog with a 3-panel view.
 
-Git conflict resolution dialog with a 3-panel view:
-  - Left: "Mine" (local)
-  - Right: "Theirs" (remote)
-  - Bottom: Resolution editor (edit manually or pick one side)
+This module contains the dialog for resolving Git conflicts, allowing users to
+view "mine" (local) and "theirs" (remote) versions, and to edit the resolution.
 """
 
 from __future__ import annotations
@@ -12,8 +9,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QPlainTextEdit, QSplitter, QFrame, QTabWidget, QWidget,
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QPlainTextEdit,
+    QSplitter,
+    QFrame,
+    QTabWidget,
+    QWidget,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
@@ -22,18 +27,20 @@ from noteration.sync.git_engine import ConflictInfo
 
 
 class ConflictEditorPanel(QWidget):
-    """
-    3-panel panel for a single conflicting file:
-    Top: mine vs theirs (read-only)
-    Bottom: resolution editor (editable)
+    """Represent the 3-panel editor for a single conflicting file.
+
+    This panel displays the local and remote content side-by-side at the top,
+    and provides an editable resolution editor at the bottom.
     """
 
     def __init__(self, conflict: ConflictInfo, parent=None) -> None:
+        """Initialize the conflict editor panel."""
         super().__init__(parent)
         self._conflict = conflict
         self._setup_ui()
 
     def _setup_ui(self) -> None:
+        """Set up the user interface for the conflict editor panel."""
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
 
@@ -48,14 +55,12 @@ class ConflictEditorPanel(QWidget):
 
         btn_ours = QPushButton("Take all mine ↓")
         btn_ours.clicked.connect(self._use_ours)
-        btn_ours.setStyleSheet(
-            "background: #E3F2FD; color: #0D47A1; border: 1px solid #BBDEFB;")
+        btn_ours.setStyleSheet("background: #E3F2FD; color: #0D47A1; border: 1px solid #BBDEFB;")
         tb.addWidget(btn_ours)
 
         btn_theirs = QPushButton("Take all theirs ↓")
         btn_theirs.clicked.connect(self._use_theirs)
-        btn_theirs.setStyleSheet(
-            "background: #FFF3E0; color: #E65100; border: 1px solid #FFE0B2;")
+        btn_theirs.setStyleSheet("background: #FFF3E0; color: #E65100; border: 1px solid #FFE0B2;")
         tb.addWidget(btn_theirs)
 
         btn_both = QPushButton("Merge both ↓")
@@ -112,14 +117,14 @@ class ConflictEditorPanel(QWidget):
         root.addWidget(vsplitter)
 
     def _make_panel(self, title: str, content: str, bg: str) -> QFrame:
+        """Create a side-by-side panel for mine/theirs comparison."""
         frame = QFrame()
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(0, 0, 0, 0)
 
         header = QLabel(title)
         header.setStyleSheet(
-            f"padding: 4px 8px; background: {bg}; font-weight: bold;"
-            "border-bottom: 1px solid #ccc;"
+            f"padding: 4px 8px; background: {bg}; font-weight: bold;border-bottom: 1px solid #ccc;"
         )
         layout.addWidget(header)
 
@@ -134,12 +139,15 @@ class ConflictEditorPanel(QWidget):
         return frame
 
     def _use_ours(self) -> None:
+        """Set resolution to the local version."""
         self._resolved_editor.setPlainText(self._conflict.our_content)
 
     def _use_theirs(self) -> None:
+        """Set resolution to the remote version."""
         self._resolved_editor.setPlainText(self._conflict.their_content)
 
     def _use_both(self) -> None:
+        """Set resolution to a combined version."""
         combined = (
             f"# === Mine ===\n"
             f"{self._conflict.our_content}\n\n"
@@ -149,17 +157,19 @@ class ConflictEditorPanel(QWidget):
         self._resolved_editor.setPlainText(combined)
 
     def resolved_content(self) -> str:
+        """Return the current resolved content."""
         return self._resolved_editor.toPlainText()
 
     @property
     def path(self) -> str:
+        """Return the file path."""
         return self._conflict.path
 
 
 class ConflictResolutionDialog(QDialog):
-    """
-    Main dialog displaying all conflicts in a QTabWidget.
-    Clicking 'Apply Resolution' calls GitRepo.resolve_conflict()
+    """Display all conflicts in a QTabWidget and allow user resolution.
+
+    Clicking 'Apply Resolution' triggers the resolution application process
     for each file and closes the dialog.
     """
 
@@ -170,14 +180,15 @@ class ConflictResolutionDialog(QDialog):
         conflicts: list[ConflictInfo],
         parent=None,
     ) -> None:
+        """Initialize the conflict resolution dialog."""
         super().__init__(parent)
-        self.setWindowTitle(
-            f"Git Conflict Resolution — {len(conflicts)} files")
+        self.setWindowTitle(f"Git Conflict Resolution — {len(conflicts)} files")
         self.resize(1000, 680)
         self._panels: list[ConflictEditorPanel] = []
         self._setup_ui(conflicts)
 
     def _setup_ui(self, conflicts: list[ConflictInfo]) -> None:
+        """Set up the user interface for the conflict resolution dialog."""
         root = QVBoxLayout(self)
 
         # Instructions
@@ -222,22 +233,19 @@ class ConflictResolutionDialog(QDialog):
         root.addLayout(btn_row)
 
     def _apply(self) -> None:
+        """Apply the resolutions from all panels."""
         try:
-            resolutions = {
-                panel.path: panel.resolved_content()
-                for panel in self._panels
-            }
-            # We emit the signal for potential external listeners, 
+            resolutions = {panel.path: panel.resolved_content() for panel in self._panels}
+            # We emit the signal for potential external listeners,
             # though SyncTab currently uses get_resolutions() after exec().
             self.resolutions_applied.emit(resolutions)
             self.accept()
         except Exception as e:
             from noteration.logger import get_logger
+
             get_logger(__name__).error(f"Error applying resolutions in dialog: {e}")
             self.reject()
 
     def get_resolutions(self) -> dict[str, str]:
-        return {
-            panel.path: panel.resolved_content()
-            for panel in self._panels
-        }
+        """Return the collected resolutions."""
+        return {panel.path: panel.resolved_content() for panel in self._panels}

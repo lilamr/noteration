@@ -1,13 +1,26 @@
+"""Provide the dialog for creating a new note.
 """
-noteration/dialogs/new_note.py
-Dialog for creating a new note.
-"""
+
 from __future__ import annotations
 from pathlib import Path
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QPushButton, QLabel, QHBoxLayout
+from PySide6.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QLineEdit,
+    QPushButton,
+    QLabel,
+    QHBoxLayout,
+    QMessageBox,
+)
+from noteration.utils.path_safety import is_safe_path
+
 
 class NewNoteDialog(QDialog):
+    """Display the dialog for creating a new note within the vault.
+    """
+
     def __init__(self, vault_path: Path, parent=None) -> None:
+        """Initialize the new note dialog."""
         super().__init__(parent)
         self.vault_path = vault_path
         self._path: Path | None = None
@@ -32,24 +45,31 @@ class NewNoteDialog(QDialog):
         layout.addLayout(btn_row)
 
     def _accept(self) -> None:
+        """Validate input and create the new note."""
         name = self._input.text().strip()
         if not name:
             return
         if not name.endswith(".md"):
             name += ".md"
-        
+
         # name could be "folder/note.md"
-        self._path = self.vault_path / "notes" / name
+        potential_path = (self.vault_path / "notes" / name).resolve()
+
+        if not is_safe_path(self.vault_path / "notes", potential_path):
+            QMessageBox.critical(self, "Error", "Invalid note name (path traversal attempted).")
+            return
+
+        self._path = potential_path
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             if not self._path.exists():
                 self._path.write_text(f"# {self._path.stem}\n\n", encoding="utf-8")
             self.accept()
-        except Exception:
-            # Silently fail or show error? For now just return
-            return
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to create note: {e}")
 
     def result_path(self) -> Path:
+        """Return the path of the created note."""
         if self._path is None:
             raise RuntimeError("New note path requested before dialog completion.")
         return self._path
