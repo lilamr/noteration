@@ -54,22 +54,39 @@ Write-Header "Installing Noteration and dependencies..."
 & $venvPip install --upgrade pip --quiet
 & $venvPip install "noteration[all] @ git+https://github.com/lilamr/noteration.git" --quiet
 
-# 6. Create Wrapper Batch File
-$wrapperPath = Join-Path $installDir "noteration.bat"
-# Use set "VAR=VAL" and quotes for the exe path to handle spaces correctly
-$batchContent = @"
+# 6. Create Wrapper Batch Files
+Write-Header "Creating wrapper scripts..."
+
+function Create-Wrapper ($cmdName, $isGui) {
+    $wrapperPath = Join-Path $installDir "$cmdName.bat"
+    $exePath = Join-Path $venvDir "Scripts\$cmdName.exe"
+    
+    if ($isGui) {
+        $batchContent = @"
 @echo off
 setlocal
 set "PATH=$venvDir\Scripts;%PATH%"
-start "" "$noterationExe" %*
+start "" "$exePath" %*
 "@
-$batchContent | Out-File -FilePath $wrapperPath -Encoding ascii
+    } else {
+        $batchContent = @"
+@echo off
+setlocal
+set "PATH=$venvDir\Scripts;%PATH%"
+"$exePath" %*
+"@
+    }
+    $batchContent | Out-File -FilePath $wrapperPath -Encoding ascii
 
-# 7. Add to Microsoft\WindowsApps for easy terminal access
-if (Test-Path $binDir) {
-    Write-Header "Adding 'noteration' command to PATH..."
-    Copy-Item $wrapperPath (Join-Path $binDir "noteration.bat") -Force
+    if (Test-Path $binDir) {
+        Copy-Item $wrapperPath (Join-Path $binDir "$cmdName.bat") -Force
+    }
+    return $wrapperPath
 }
+
+$noterationWrapper = Create-Wrapper "noteration" $true
+$ntrWrapper = Create-Wrapper "ntr" $false
+$ntrApiWrapper = Create-Wrapper "ntr-api" $false
 
 # 8. Create Shortcuts (Desktop & Start Menu)
 Write-Header "Creating shortcuts..."
@@ -91,8 +108,8 @@ try {
     $desktopPath = [System.IO.Path]::Combine([Environment]::GetFolderPath("Desktop"), "Noteration.lnk")
     $startMenuPath = [System.IO.Path]::Combine([Environment]::GetFolderPath("Programs"), "Noteration.lnk")
 
-    Create-Lnk $desktopPath $wrapperPath $iconPath
-    Create-Lnk $startMenuPath $wrapperPath $iconPath
+    Create-Lnk $desktopPath $noterationWrapper $iconPath
+    Create-Lnk $startMenuPath $noterationWrapper $iconPath
 } catch {
     Write-Host "Warning: Could not create shortcuts automatically. You can still run Noteration by typing 'noteration' in the terminal."
 }

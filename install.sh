@@ -60,14 +60,17 @@ echo -e "${BLUE}==>${NC} Installing Noteration and dependencies..."
 pip install --upgrade pip --quiet
 pip install "noteration[all] @ git+https://github.com/lilamr/noteration.git" --quiet
 
-# 4. Create wrapper script
-cat <<EOF > "$BIN_DIR/noteration"
+# 4. Create wrapper scripts
+echo -e "${BLUE}==>${NC} Creating wrapper scripts in $BIN_DIR..."
+for cmd in noteration ntr ntr-api; do
+    cat <<EOF > "$BIN_DIR/$cmd"
 #!/bin/bash
-# Wrapper script for Noteration
+# Wrapper script for Noteration $cmd
 source "$INSTALL_DIR/venv/bin/activate"
-exec noteration "\$@"
+exec $cmd "\$@"
 EOF
-chmod +x "$BIN_DIR/noteration"
+    chmod +x "$BIN_DIR/$cmd"
+done
 
 # 5. Desktop Integration
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
