@@ -652,6 +652,53 @@ section {
 
 .copy-btn:hover { background: var(--amber); color: var(--ink); }
 
+.btn-download {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  background: var(--amber);
+  color: var(--ink);
+  padding: 0.8rem 1.2rem;
+  border-radius: 4px;
+  text-decoration: none;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.2s;
+  margin-bottom: 1.5rem;
+  border: none;
+  width: 100%;
+}
+
+.btn-download:hover {
+  background: var(--amber-lt);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(200, 133, 42, 0.3);
+}
+
+.install-divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  color: #333;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.install-divider::before,
+.install-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #2a2a2e;
+}
+
 .install-note {
   font-size: 0.78rem;
   color: #555;
