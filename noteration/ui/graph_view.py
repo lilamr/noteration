@@ -11,27 +11,27 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
 
-from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QGraphicsView,
-    QGraphicsScene,
-    QGraphicsEllipseItem,
-    QGraphicsLineItem,
-    QGraphicsTextItem,
-    QPushButton,
-    QLabel,
-)
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import (
-    QFont,
-    QColor,
-    QPen,
     QBrush,
+    QColor,
+    QFont,
     QPainter,
-    QWheelEvent,
     QPalette,
+    QPen,
+    QWheelEvent,
+)
+from PySide6.QtWidgets import (
+    QGraphicsEllipseItem,
+    QGraphicsLineItem,
+    QGraphicsScene,
+    QGraphicsTextItem,
+    QGraphicsView,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 from noteration.db.layout_engine import LayoutEngine

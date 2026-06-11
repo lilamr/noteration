@@ -7,19 +7,19 @@ business rules.
 
 import threading
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 from noteration.config import NoterationConfig
-from noteration.core.repository import NoteRepository
 from noteration.core.events import EventBus
-from noteration.pdf.pdf_index import PdfIndex
+from noteration.core.repository import NoteRepository
 from noteration.db.link_graph import LinkGraph
-from noteration.sync.git_engine import GitRepo
-from noteration.literature.papis_bridge import PapisBridge
-from noteration.search.vault_search import VaultSearch
-from noteration.search.fts_engine import FTSEngine
 from noteration.literature.csl_renderer import CSLRenderer
-from noteration.logger import setup_logging, get_logger
+from noteration.literature.papis_bridge import PapisBridge
+from noteration.logger import get_logger, setup_logging
+from noteration.pdf.pdf_index import PdfIndex
+from noteration.search.fts_engine import FTSEngine
+from noteration.search.vault_search import VaultSearch
+from noteration.sync.git_engine import GitRepo
 
 logger = get_logger(__name__)
 

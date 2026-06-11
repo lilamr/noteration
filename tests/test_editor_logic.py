@@ -1,7 +1,7 @@
 from noteration.editor.wiki_links import (
-    parse_wiki_links,
-    parse_citations,
     extract_headings,
+    parse_citations,
+    parse_wiki_links,
     resolve_link,
 )
 
@@ -19,12 +19,16 @@ def test_parse_wiki_links():
 
 
 def test_parse_citations():
-    text = "As cited by @newton1687 and @darwin1859."
+    text = "As cited by @newton1687 and @darwin1859. Also @smith2023[p. 20-22]."
     cites = parse_citations(text)
 
-    assert len(cites) == 2
+    assert len(cites) == 3
     assert cites[0].key == "newton1687"
+    assert cites[0].locator is None
     assert cites[1].key == "darwin1859"
+    assert cites[1].locator is None
+    assert cites[2].key == "smith2023"
+    assert cites[2].locator == "p. 20-22"
 
 
 def test_extract_headings():

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 _WIKI_PATTERN = re.compile(r"\[\[([^\]|#]+)(?:#([^\]|]+))?(?:\|([^\]]+))?\]\]")
-_CITATION_PATTERN = re.compile(r"@([A-Za-z][A-Za-z0-9_:\-]+)")
+_CITATION_PATTERN = re.compile(r"@([A-Za-z][A-Za-z0-9_:\-]+)(?:\[([^\]]+)\])?")
 
 
 @dataclass
@@ -29,8 +29,9 @@ class WikiLink:
 @dataclass
 class Citation:
     key: str
-    start: int
-    end: int
+    locator: str | None = None
+    start: int = 0
+    end: int = 0
 
 
 def parse_wiki_links(text: str) -> list[WikiLink]:
@@ -50,9 +51,9 @@ def parse_wiki_links(text: str) -> list[WikiLink]:
 
 
 def parse_citations(text: str) -> list[Citation]:
-    """Extract all @citation tokens from text."""
+    """Extract all @citation[locator] tokens from text."""
     return [
-        Citation(key=m.group(1), start=m.start(), end=m.end())
+        Citation(key=m.group(1), locator=m.group(2), start=m.start(), end=m.end())
         for m in _CITATION_PATTERN.finditer(text)
     ]
 

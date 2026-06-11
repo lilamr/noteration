@@ -2,19 +2,21 @@
 
 This module defines the FastAPI application, routes, and core initialization for the Noteration REST API.
 """
-from fastapi import FastAPI, HTTPException, Depends, Header
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List
-from noteration.core.vault_core import VaultCore
+
+from fastapi import Depends, FastAPI, Header, HTTPException
+
 from noteration.api.models import (
-    NoteResponse,
-    SearchResult,
-    NoteCreate,
-    NoteUpdate,
     GraphStats,
+    NoteCreate,
+    NoteResponse,
+    NoteUpdate,
+    SearchResult,
     SyncStatus,
 )
+from noteration.core.vault_core import VaultCore
 from noteration.utils.path_safety import is_safe_path
 
 _vault_path: Path | None = None

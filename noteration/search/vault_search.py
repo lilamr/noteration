@@ -4,16 +4,16 @@ Global search engine for the vault: notes, literature, and annotations.
 
 from __future__ import annotations
 
-import re
 import json
+import re
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Dict, Tuple, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Literal, Optional, Tuple
 
 if TYPE_CHECKING:
-    from noteration.search.fts_engine import FTSEngine
     from noteration.core.repository import NoteRepository
+    from noteration.search.fts_engine import FTSEngine
 
 from noteration.logger import get_logger
 

@@ -1,7 +1,9 @@
 """Graph analysis command group for the Noteration CLI."""
 
-import click
 import json
+
+import click
+
 from noteration.cli.utils import check_vault
 
 

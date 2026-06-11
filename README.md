@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lilamr/noteration/releases/tag/v2.0.0"><img src="https://img.shields.io/github/v/release/lilamr/noteration?label=version&color=4CAF50" alt="Release"/></a>
+  <a href="https://github.com/lilamr/noteration/releases/tag/v2.1.0"><img src="https://img.shields.io/github/v/release/lilamr/noteration?label=version&color=4CAF50" alt="Release"/></a>
   <a href="https://github.com/lilamr/noteration/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"/></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python"/></a>
   <a href="https://github.com/lilamr/noteration/actions"><img src="https://img.shields.io/github/actions/workflow/status/lilamr/noteration/ci.yml?label=CI" alt="CI"/></a>
@@ -24,10 +24,10 @@ Noteration is a desktop application for managing literature notes in an integrat
 
 ```
 noteration/
-├── 📄  Markdown notes with [[wiki-link]] and @citation
+├── 📄  Markdown notes with [[wiki-link]] and @citation[p.xx]
 ├── 📘  Integrated PDF viewer with non-destructive annotations
 ├── 📚  Literature browser via Papis
-├── 🔍  Global vault search
+├── 🔍  Global vault search (Persistent)
 ├── 🕸️  Interactive backlink graph between notes
 └── ☁️  Synchronization via GitHub
 ```
@@ -43,8 +43,8 @@ noteration/
 | **Focus Mode** | Distraction-free writing with Vim keybindings and centered layout |
 | **Wiki-link** | `[[note-name]]` with `Ctrl+Click` navigation and autocomplete |
 | **Tags** | Support for `#tag` with dedicated sidebar management |
-| **Citation** | `@citation-key` with autocomplete and configurable CSL styles |
-| **Global Search** | High-performance SQLite FTS5 search across all vault data |
+| **Citation** | `@citation-key[p.xx]` autocomplete, CSL styles, PDF deep-linking |
+| **Global Search** | High-performance SQLite FTS5, deep-linking, persistent dialog |
 | **PDF Viewer** | Render via QtPDF or PyMuPDF, highlight & JSON annotations, toggleable panel |
 | **Backlink Graph** | Visualization of note network, interactive |
 | **Git Sync** | Manual commit, pull, push; visual conflict resolution |

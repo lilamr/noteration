@@ -9,30 +9,30 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
 
+from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtGui import QColor, QFont, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QPlainTextEdit,
-    QGroupBox,
-    QLineEdit,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPlainTextEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import QThread, Signal, QObject
-from PySide6.QtGui import QColor, QTextCharFormat, QTextCursor, QFont
 
+from noteration.logger import get_logger
 from noteration.sync.git_engine import (
     GitRepo,
     SyncResult,
     SyncStatus,
     SyncStrategy,
 )
-from noteration.logger import get_logger
 
 logger = get_logger(__name__)
 

@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from pathlib import Path
-from typing import List, Dict, Any, Generator
 from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Dict, Generator, List
 
 from noteration.logger import get_logger
 

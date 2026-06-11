@@ -1,5 +1,7 @@
 from pathlib import Path
+
 from PySide6.QtCore import Qt
+
 from noteration.ui.main_window import MainWindow
 
 # This test requires a full application instance (pytest-qt handles this via 'qtbot')

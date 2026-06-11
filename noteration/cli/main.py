@@ -1,17 +1,19 @@
 """CLI entry point for the Noteration application."""
 
-import click
 import sys
-from noteration.cli.utils import resolve_vault, check_vault
-from noteration.core.vault_core import VaultCore
-from noteration.logger import setup_logging
+
+import click
+
+from noteration.cli.cmd_api import api_group
+from noteration.cli.cmd_export import export_cmd
+from noteration.cli.cmd_graph import graph_group
+from noteration.cli.cmd_lit import lit_group
 from noteration.cli.cmd_notes import note_group, search
 from noteration.cli.cmd_sync import sync_group
-from noteration.cli.cmd_lit import lit_group
-from noteration.cli.cmd_graph import graph_group
 from noteration.cli.cmd_tags import tags_group
-from noteration.cli.cmd_export import export_cmd
-from noteration.cli.cmd_api import api_group
+from noteration.cli.utils import check_vault, resolve_vault
+from noteration.core.vault_core import VaultCore
+from noteration.logger import setup_logging
 
 
 @click.group()

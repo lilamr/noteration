@@ -3,23 +3,23 @@
 
 from __future__ import annotations
 
-import sys
-import os
 import atexit
-import signal
+import os
 import shutil
+import signal
+import sys
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from noteration import __version__
-from noteration.dialogs.vault_picker import VaultPickerDialog
-from noteration.ui.main_window import MainWindow
-from noteration.core.session import VaultSession
-from noteration.ui.theme import apply_theme, ThemeMode, SystemThemeWatcher
 from noteration.config import NoterationConfig
-from noteration.logger import setup_logging, get_logger
+from noteration.core.session import VaultSession
+from noteration.dialogs.vault_picker import VaultPickerDialog
+from noteration.logger import get_logger, setup_logging
+from noteration.ui.main_window import MainWindow
+from noteration.ui.theme import SystemThemeWatcher, ThemeMode, apply_theme
 
 logger = get_logger(__name__)
 

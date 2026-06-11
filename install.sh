@@ -5,21 +5,23 @@
 
 set -e
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+REPO="lilamr/noteration"
 
 echo -e "${BLUE}==>${NC} Installing Noteration..."
 
-# 1. OS Detection and Early Checks
+# ── OS check ────────────────────────────────────────────────
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
     echo -e "${RED}Error:${NC} This script is for Linux/macOS. For Windows, please use install.ps1"
     exit 1
 fi
 
-# Check Python version (3.11+)
+# ── Python check ────────────────────────────────────────────
 if ! command -v python3 &> /dev/null; then
     echo -e "${RED}Error:${NC} python3 is not installed."
     exit 1
@@ -31,57 +33,83 @@ if ! python3 -c 'import sys; exit(0) if sys.version_info >= (3, 11) else exit(1)
     exit 1
 fi
 
-# Check for venv module
 if ! python3 -m venv --help &> /dev/null; then
     echo -e "${RED}Error:${NC} python3-venv is not installed."
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        echo -e "On Ubuntu/Debian, install it with: ${BLUE}sudo apt install python3-venv${NC}"
+        echo -e "On Ubuntu/Debian: ${BLUE}sudo apt install python3-venv${NC}"
     fi
     exit 1
 fi
 
-# 2. Check Git
 if ! command -v git &> /dev/null; then
     echo -e "${RED}Error:${NC} git is not installed. Please install git first."
     exit 1
 fi
 
-# 3. Create installation directories
+# ── Detect latest release tag from GitHub API ───────────────
+echo -e "${BLUE}==>${NC} Checking latest release..."
+
+if command -v curl &> /dev/null; then
+    LATEST_TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+        | grep '"tag_name"' \
+        | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+elif command -v wget &> /dev/null; then
+    LATEST_TAG=$(wget -qO- "https://api.github.com/repos/${REPO}/releases/latest" \
+        | grep '"tag_name"' \
+        | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+else
+    echo -e "${RED}Error:${NC} curl or wget is required."
+    exit 1
+fi
+
+# Fallback jika GitHub API gagal (rate limit, dll)
+if [[ -z "$LATEST_TAG" ]]; then
+    echo -e "${YELLOW}Warning:${NC} Could not detect latest release. Falling back to main branch."
+    INSTALL_REF="main"
+    VERSION="dev"
+else
+    INSTALL_REF="$LATEST_TAG"
+    VERSION="${LATEST_TAG#v}"
+    echo -e "${GREEN}==>${NC} Latest release: ${LATEST_TAG}"
+fi
+
+# ── Installation ────────────────────────────────────────────
 INSTALL_DIR="$HOME/.local/share/noteration"
 BIN_DIR="$HOME/.local/bin"
-mkdir -p "$INSTALL_DIR"
-mkdir -p "$BIN_DIR"
+mkdir -p "$INSTALL_DIR" "$BIN_DIR"
 
 echo -e "${BLUE}==>${NC} Creating virtual environment in $INSTALL_DIR..."
 python3 -m venv "$INSTALL_DIR/venv"
 source "$INSTALL_DIR/venv/bin/activate"
 
-echo -e "${BLUE}==>${NC} Installing Noteration and dependencies..."
+echo -e "${BLUE}==>${NC} Installing Noteration ${VERSION}..."
 pip install --upgrade pip --quiet
-pip install "noteration[all] @ git+https://github.com/lilamr/noteration.git" --quiet
+pip install "noteration[all] @ git+https://github.com/${REPO}.git @${INSTALL_REF}" --quiet
 
-# 4. Create wrapper scripts
+# Simpan versi yang terinstall untuk referensi
+echo "$VERSION" > "$INSTALL_DIR/VERSION"
+
+# ── Wrapper scripts ─────────────────────────────────────────
 echo -e "${BLUE}==>${NC} Creating wrapper scripts in $BIN_DIR..."
 for cmd in noteration ntr ntr-api; do
     cat <<EOF > "$BIN_DIR/$cmd"
 #!/bin/bash
-# Wrapper script for Noteration $cmd
 source "$INSTALL_DIR/venv/bin/activate"
 exec $cmd "\$@"
 EOF
     chmod +x "$BIN_DIR/$cmd"
 done
 
-# 5. Desktop Integration
+# ── Desktop integration ─────────────────────────────────────
+ICON_URL="https://raw.githubusercontent.com/${REPO}/main/noteration/assets/images"
+
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     echo -e "${BLUE}==>${NC} Creating Linux desktop entry..."
     DESKTOP_DIR="$HOME/.local/share/applications"
     ICON_DIR="$HOME/.local/share/icons"
-    mkdir -p "$DESKTOP_DIR"
-    mkdir -p "$ICON_DIR"
+    mkdir -p "$DESKTOP_DIR" "$ICON_DIR"
 
-    # Download icon from GitHub
-    curl -sSL "https://raw.githubusercontent.com/lilamr/noteration/main/noteration/assets/images/icon_256.png" -o "$ICON_DIR/noteration.png"
+    curl -sSL "${ICON_URL}/icon_256.png" -o "$ICON_DIR/noteration.png"
 
     cat <<EOF > "$DESKTOP_DIR/noteration.desktop"
 [Desktop Entry]
@@ -93,26 +121,20 @@ Terminal=false
 Type=Application
 Categories=Office;Education;Science;
 EOF
-    
-    # Update desktop database if possible
-    if command -v update-desktop-database &> /dev/null; then
+
+    command -v update-desktop-database &> /dev/null && \
         update-desktop-database "$DESKTOP_DIR"
-    fi
+
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    echo -e "${BLUE}==>${NC} Creating macOS App Bundle for Launchpad..."
+    echo -e "${BLUE}==>${NC} Creating macOS App Bundle..."
     APP_NAME="Noteration"
     APP_DIR="$HOME/Applications/$APP_NAME.app"
-    CONTENTS_DIR="$APP_DIR/Contents"
-    MACOS_DIR="$CONTENTS_DIR/MacOS"
-    RESOURCES_DIR="$CONTENTS_DIR/Resources"
-
+    MACOS_DIR="$APP_DIR/Contents/MacOS"
+    RESOURCES_DIR="$APP_DIR/Contents/Resources"
     mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
-    # Download macOS icon
-    echo -e "${BLUE}==>${NC} Downloading app icon..."
-    curl -sSL "https://raw.githubusercontent.com/lilamr/noteration/main/noteration/assets/images/icon.icns" -o "$RESOURCES_DIR/icon.icns"
+    curl -sSL "${ICON_URL}/icon.icns" -o "$RESOURCES_DIR/icon.icns"
 
-    # Create the launcher inside the app bundle
     cat <<EOF > "$MACOS_DIR/$APP_NAME"
 #!/bin/bash
 export PATH="$BIN_DIR:\$PATH"
@@ -120,8 +142,8 @@ exec "$BIN_DIR/noteration"
 EOF
     chmod +x "$MACOS_DIR/$APP_NAME"
 
-    # Create Info.plist with Icon support
-    cat <<EOF > "$CONTENTS_DIR/Info.plist"
+    # Versi dinamis dari tag, bukan hardcoded
+    cat <<EOF > "$APP_DIR/Contents/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -137,22 +159,17 @@ EOF
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.0.0</string>
+    <string>${VERSION}</string>
     <key>LSMinimumSystemVersion</key>
     <string>10.13</string>
 </dict>
 </plist>
 EOF
-    # Refresh the icons cache if possible
     touch "$APP_DIR"
-    echo -e "${GREEN}==>${NC} $APP_NAME.app created in ~/Applications and should appear in Launchpad with icon."
+    echo -e "${GREEN}==>${NC} $APP_NAME.app created in ~/Applications."
 fi
 
-echo -e "${GREEN}==>${NC} Noteration installed successfully!"
-echo -e "${BLUE}==>${NC} You can run it with: ${GREEN}noteration${NC}"
-
-# 6. Final Path Check and Config Update
-SHELL_CONFIG=""
+# ── PATH check ───────────────────────────────────────────────
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     SHELL_CONFIG="$HOME/.bashrc"
 elif [[ "$OSTYPE" == "darwin"* ]]; then
@@ -162,10 +179,12 @@ fi
 if [[ -n "$SHELL_CONFIG" && ":$PATH:" != *":$BIN_DIR:"* ]]; then
     [ ! -f "$SHELL_CONFIG" ] && touch "$SHELL_CONFIG"
     if ! grep -q "$BIN_DIR" "$SHELL_CONFIG"; then
-        echo -e ""
-        echo -e "${RED}Warning:${NC} $BIN_DIR is not in your PATH."
-        echo -e "Adding it to $SHELL_CONFIG..."
         echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$SHELL_CONFIG"
-        echo -e "Please run ${BLUE}source $SHELL_CONFIG${NC} or restart your terminal."
+        echo -e "${YELLOW}==>${NC} Added $BIN_DIR to PATH in $SHELL_CONFIG"
+        echo -e "    Run: ${BLUE}source $SHELL_CONFIG${NC} or restart your terminal."
     fi
 fi
+
+echo ""
+echo -e "${GREEN}✓${NC} Noteration ${VERSION} installed successfully!"
+echo -e "${BLUE}==>${NC} Run it with: ${GREEN}noteration${NC}"

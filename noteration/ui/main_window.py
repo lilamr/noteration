@@ -3,44 +3,48 @@
 
 from __future__ import annotations
 
-from collections import deque
 import contextlib
+from collections import deque
 from pathlib import Path
-from typing import cast, TYPE_CHECKING, Optional, List
+from typing import TYPE_CHECKING, List, Optional, cast
 
 if TYPE_CHECKING:
     from noteration.sync.git_engine import RepoStatus
 
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
-    QMainWindow,
-    QTabWidget,
     QDockWidget,
-    QLabel,
-    QWidget,
-    QToolBar,
     QFileDialog,
+    QLabel,
+    QMainWindow,
+    QMenu,
     QMessageBox,
     QSplitter,
-    QMenu,
+    QTabWidget,
+    QToolBar,
+    QWidget,
 )
-from PySide6.QtCore import Qt, QTimer, Signal, QPoint
-from PySide6.QtGui import QKeySequence, QAction, QKeyEvent
 
 from noteration import __version__
-from noteration.sync.updater import CheckUpdateThread, run_update_process
-from noteration.ui.sidebar import SidebarWidget
-from noteration.ui.editor_tab import EditorTab
-from noteration.ui.pdf_viewer_tab import PdfViewerTab
-from noteration.ui.literature_tab import LiteratureTab
-from noteration.ui.sync_tab import SyncTab
-from noteration.ui.backlink_panel import BacklinkPanel
-from noteration.ui.graph_view import GraphView
-from noteration.search.search_dialog import SearchDialog
+from noteration.core.events import LiteratureSelectedEvent, NoteOpenedEvent, VaultChangedEvent
 from noteration.dialogs.encryption_dialog import EncryptionDialog
-
-from noteration.vault_manager import VaultManager
-from noteration.core.events import NoteOpenedEvent, VaultChangedEvent, LiteratureSelectedEvent
 from noteration.logger import get_logger
+from noteration.search.search_dialog import SearchDialog
+from noteration.sync.updater import (
+    CheckUpdateThread,
+    get_latest_binary_url,
+    is_frozen,
+    run_update_process,
+)
+from noteration.ui.backlink_panel import BacklinkPanel
+from noteration.ui.editor_tab import EditorTab
+from noteration.ui.graph_view import GraphView
+from noteration.ui.literature_tab import LiteratureTab
+from noteration.ui.pdf_viewer_tab import PdfViewerTab
+from noteration.ui.sidebar import SidebarWidget
+from noteration.ui.sync_tab import SyncTab
+from noteration.vault_manager import VaultManager
 
 logger = get_logger(__name__)
 
@@ -234,6 +238,7 @@ class MainWindow(QMainWindow):
         self.sidebar.pdf_selected.connect(self._open_pdf)
         self.sidebar.heading_clicked.connect(self._go_to_heading)
         self.sidebar.citation_clicked.connect(self._go_to_citation)
+        self.sidebar.open_literature_requested.connect(self._open_literature_by_key)
         self.sidebar.tag_clicked.connect(self._on_tag_clicked)
         self.sidebar.item_moved.connect(self._on_note_moved)
 
@@ -750,23 +755,23 @@ class MainWindow(QMainWindow):
                 self._open_note(new_path)
                 self.sidebar.add_note(new_path)
 
-    def _insert_quote_to_editor(self, text: str, citation_key: str) -> None:
+    def _insert_quote_to_editor(self, text: str, citation_key: str, locator: str = "") -> None:
         # Prefer the currently active editor tab
         current = self._active_tab_widget.currentWidget()
         if isinstance(current, EditorTab):
-            current.insert_quote(text, citation_key)
+            current.insert_quote(text, citation_key, locator)
             return
         # Fallback: find the most recently opened editor tab across both panes
         for pane in (self.tabs, self.tabs_split):
             for i in range(pane.count() - 1, -1, -1):
                 w = pane.widget(i)
                 if isinstance(w, EditorTab):
-                    w.insert_quote(text, citation_key)
+                    w.insert_quote(text, citation_key, locator)
                     pane.setCurrentIndex(i)
                     self._active_tab_widget = pane
                     return
 
-    def _insert_image_to_editor(self, image_path: str, citation_key: str) -> None:
+    def _insert_image_to_editor(self, image_path: str, citation_key: str, locator: str = "") -> None:
         from pathlib import Path
 
         img_path = Path(image_path)
@@ -776,13 +781,13 @@ class MainWindow(QMainWindow):
         md = f"![]({rel_path})\n\n"
         current = self._active_tab_widget.currentWidget()
         if isinstance(current, EditorTab):
-            current.insert_quote(md, citation_key)
+            current.insert_quote(md, citation_key, locator)
             return
         for pane in (self.tabs, self.tabs_split):
             for i in range(pane.count() - 1, -1, -1):
                 w = pane.widget(i)
                 if isinstance(w, EditorTab):
-                    w.insert_quote(md, citation_key)
+                    w.insert_quote(md, citation_key, locator)
                     pane.setCurrentIndex(i)
                     self._active_tab_widget = pane
                     return
@@ -856,13 +861,32 @@ class MainWindow(QMainWindow):
             )
             if res == QMessageBox.StandardButton.Yes:
                 if self.vault.permanently_decrypt():
+                    # Close the vault properly
+                    self.vault.shutdown()
+
+                    # Perform the actual file decryption now
+                    from noteration.core.session import VaultSession
+
+                    session = VaultSession(self.vault.vault_path)
+                    session.secret_key = self.vault.secret_key
+                    # We need to decrypt files before they are 'gone'
+                    session.decrypt_vault()
+
                     QMessageBox.information(
                         dlg,
                         "Success",
-                        "Vault is marked for decryption.\n\n"
-                        "The files will be converted to plaintext when you close Noteration.",
+                        "Vault has been decrypted. The application will now restart "
+                        "in plaintext mode.",
                     )
                     dlg.accept()
+
+                    # Restart logic
+                    import sys
+
+                    from PySide6.QtCore import QProcess
+
+                    QProcess.startDetached(sys.executable, sys.argv)
+                    self.close()
                 else:
                     QMessageBox.warning(dlg, "Error", "Failed to disable encryption.")
 
@@ -902,6 +926,7 @@ class MainWindow(QMainWindow):
             )
             # Restart logic
             import sys
+
             from PySide6.QtCore import QProcess
 
             QProcess.startDetached(sys.executable, sys.argv)
@@ -925,6 +950,31 @@ class MainWindow(QMainWindow):
 
     def _on_update_check_finished(self, available: bool, version: str) -> None:
         if available:
+            # If running as binary (frozen), we point to the website/installer
+            if is_frozen():
+                res = QMessageBox.question(
+                    self,
+                    "Update Available",
+                    f"A new version of Noteration (v{version}) is available.\n"
+                    f"Current version is v{__version__}.\n\n"
+                    "Since you are using a standalone version, would you like to "
+                    "download the latest installer from our website?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                )
+                if res == QMessageBox.StandardButton.Yes:
+                    import webbrowser
+
+                    url = get_latest_binary_url()
+                    webbrowser.open(url)
+                    QMessageBox.information(
+                        self,
+                        "Download Started",
+                        "The latest installer has been opened in your browser.\n\n"
+                        "Please close Noteration before running the installer.",
+                    )
+                return
+
+            # Standard pip update for source/dev installs
             res = QMessageBox.question(
                 self,
                 "Update Available",

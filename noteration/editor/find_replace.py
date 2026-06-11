@@ -3,18 +3,18 @@
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import (
-    QDialog,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLineEdit,
-    QLabel,
-    QPushButton,
-    QCheckBox,
-    QGroupBox,
-)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+)
 
 
 class FindReplaceDialog(QDialog):

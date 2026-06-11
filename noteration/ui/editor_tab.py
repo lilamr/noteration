@@ -7,47 +7,47 @@ import os
 import re
 import uuid
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
-from enum import Enum
 
-from PySide6.QtWidgets import (
-    QWidget,
-    QHBoxLayout,
-    QVBoxLayout,
-    QPlainTextEdit,
-    QTextEdit,
-    QApplication,
-    QStackedWidget,
-    QToolBar,
-    QSizePolicy,
-    QLineEdit,
-    QLabel,
-)
-from PySide6.QtCore import Qt, Signal, QRect, QSize, QTimer, QUrl
+from PySide6.QtCore import QRect, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import (
-    QFont,
-    QPainter,
     QColor,
-    QTextFormat,
-    QTextDocument,
-    QTextCursor,
-    QPalette,
-    QMouseEvent,
-    QKeyEvent,
     QDragEnterEvent,
     QDropEvent,
+    QFont,
     QImage,
+    QKeyEvent,
+    QMouseEvent,
+    QPainter,
+    QPalette,
+    QTextCursor,
+    QTextDocument,
+    QTextFormat,
+)
+from PySide6.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPlainTextEdit,
+    QSizePolicy,
+    QStackedWidget,
+    QTextEdit,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
 )
 
 from noteration.config import NoterationConfig
+from noteration.editor.find_replace import FindReplaceDialog
 from noteration.editor.syntax_highlighter import MarkdownHighlighter
 from noteration.editor.wiki_links import (
-    parse_wiki_links,
-    parse_citations,
     extract_headings,
+    parse_citations,
+    parse_wiki_links,
 )
-from noteration.editor.find_replace import FindReplaceDialog
 from noteration.logger import get_logger
 
 logger = get_logger(__name__)
@@ -56,8 +56,8 @@ if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
 
 try:
-    from PySide6.QtWebEngineWidgets import QWebEngineView
     from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
+    from PySide6.QtWebEngineWidgets import QWebEngineView
 
     _HAS_WEBENGINE = True
 except ImportError:
@@ -788,14 +788,15 @@ def _md_to_html(
     Handles wiki-links, citations, and theme-specific syntax coloring.
     """
     import re
+
+    from noteration.editor.wiki_links import parse_citations
     from noteration.ui.theme import (
-        ThemeMode,
         _DARK_COLORS,
         _LIGHT_COLORS,
-        get_syntax_palette,
+        ThemeMode,
         get_effective_mode,
+        get_syntax_palette,
     )
-    from noteration.editor.wiki_links import parse_citations
 
     mode = get_effective_mode(theme)
     palette = get_syntax_palette(mode)
@@ -847,18 +848,20 @@ def _md_to_html(
     if vault and vault.csl.is_available():
         # Parse all citations in the text
         raw_citations = parse_citations(text)
-        keys = list(set(c.key for c in raw_citations))
-
-        # Look up entries in Papis
+        # Collect unique (key, locator) pairs
+        citations_to_render = list(set((c.key, c.locator) for c in raw_citations))
+        
+        # Look up unique entries in Papis
+        unique_keys = list(set(c.key for c in raw_citations))
         entries = []
-        for k in keys:
+        for k in unique_keys:
             e = vault.papis.get(k)
             if e:
                 entries.append(e)
 
         # Render them as a batch
         if entries:
-            citation_map = vault.csl.render_citations(entries)
+            citation_map = vault.csl.render_citations(citations_to_render, entries)
 
     def _safe_replace(html: str) -> str:
         """Inject wiki-link badges and citations without breaking code blocks."""
@@ -879,10 +882,12 @@ def _md_to_html(
                 # Replace citations with rendered versions if available
                 def _cite_sub(m: re.Match) -> str:
                     key = m.group(1)
-                    display = citation_map.get(key, f"@{key}")
+                    locator = m.group(2)
+                    display = citation_map.get((key, locator), m.group(0))
                     return f'<span class="citation" title="Source: {key}">{display}</span>'
 
-                p = re.sub(r"@([A-Za-z][A-Za-z0-9_:\-]+)", _cite_sub, p)
+                # Match @key or @key[locator]
+                p = re.sub(r"@([A-Za-z][A-Za-z0-9_:\-]+)(?:\[([^\]]+)\])?", _cite_sub, p)
                 new_parts.append(p)
         return "".join(new_parts)
 
@@ -964,8 +969,8 @@ if _HAS_WEBENGINE:
                 return False
 
             if scheme in ("http", "https", "ftp"):
-                import subprocess
                 import shutil
+                import subprocess
 
                 xdg_open = shutil.which("xdg-open")
                 if xdg_open:
@@ -1082,8 +1087,8 @@ class MarkdownPreview(QWidget):
         if scheme == "noteration" and url.host() == "wiki":
             self.link_clicked.emit(url.path().lstrip("/"))
         elif scheme in ("http", "https"):
-            import subprocess
             import shutil
+            import subprocess
 
             xdg_open = shutil.which("xdg-open")
             if xdg_open:
@@ -1529,11 +1534,12 @@ class EditorTab(QWidget):
     def insert_text(self, text: str) -> None:
         self._editor.insertPlainText(text)
 
-    def insert_quote(self, text: str, citation_key: str) -> None:
+    def insert_quote(self, text: str, citation_key: str, locator: str = "") -> None:
         """Format and insert a text block with a citation."""
         lines = text.strip().splitlines()
         bq = "\n".join(f"> {ln}" for ln in lines)
-        bq += f"\n> — @{citation_key}\n\n"
+        cite = f"@{citation_key}[{locator}]" if locator else f"@{citation_key}"
+        bq += f"\n> — {cite}\n\n"
         self._editor.insertPlainText(bq)
 
     def insert_image(self, rel_path: str) -> None:
@@ -1541,8 +1547,8 @@ class EditorTab(QWidget):
         self._editor.insertPlainText(md)
 
     def _on_image_dropped(self, source_path: str) -> None:
-        from pathlib import Path
         import shutil
+        from pathlib import Path
 
         src = Path(source_path)
         if not src.exists():
@@ -1592,7 +1598,8 @@ class EditorTab(QWidget):
 
     def go_to_citation(self, key: str) -> None:
         text = self._editor.toPlainText()
-        pattern = f"@{re.escape(key)}\\b"
+        # Match @key optionally followed by [locator]
+        pattern = f"@{re.escape(key)}(?:\\[[^\\]]+\\])?\\b"
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             cursor = self._editor.textCursor()
@@ -1674,8 +1681,8 @@ class EditorTab(QWidget):
     def export_as(self, fmt: str) -> None:
         """Export document content to external formats using Pandoc."""
         # Perform the actual export logic here
-        import subprocess
         import shutil
+        import subprocess
 
         pandoc = shutil.which("pandoc")
         if not pandoc:

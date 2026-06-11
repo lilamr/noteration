@@ -4,41 +4,41 @@ Left QTabWidget containing Notes, PDFs (Papis), Outline, and Citations panels.
 
 from __future__ import annotations
 
-import shutil
 import json
+import shutil
 from pathlib import Path
-from typing import Any, cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
-from PySide6.QtGui import QColor, QFont
-from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QTreeView,
-    QLineEdit,
-    QHBoxLayout,
-    QAbstractItemView,
-    QMessageBox,
-    QFileSystemModel,
-    QTreeWidget,
-    QListView,
-    QTabWidget,
-    QTreeWidgetItem,
-    QComboBox,
-    QMenu,
-    QInputDialog,
-)
 from PySide6.QtCore import (
-    Qt,
-    Signal,
-    QSortFilterProxyModel,
-    QModelIndex,
     QAbstractItemModel,
     QAbstractListModel,
+    QModelIndex,
     QPersistentModelIndex,
+    QSortFilterProxyModel,
+    Qt,
+    Signal,
+)
+from PySide6.QtGui import QColor, QFont
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
+    QFileSystemModel,
+    QHBoxLayout,
+    QInputDialog,
+    QLineEdit,
+    QListView,
+    QMenu,
+    QMessageBox,
+    QTabWidget,
+    QTreeView,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
-from noteration.logger import get_logger
 from noteration.literature.papis_bridge import get_yaml
+from noteration.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -700,6 +700,7 @@ class CitationsPanel(QWidget):
     """Sidebar panel listing all @citations found in the current note."""
 
     citation_clicked = Signal(str)
+    open_literature_requested = Signal(str)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -710,6 +711,10 @@ class CitationsPanel(QWidget):
         self.list.setModel(self.model)
         self.list.setFont(QFont("Monospace", 9))
         self.list.doubleClicked.connect(self._on_double_click)
+
+        self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.list.customContextMenuRequested.connect(self._show_context_menu)
+
         layout.addWidget(self.list)
 
     def update_citations(self, keys: list[str]) -> None:
@@ -719,6 +724,24 @@ class CitationsPanel(QWidget):
         k = index.data(Qt.ItemDataRole.UserRole)
         if k:
             self.citation_clicked.emit(k)
+
+    def _show_context_menu(self, pos) -> None:
+        index = self.list.indexAt(pos)
+        if not index.isValid():
+            return
+
+        k = index.data(Qt.ItemDataRole.UserRole)
+        if not k:
+            return
+
+        from PySide6.QtWidgets import QMenu
+
+        menu = QMenu(self)
+        act_open = menu.addAction("Open Literature")
+
+        action = menu.exec(self.list.mapToGlobal(pos))
+        if action == act_open:
+            self.open_literature_requested.emit(k)
 
 
 class TagsPanel(QWidget):
@@ -764,6 +787,7 @@ class SidebarWidget(QWidget):
     pdf_selected = Signal(str, str)
     heading_clicked = Signal(str)
     citation_clicked = Signal(str)
+    open_literature_requested = Signal(str)
     tag_clicked = Signal(str)
     item_moved = Signal(object, object)
 
@@ -787,6 +811,7 @@ class SidebarWidget(QWidget):
 
         self.citations_panel = CitationsPanel()
         self.citations_panel.citation_clicked.connect(self.citation_clicked.emit)
+        self.citations_panel.open_literature_requested.connect(self.open_literature_requested.emit)
 
         self.tags_panel = TagsPanel()
         self.tags_panel.tag_clicked.connect(self.tag_clicked.emit)

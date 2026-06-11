@@ -22,11 +22,12 @@ Key Features:
 from __future__ import annotations
 
 import re
+
 from PySide6.QtGui import (
-    QSyntaxHighlighter,
-    QTextCharFormat,
     QColor,
     QFont,
+    QSyntaxHighlighter,
+    QTextCharFormat,
     QTextDocument,
 )
 
@@ -185,10 +186,13 @@ class MarkdownHighlighter(QSyntaxHighlighter):
         wiki_fg, wiki_bg = p.get("wiki", ("#534AB7", "#EEEDFE"))
         add((re.compile(r"\[\[[^\]]+\]\]"), self._make_format(color=wiki_fg, bg=wiki_bg)))
 
-        # ── Citation @key ─────────────────────────────────────────────
+        # ── Citation @key[locator] ────────────────────────────────────
         cite_fg, cite_bg = p.get("citation", ("#0F6E56", "#E1F5EE"))
         add(
-            (re.compile(r"@[A-Za-z][A-Za-z0-9_:\-]+"), self._make_format(color=cite_fg, bg=cite_bg))
+            (
+                re.compile(r"@[A-Za-z][A-Za-z0-9_:\-]+(?:\[[^\]]+\])?"),
+                self._make_format(color=cite_fg, bg=cite_bg),
+            )
         )
 
         # ── Inline code `code` ────────────────────────────────────────

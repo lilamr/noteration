@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-06-11
+
+### Added
+- **Citation Locators**: Added support for citation locators (e.g., `@key[p.10]`) in Markdown editor.
+- **Deep Linking**: Clicking literature search results or right-clicking citations in the sidebar now opens and focuses the Literature tab directly to the target document.
+- **Search Dialog Behavior**: The search dialog now remains open after selecting a result, allowing for continuous searching without re-opening.
+
+### Fixed
+- Fixed unused variable lint error in `editor_tab.py`.
+
+### Changed
+- Citations context menu streamlined to only show 'Open Literature'.
+- install.sh and install.ps1 now auto-detect latest release tag from GitHub API
+- macOS Info.plist version no longer hardcoded
+- GitHub Actions release workflow now builds .deb, .exe, and .dmg installers
+
 ## [2.0.0] - 2026-06-03
+
 
 ### Added
 - **Command Line Interface (ntr)**: A robust CLI for vault management, full-text search, note creation/deletion, literature management (DOI/arXiv fetching), graph analysis, and synchronization.

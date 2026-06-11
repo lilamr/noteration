@@ -19,7 +19,6 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from typing import Any
 
-
 _CROSSREF_URL = "https://api.crossref.org/works/{doi}"
 _ARXIV_API = "https://export.arxiv.org/api/query?id_list={arxiv_id}"
 _OPENLIBRARY_API = "https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data"

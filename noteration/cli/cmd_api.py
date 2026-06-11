@@ -1,6 +1,8 @@
-import click
 import sys
-from noteration.cli.utils import resolve_vault, check_vault
+
+import click
+
+from noteration.cli.utils import check_vault, resolve_vault
 
 
 @click.group(name="api")
@@ -17,6 +19,7 @@ def api_group():
 def api_start(ctx, vault, host, port):
     """Start the Noteration REST API server."""
     import uvicorn
+
     from noteration.api.server import app, set_vault_path
 
     try:

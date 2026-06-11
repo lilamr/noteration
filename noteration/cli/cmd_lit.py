@@ -1,9 +1,11 @@
 """Literature management command group for the Noteration CLI."""
 
-import click
 import json
 import sys
 from pathlib import Path
+
+import click
+
 from noteration.cli.utils import check_vault
 
 
@@ -125,8 +127,9 @@ def add_lit(ctx, doi, arxiv, isbn, pdf, title, author):
 @click.pass_context
 def export_lit(ctx, output, note):
     """Export literature to BibTeX."""
-    from noteration.literature.bibtex_export import BibtexExporter
     from pathlib import Path
+
+    from noteration.literature.bibtex_export import BibtexExporter
 
     check_vault(ctx)
     core = ctx.obj["get_core"]()

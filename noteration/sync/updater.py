@@ -4,9 +4,9 @@ Handles version checking and self-updating.
 
 from __future__ import annotations
 
-import sys
-import subprocess
 import platform
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -17,6 +17,26 @@ from noteration import __version__
 # URL to check for latest version (directly from pyproject.toml on main branch)
 REMOTE_PYPROJECT_URL = "https://raw.githubusercontent.com/lilamr/noteration/main/pyproject.toml"
 
+# Permanent download links for installers
+LATEST_LINUX_URL = "https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-linux-amd64.deb"
+LATEST_WINDOWS_URL = "https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-windows-x64.exe"
+LATEST_MACOS_URL = "https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-macos.dmg"
+
+
+def is_frozen() -> bool:
+    """Returns True if the application is running as a standalone binary (PyInstaller)."""
+    return getattr(sys, "frozen", False)
+
+
+def get_latest_binary_url() -> str:
+    """Returns the appropriate download URL for the current platform."""
+    sys_name = platform.system()
+    if sys_name == "Windows":
+        return LATEST_WINDOWS_URL
+    if sys_name == "Darwin":
+        return LATEST_MACOS_URL
+    return LATEST_LINUX_URL
+
 
 class CheckUpdateThread(QThread):
     """Thread to check for updates without blocking the UI."""
@@ -26,8 +46,8 @@ class CheckUpdateThread(QThread):
 
     def run(self) -> None:
         try:
-            import urllib.request
             import re
+            import urllib.request
 
             if not REMOTE_PYPROJECT_URL.startswith(("http://", "https://")):
                 raise ValueError("Invalid URL scheme")

@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from noteration.vault_manager import VaultManager
+
+import pytest
+
 from noteration.sync.git_engine import GitRepo, RepoStatus
+from noteration.vault_manager import VaultManager
 
 
 @pytest.fixture

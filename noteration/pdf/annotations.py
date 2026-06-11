@@ -4,15 +4,14 @@ Non-destructive PDF annotation model + CRUD to JSON files.
 
 from __future__ import annotations
 
-import json
 import hashlib
-import uuid
+import json
 import threading
-from dataclasses import dataclass, field, asdict
+import uuid
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Callable
-
+from typing import Callable, Literal
 
 AnnotationType = Literal["highlight", "image", "comment", "bookmark"]
 

@@ -11,12 +11,11 @@ from __future__ import annotations
 
 import json
 import threading
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
 from noteration.logger import get_logger
 from noteration.pdf.annotations import calculate_file_hash
-
 
 _INDEX_FILE = ".noteration/pdf_index.json"
 

@@ -11,35 +11,36 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
 
-from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLineEdit,
-    QListView,
-    QLabel,
-    QPushButton,
-    QSplitter,
-    QFrame,
-    QScrollArea,
-    QGridLayout,
-    QDialog,
-    QFormLayout,
-    QDialogButtonBox,
-    QFileDialog,
-    QInputDialog,
-    QMessageBox,
-    QMenu,
-    QApplication,
-    QComboBox,
-)
 from PySide6.QtCore import (
-    Qt,
-    Signal,
-    QTimer,
     QAbstractListModel,
     QModelIndex,
     QSortFilterProxyModel,
+    Qt,
+    QTimer,
+    Signal,
+)
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QListView,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
 )
 
 from noteration.literature.papis_bridge import LiteratureEntry
@@ -466,14 +467,22 @@ class LiteratureTab(QWidget):
                 break
 
         if found_row < 0:
+            # Not loaded yet?
+            self._pending_selection = papis_key
             return
 
         source_index = self._model.index(found_row)
         proxy_index = self._proxy.mapFromSource(source_index)
 
+        if not proxy_index.isValid():
+            # Filtered out? Clear filter
+            self._search_input.clear()
+            self._collection_combo.setCurrentText("All")
+            proxy_index = self._proxy.mapFromSource(source_index)
+
         if proxy_index.isValid():
             self._entry_list.setCurrentIndex(proxy_index)
-            self._entry_list.scrollTo(proxy_index)
+            self._entry_list.scrollTo(proxy_index, QAbstractItemView.ScrollHint.PositionAtCenter)
             self._on_entry_selected(proxy_index)
 
     def _setup_ui(self) -> None:

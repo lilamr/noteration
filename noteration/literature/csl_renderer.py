@@ -5,8 +5,9 @@ Transforms LiteratureEntry into formatted citation strings.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from noteration.literature.papis_bridge import LiteratureEntry
@@ -14,12 +15,13 @@ if TYPE_CHECKING:
 _HAS_CITEPROC = False
 try:
     from citeproc import (
-        CitationStylesStyle,
-        CitationStylesBibliography,
         Citation,
         CitationItem,
+        CitationStylesBibliography,
+        CitationStylesStyle,
         formatter,
     )
+    from citeproc.source import Locator
     from citeproc.source.json import CiteProcJSON
 
     _HAS_CITEPROC = True
@@ -103,12 +105,15 @@ class CSLRenderer:
         return csl
 
     def render_citations(
-        self, entries: List[LiteratureEntry], style_path: Optional[Path] = None
-    ) -> Dict[str, str]:
-        """Render a list of entries into a mapping of {key: formatted_string}.
+        self,
+        citations: List[tuple[str, str | None]],
+        entries: List[LiteratureEntry],
+        style_path: Optional[Path] = None,
+    ) -> Dict[tuple[str, str | None], str]:
+        """Render a list of (key, locator) tuples into a mapping of {(key, locator): formatted_string}.
         """
         if not self.is_available() or not entries:
-            return {e.key: f"@{e.key}" for e in entries}
+            return {c: f"@{c[0]}" for c in citations}
 
         try:
             csl_data = [self._entry_to_csl_json(e) for e in entries]
@@ -122,20 +127,40 @@ class CSLRenderer:
             bib = CitationStylesBibliography(style, source, formatter.html)
 
             results = {}
-            for entry in entries:
-                citation = Citation([CitationItem(entry.key)])
+            for key, locator in citations:
+                label = "page"
+                loc_val = locator
+                kwargs = {}
+                if locator:
+                    # Basic heuristic for labels
+                    if locator.lower().startswith(("p.", "pp.", "hal.")):
+                        # Extract part after the prefix
+                        m = re.match(r"^(?:p\.|pp\.|hal\.)\s*(.*)$", locator, re.IGNORECASE)
+                        if m:
+                            loc_val = m.group(1)
+                    elif locator.lower().startswith(("ch.", "chap.")):
+                        label = "chapter"
+                        m = re.match(r"^(?:ch\.|chap\.)\s*(.*)$", locator, re.IGNORECASE)
+                        if m:
+                            loc_val = m.group(1)
+                    
+                    kwargs["locator"] = Locator(label, loc_val)
+                
+                item = CitationItem(key, **kwargs)
+                
+                citation = Citation([item])
                 bib.register(citation)
                 # render_citation returns a list of fragments, we join them
                 rendered = bib.cite(citation, lambda x: x)
                 # citeproc-py returns list of fragments, join into string
-                results[entry.key] = "".join(rendered)
+                results[(key, locator)] = "".join(rendered)
 
             return results
         except Exception as err:
             import logging
 
             logging.getLogger("noteration").error(f"CSL rendering failed: {err}")
-            return {entry.key: f"@{entry.key}" for entry in entries}
+            return {c: f"@{c[0]}" for c in citations}
 
     def render_bibliography(
         self, entries: List[LiteratureEntry], style_path: Optional[Path] = None

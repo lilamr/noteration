@@ -4,9 +4,9 @@ Manages Papis literature library in background threads.
 
 from __future__ import annotations
 
-from typing import Optional, Any
+from typing import Any, Optional
 
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import QObject, QThread, Signal
 
 from noteration.literature.papis_bridge import PapisBridge
 from noteration.logger import get_logger

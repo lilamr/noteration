@@ -2,16 +2,19 @@
 """
 
 from __future__ import annotations
+
 from pathlib import Path
+
 from PySide6.QtWidgets import (
     QDialog,
-    QVBoxLayout,
-    QLineEdit,
-    QPushButton,
-    QLabel,
     QHBoxLayout,
+    QLabel,
+    QLineEdit,
     QMessageBox,
+    QPushButton,
+    QVBoxLayout,
 )
+
 from noteration.utils.path_safety import is_safe_path
 
 

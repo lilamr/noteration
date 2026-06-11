@@ -11,9 +11,9 @@ from __future__ import annotations
 
 from enum import Enum
 
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QPalette, QColor
-from PySide6.QtCore import Qt, QObject, Signal, QTimer
 
 from noteration.logger import get_logger
 

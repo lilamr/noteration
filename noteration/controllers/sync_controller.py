@@ -4,15 +4,15 @@ Manages Git synchronization in background threads.
 
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from noteration.core.vault_core import VaultCore
 
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import QObject, QThread, Signal
 
-from noteration.sync.git_engine import GitRepo
 from noteration.logger import get_logger
+from noteration.sync.git_engine import GitRepo
 
 logger = get_logger(__name__)
 

@@ -4,8 +4,9 @@ This module provides the entry point for starting the Noteration REST API server
 """
 import click
 import uvicorn
-from noteration.cli.utils import resolve_vault
+
 from noteration.api.server import app, set_vault_path
+from noteration.cli.utils import resolve_vault
 
 
 @click.command()

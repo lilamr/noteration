@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import re
 
-from PySide6.QtWidgets import QCompleter
-from PySide6.QtCore import Qt, QStringListModel, Signal, QObject
+from PySide6.QtCore import QObject, QStringListModel, Qt, Signal
 from PySide6.QtGui import QTextCursor
+from PySide6.QtWidgets import QCompleter
 
 from noteration.literature.papis_bridge import PapisBridge
 

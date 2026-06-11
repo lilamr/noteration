@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import sys
 import copy
+import sys
 import threading
 from pathlib import Path
 from typing import Any

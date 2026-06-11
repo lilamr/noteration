@@ -7,7 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from pyrage import x25519, encrypt, decrypt
+from pyrage import decrypt, encrypt, x25519
 
 from noteration.logger import get_logger
 

@@ -4,7 +4,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QMessageBox, QDialogButtonBox
+
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QLineEdit, QMessageBox, QVBoxLayout
 
 
 class UnlockDialog(QDialog):

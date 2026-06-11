@@ -8,12 +8,12 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Optional, Dict, Callable
+from typing import Callable, Dict, Optional
 
 from noteration.config import NoterationConfig
 from noteration.logger import get_logger
-from noteration.utils.encryption import decrypt_file, encrypt_file, is_age_available, get_public_key
 from noteration.pdf.annotations import calculate_file_hash as calculate_hash
+from noteration.utils.encryption import decrypt_file, encrypt_file, get_public_key, is_age_available
 
 logger = get_logger(__name__)
 

@@ -2,15 +2,17 @@
 """
 
 from __future__ import annotations
+
 from pathlib import Path
+
 from PySide6.QtWidgets import (
     QDialog,
-    QVBoxLayout,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
     QLineEdit,
     QPushButton,
-    QLabel,
-    QHBoxLayout,
-    QFileDialog,
+    QVBoxLayout,
 )
 
 

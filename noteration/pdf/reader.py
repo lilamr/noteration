@@ -13,13 +13,13 @@ The PdfReader class is used by the overlay & annotation engine to:
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Tuple
-from collections import OrderedDict
 
-from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtCore import QRectF
+from PySide6.QtGui import QImage, QPixmap
 
 from noteration.logger import get_logger
 

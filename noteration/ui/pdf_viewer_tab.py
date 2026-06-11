@@ -5,41 +5,41 @@ PDF viewer tab with annotations, sidebar, and reading progress.
 
 from __future__ import annotations
 
-import uuid
 import collections
+import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
 
+from PySide6.QtCore import QPointF, QRect, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QImage, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QCheckBox,
+    QFrame,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QPushButton,
-    QSpinBox,
-    QSplitter,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QFrame,
-    QStackedWidget,
-    QLineEdit,
-    QProgressBar,
     QMenu,
     QMessageBox,
-    QCheckBox,
-    QGroupBox,
+    QProgressBar,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
+    QSplitter,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal, QPointF, QTimer, QRect
-from PySide6.QtGui import QShortcut, QKeySequence, QImage, QPixmap, QColor
 
-from noteration.pdf.annotations import AnnotationStore, Annotation, calculate_file_hash
-from noteration.pdf.annotation_overlay import AnnotationOverlay
 from noteration.logger import get_logger
+from noteration.pdf.annotation_overlay import AnnotationOverlay
+from noteration.pdf.annotations import Annotation, AnnotationStore, calculate_file_hash
 
 logger = get_logger(__name__)
 
@@ -462,8 +462,8 @@ class MuPdfViewer(QWidget):
 class PdfViewerTab(QWidget):
     """PDF viewer tab with annotations, sidebar, and reading progress."""
 
-    insert_quote_requested = Signal(str, str)  # (text, papis_key)
-    insert_image_requested = Signal(str, str)  # (image_path, papis_key)
+    insert_quote_requested = Signal(str, str, str)  # (text, papis_key, locator)
+    insert_image_requested = Signal(str, str, str)  # (image_path, papis_key, locator)
     extract_requested = Signal()  # request to create note from all annots
     note_requested = Signal(str)  # request to open a specific note
     annotation_count_changed = Signal(int)
@@ -1033,9 +1033,9 @@ class PdfViewerTab(QWidget):
         if chosen == act_jump:
             self._set_page(ann.page)
         elif act_ins and chosen == act_ins:
-            self.insert_quote_requested.emit(ann.text_content, self.papis_key)
+            self.insert_quote_requested.emit(ann.text_content, self.papis_key, f"p.{ann.page + 1}")
         elif act_ins_img and chosen == act_ins_img:
-            self.insert_image_requested.emit(ann.image_path, self.papis_key)
+            self.insert_image_requested.emit(ann.image_path, self.papis_key, f"p.{ann.page + 1}")
         elif chosen == act_del:
             self._on_delete_annot()
 
@@ -1045,10 +1045,11 @@ class PdfViewerTab(QWidget):
             return
         ann: Annotation = sel[0].data(Qt.ItemDataRole.UserRole)
         if ann:
+            loc = f"p.{ann.page + 1}"
             if ann.type == "image" and ann.image_path:
-                self.insert_image_requested.emit(ann.image_path, self.papis_key)
+                self.insert_image_requested.emit(ann.image_path, self.papis_key, loc)
             elif ann.text_content:
-                self.insert_quote_requested.emit(ann.text_content, self.papis_key)
+                self.insert_quote_requested.emit(ann.text_content, self.papis_key, loc)
 
     def _on_delete_annot(self) -> None:
         sel = self._annot_list.selectedItems()

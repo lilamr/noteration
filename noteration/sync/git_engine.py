@@ -3,16 +3,16 @@
 
 from __future__ import annotations
 
-import threading
 import os
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any
-from noteration.utils.path_safety import is_safe_path
 
 from noteration.logger import get_logger
+from noteration.utils.path_safety import is_safe_path
 
 logger = get_logger(__name__)
 
@@ -587,6 +587,7 @@ class GitRepo:
 
                 if path.endswith(".age") and public_key:
                     import tempfile
+
                     from noteration.utils.encryption import encrypt_file
 
                     # Create a temporary file to hold the plaintext resolution

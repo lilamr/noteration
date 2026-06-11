@@ -1,11 +1,13 @@
 """Note management command group for the Noteration CLI."""
 
-import click
 import json
 import sys
 from pathlib import Path
-from noteration.utils.path_safety import is_safe_path
+
+import click
+
 from noteration.cli.utils import check_vault
+from noteration.utils.path_safety import is_safe_path
 
 
 @click.group(name="note")

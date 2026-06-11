@@ -1,7 +1,8 @@
 """Pydantic models for Noteration API responses and requests."""
 
-from pydantic import BaseModel
 from typing import List, Optional
+
+from pydantic import BaseModel
 
 
 class NoteResponse(BaseModel):

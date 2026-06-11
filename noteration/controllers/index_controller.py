@@ -4,19 +4,19 @@ Manages PDF indexing and link graph building in background threads.
 
 from __future__ import annotations
 
-import re
 import contextlib
+import re
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Callable, Optional
 
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import QObject, QThread, Signal
 
-from noteration.pdf.pdf_index import PdfIndex
 from noteration.core.repository import NoteRepository
 from noteration.db.link_graph import LinkGraph
-from noteration.search.fts_engine import FTSEngine
 from noteration.literature.papis_bridge import PapisBridge
 from noteration.logger import get_logger
+from noteration.pdf.pdf_index import PdfIndex
+from noteration.search.fts_engine import FTSEngine
 
 logger = get_logger(__name__)
 

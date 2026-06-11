@@ -13,33 +13,33 @@ Interaction:
 
 from __future__ import annotations
 
-
-from PySide6.QtWidgets import (
-    QWidget,
-    QMenu,
-    QDialog,
-    QVBoxLayout,
-    QPlainTextEdit,
-    QLabel,
-    QPushButton,
-    QHBoxLayout,
-)
-from PySide6.QtCore import Qt, QRectF, QPointF, Signal
-from PySide6.QtGui import (
-    QPainter,
-    QColor,
-    QPen,
-    QBrush,
-    QMouseEvent,
-    QPaintEvent,
-    QFont,
-    QPainterPath,
-    QPolygonF,
-)
 from typing import Any
 
-from noteration.pdf.annotations import Annotation, AnnotationStore
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QMouseEvent,
+    QPainter,
+    QPainterPath,
+    QPaintEvent,
+    QPen,
+    QPolygonF,
+)
+from PySide6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QPlainTextEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
 from noteration.logger import get_logger
+from noteration.pdf.annotations import Annotation, AnnotationStore
 
 logger = get_logger(__name__)
 

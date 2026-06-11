@@ -7,29 +7,28 @@ sync settings, security, API, and appearance.
 
 from __future__ import annotations
 
-
+from PySide6.QtCore import Signal
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QColorDialog,
+    QComboBox,
     QDialog,
-    QVBoxLayout,
-    QHBoxLayout,
-    QTabWidget,
-    QWidget,
+    QDialogButtonBox,
+    QFileDialog,
+    QFontComboBox,
     QFormLayout,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
-    QSpinBox,
-    QCheckBox,
-    QComboBox,
     QPushButton,
-    QDialogButtonBox,
-    QGroupBox,
-    QFileDialog,
-    QColorDialog,
-    QFrame,
-    QFontComboBox,
+    QSpinBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Signal
-from PySide6.QtGui import QFont, QColor
 
 from noteration.config import NoterationConfig
 

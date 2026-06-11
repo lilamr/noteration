@@ -1,6 +1,6 @@
 # Noteration User Guide
 
-**Version 2.0.0**
+**Version 2.1.0**
 
 Noteration is a desktop application for integrated research note management. This application combines a Markdown editor, a PDF viewer with non-destructive annotations, literature management via Papis, and Git synchronization — all in one interface.
 
@@ -106,7 +106,7 @@ The Navigator has several collapsible sections:
 | **Tags** | List of all `#tag` from notes (🏷️) and literature tags (📚). |
 | **Related PDFs** | PDFs from the Papis library cited in the active note. Click to open. |
 | **Outline** | List of headings (`#`, `##`, `###`) from the active note. Click to jump. |
-| **Citations** | List of `@citation-key` used in the active note. Click to jump. |
+| **Citations** | List of `@citation-key` used in the active note. Click to jump/open literature via context menu. |
 
 ### Menu Bar
 
@@ -268,21 +268,26 @@ As explained by @darwin1859 in his theory of evolution...
 
 Suggestion list appears automatically — select with arrow keys and `Enter`.
 
+### Citation Locators (Pages/Chapters)
+
+Noteration supports adding specific locators to citations using square brackets:
+
+```markdown
+As per @darwin1859[p. 20-22] or in @einstein1905[ch. 1]...
+```
+
+The rendering engine automatically formats these locators according to the selected CSL style.
+
 ### Supported Citation Formats
-
-The editor's citation feature supports the basic `@key` format (e.g., `@darwin1859`). 
-
-When in **View Mode**, the rendering engine automatically formats these citation keys according to the selected CSL style.
 
 | Format | Example |
 |--------|--------|
-| Citation key | `@darwin1859` |
-
-> **Note:** Currently, Noteration only supports basic citation keys (`@key`). Advanced citation formats like page numbers (e.g., `[p. 42]`) or multiple citations in a single block (e.g., `@key1; @key2`) are not supported.
+| Citation key | `@key` |
+| Key with locator | `@key[p. 20]` |
 
 ### Jumping to Citations
 
-In the **Citations** section of the Navigator panel, click `@key` to jump directly to its occurrence in the note.
+In the **Citations** section of the Navigator panel, click `@key` to jump directly to its occurrence in the note. Right-click on a citation to **Open Literature** in the Literature tab.
 
 ### CSL Citation Styles
 
@@ -319,9 +324,10 @@ Noteration uses the **SQLite FTS5** engine — search is much faster than previo
 ### How to Use
 
 1. Type keywords — results appear automatically after a short pause.
-2. Use **Case Sensitive** and **Regex** filters for more specific searches.
-3. **Scope** filter to limit search: All / Notes / Literature / Annotations.
-4. Click result to open: note opens in editor tab, literature opens in Literature tab, annotation opens PDF on relevant page.
+2. The search dialog **remains open** after clicking a result, allowing you to browse multiple items without re-opening. Close manually via Esc or Close button.
+3. Use **Case Sensitive** and **Regex** filters for more specific searches.
+4. **Scope** filter to limit search: All / Notes / Literature / Annotations.
+5. Click result to open: note opens in editor tab, literature opens in Literature tab and selects the entry, annotation opens PDF on relevant page.
 
 ### Tag Search
 
@@ -399,7 +405,7 @@ Press **Ctrl+Alt+A** or click button in toolbar to show/hide annotation panel on
 3. Right annotation panel offers options:
    - **Highlight** — highlight text with color (default yellow, configurable in Settings).
    - **Note (💬)** — add text note at specific position.
-   - **Insert to Editor** — insert text as blockquote to active note editor, complete with automatic `@citation-key`.
+   - **Insert to Editor** — insert text as blockquote to active note editor, complete with automatic `@citation-key[p.XX]`.
 4. Use **🖼 Image** to capture image area from PDF. Images saved to `annotations/images/`.
 5. **🔖** to add bookmark on current page.
 
@@ -420,7 +426,7 @@ These JSON files are synchronized via Git, so annotations can be shared or synce
 
 ## 9. Literature Management (Papis)
 
-The Literature tab displays the contents of your [Papis](https://papis.io/) library.
+The Literature tab displays the contents of your [Papis](https://papis.io/) library. Clicking a search result or selecting a document from the Citations panel opens the Literature tab and automatically selects and scrolls to the target entry.
 
 ### Adding New Entries
 
@@ -1061,4 +1067,4 @@ A: Yes. Noteration doesn't care if repository is public or private — Git handl
 
 ---
 
-*This guide applies to Noteration v2.0.0*
+*This guide applies to Noteration v2.1.0*

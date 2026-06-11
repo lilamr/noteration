@@ -1,7 +1,9 @@
 import os
 import sys
-import click
 from pathlib import Path
+
+import click
+
 from noteration.logger import get_logger
 
 logger = get_logger(__name__)

@@ -7,22 +7,23 @@ to handle the encryption of vault files, ensuring secure data management.
 from __future__ import annotations
 
 from pathlib import Path
+
+from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
-    QVBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
-    QTextEdit,
-    QCheckBox,
     QMessageBox,
     QProgressBar,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
 )
-from PySide6.QtCore import Signal, QThread, QObject
 
-from noteration.utils.encryption import is_age_available, generate_keypair, encrypt_file
 from noteration.config import NoterationConfig
 from noteration.logger import get_logger
+from noteration.utils.encryption import encrypt_file, generate_keypair, is_age_available
 
 logger = get_logger(__name__)
 

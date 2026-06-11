@@ -15,13 +15,11 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from noteration.logger import get_logger
-from noteration.literature.papis_bridge import LiteratureEntry, PapisBridge
 from noteration.editor.wiki_links import parse_citations
-
-from typing import TYPE_CHECKING
+from noteration.literature.papis_bridge import LiteratureEntry, PapisBridge
+from noteration.logger import get_logger
 
 if TYPE_CHECKING:
     from noteration.core.repository import NoteRepository

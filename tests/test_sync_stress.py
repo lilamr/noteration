@@ -1,6 +1,8 @@
 import time
 from pathlib import Path
+
 from git import Repo
+
 from noteration.sync.git_engine import GitRepo
 
 

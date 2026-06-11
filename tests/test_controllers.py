@@ -1,8 +1,8 @@
 from unittest.mock import patch
-from noteration.controllers.index_controller import IndexController
-from noteration.controllers.sync_controller import SyncController
-from noteration.controllers.library_controller import LibraryController
 
+from noteration.controllers.index_controller import IndexController
+from noteration.controllers.library_controller import LibraryController
+from noteration.controllers.sync_controller import SyncController
 from noteration.core.vault_core import VaultCore
 
 

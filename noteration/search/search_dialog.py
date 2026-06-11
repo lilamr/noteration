@@ -8,26 +8,26 @@ import threading
 from pathlib import Path
 from typing import Optional
 
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
-    QVBoxLayout,
+    QGroupBox,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
+    QProgressBar,
+    QPushButton,
+    QRadioButton,
     QTreeWidget,
     QTreeWidgetItem,
-    QLabel,
-    QPushButton,
-    QCheckBox,
-    QGroupBox,
-    QRadioButton,
-    QProgressBar,
+    QVBoxLayout,
 )
-from PySide6.QtCore import Qt, QTimer, Signal, QObject, QThread
-from PySide6.QtGui import QKeySequence, QShortcut
 
-from noteration.search.vault_search import VaultSearch, SearchResult
+from noteration.core.events import EventBus, LiteratureSelectedEvent, NoteOpenedEvent
 from noteration.search.fts_engine import FTSEngine
-from noteration.core.events import EventBus, NoteOpenedEvent, LiteratureSelectedEvent
+from noteration.search.vault_search import SearchResult, VaultSearch
 
 
 class SearchWorker(QObject):
@@ -403,17 +403,14 @@ class SearchDialog(QDialog):
                 self.events.publish(NoteOpenedEvent(data.path))
             else:
                 self.note_requested.emit(data.path)
-            self.close()
         elif data.type == "literature" and data.papis_key:
             if self.events:
                 self.events.publish(LiteratureSelectedEvent(data.papis_key))
             else:
                 self.literature_requested.emit(data.papis_key)
-            self.close()
         elif data.type == "annotation" and data.papis_key:
             page = data.page if data.page is not None else 0
             self.annotation_requested.emit(data.papis_key, page + 1)  # 1-indexed
-            self.close()
 
     def _go_next(self) -> None:
         if not self._results:

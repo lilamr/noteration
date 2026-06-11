@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QPushButton, QHBoxLayout
+
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QPushButton, QVBoxLayout
+
 from noteration.ui.editor_tab import MarkdownPreview
 
 

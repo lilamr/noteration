@@ -10,10 +10,10 @@ from typing import Optional
 
 from PySide6.QtCore import QObject, Signal
 
-from noteration.core.vault_core import VaultCore
 from noteration.controllers.index_controller import IndexController
-from noteration.controllers.sync_controller import SyncController
 from noteration.controllers.library_controller import LibraryController
+from noteration.controllers.sync_controller import SyncController
+from noteration.core.vault_core import VaultCore
 from noteration.logger import get_logger
 
 logger = get_logger(__name__)

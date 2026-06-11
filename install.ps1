@@ -7,6 +7,7 @@ $ErrorActionPreference = "Stop"
 function Write-Header ($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 function Write-Success ($msg) { Write-Host "==> $msg" -ForegroundColor Green }
 function Write-Error-Msg ($msg) { Write-Host "Error: $msg" -ForegroundColor Red }
+function Write-Yellow ($msg) { Write-Host $msg -ForegroundColor Yellow }
 
 Write-Header "Installing Noteration for Windows..."
 
@@ -21,7 +22,6 @@ if (!(Get-Command "python" -ErrorAction SilentlyContinue)) {
     }
 }
 
-# Robust Python version check
 & $pythonExe -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"
 if ($LASTEXITCODE -ne 0) {
     $currentVer = & $pythonExe -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
@@ -35,26 +35,41 @@ if (!(Get-Command "git" -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-# 3. Setup Directories
+# 3. Detect latest release tag
+Write-Header "Checking latest release..."
+try {
+    $releaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/lilamr/noteration/releases/latest" -ErrorAction Stop
+    $latestTag = $releaseInfo.tag_name
+    $version = $latestTag.TrimStart('v')
+    $installRef = $latestTag
+    Write-Success "Latest release: $latestTag"
+} catch {
+    Write-Yellow "Warning: Could not detect latest release. Falling back to main branch."
+    $installRef = "main"
+    $version = "dev"
+}
+
+# 4. Setup Directories
 $installDir = Join-Path $env:LOCALAPPDATA "noteration"
-$binDir = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps" # Often already in PATH
+$binDir = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps"
 if (!(Test-Path $installDir)) { New-Item -ItemType Directory -Path $installDir | Out-Null }
 
-# 4. Create Virtual Environment
+# 5. Create Virtual Environment
 Write-Header "Creating virtual environment in $installDir..."
 & $pythonExe -m venv (Join-Path $installDir "venv") --clear
 
 $venvDir = Join-Path $installDir "venv"
-$venvPython = Join-Path $venvDir "Scripts\python.exe"
 $venvPip = Join-Path $venvDir "Scripts\pip.exe"
-$noterationExe = Join-Path $venvDir "Scripts\noteration.exe"
 
-# 5. Install Noteration
-Write-Header "Installing Noteration and dependencies..."
+# 6. Install Noteration
+Write-Header "Installing Noteration $version..."
 & $venvPip install --upgrade pip --quiet
-& $venvPip install "noteration[all] @ git+https://github.com/lilamr/noteration.git" --quiet
+& $venvPip install "noteration[all] @ git+https://github.com/lilamr/noteration.git@$installRef" --quiet
 
-# 6. Create Wrapper Batch Files
+# Log version locally
+Set-Content -Path (Join-Path $installDir "VERSION") -Value $version
+
+# 7. Create Wrapper Batch Files
 Write-Header "Creating wrapper scripts..."
 
 function Create-Wrapper ($cmdName, $isGui) {
@@ -77,23 +92,17 @@ set "PATH=$venvDir\Scripts;%PATH%"
 "@
     }
     $batchContent | Out-File -FilePath $wrapperPath -Encoding ascii
-
-    if (Test-Path $binDir) {
-        Copy-Item $wrapperPath (Join-Path $binDir "$cmdName.bat") -Force
-    }
     return $wrapperPath
 }
 
-$noterationWrapper = Create-Wrapper "noteration" $true
-$ntrWrapper = Create-Wrapper "ntr" $false
-$ntrApiWrapper = Create-Wrapper "ntr-api" $false
+Create-Wrapper "noteration" $true | Out-Null
+Create-Wrapper "ntr" $false | Out-Null
+Create-Wrapper "ntr-api" $false | Out-Null
 
-# 8. Create Shortcuts (Desktop & Start Menu)
+# 8. Create Shortcuts
 Write-Header "Creating shortcuts..."
 try {
     $WshShell = New-Object -ComObject WScript.Shell
-
-    # Download Icon for Windows
     $iconPath = Join-Path $installDir "icon.ico"
     Invoke-WebRequest -Uri "https://raw.githubusercontent.com/lilamr/noteration/main/noteration/assets/images/icon.ico" -OutFile $iconPath -ErrorAction SilentlyContinue
 
@@ -108,13 +117,11 @@ try {
     $desktopPath = [System.IO.Path]::Combine([Environment]::GetFolderPath("Desktop"), "Noteration.lnk")
     $startMenuPath = [System.IO.Path]::Combine([Environment]::GetFolderPath("Programs"), "Noteration.lnk")
 
-    Create-Lnk $desktopPath $noterationWrapper $iconPath
-    Create-Lnk $startMenuPath $noterationWrapper $iconPath
+    Create-Lnk $desktopPath (Join-Path $installDir "noteration.bat") $iconPath
+    Create-Lnk $startMenuPath (Join-Path $installDir "noteration.bat") $iconPath
 } catch {
-    Write-Host "Warning: Could not create shortcuts automatically. You can still run Noteration by typing 'noteration' in the terminal."
+    Write-Yellow "Warning: Could not create shortcuts automatically."
 }
 
-Write-Success "Noteration installed successfully!"
+Write-Success "Noteration $version installed successfully!"
 Write-Host "You can now run Noteration from your Desktop, Start Menu, or by typing 'noteration' in CMD/PowerShell."
-Write-Host ""
-Write-Host "Note: If 'noteration' command is not found, please restart your terminal."

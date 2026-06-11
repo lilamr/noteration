@@ -5,20 +5,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
-    QVBoxLayout,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
-    QPushButton,
-    QFileDialog,
-    QMessageBox,
     QMenu,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
 )
-from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QFont
 
 # File to store the list of previously opened vaults
 _VAULTS_FILE = Path.home() / ".noteration" / "vaults.toml"

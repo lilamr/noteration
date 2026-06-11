@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from noteration.literature.papis_bridge import PapisBridge, LiteratureEntry
+
+import pytest
+
+from noteration.literature.papis_bridge import LiteratureEntry, PapisBridge
 
 
 @pytest.fixture
