@@ -220,7 +220,7 @@ jobs:
 
       - name: Create .dmg
         run: |
-          pip install create-dmg
+          brew install create-dmg
           VERSION=${GITHUB_REF_NAME#v}
 
           create-dmg \
