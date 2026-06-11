@@ -87,8 +87,10 @@ jobs:
           Categories=Office;Education;Science;
           EOF
 
-          fakeroot dpkg-deb --build pkg \
-            noteration_${VERSION}_amd64.deb
+          # Build versioned
+          fakeroot dpkg-deb --build pkg noteration_${VERSION}_amd64.deb
+          # Salinan nama tetap untuk URL permanen
+          cp noteration_${VERSION}_amd64.deb noteration-latest-linux.deb
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -144,7 +146,7 @@ jobs:
           AppVersion=$version
           AppPublisher=lilamr
           AppPublisherURL=https://github.com/lilamr/noteration
-          DefaultDirName={autopf}Noteration
+          DefaultDirName={autopf}\Noteration
           DefaultGroupName=Noteration
           OutputDir=installer
           OutputBaseFilename=Noteration-Setup-$version
@@ -152,7 +154,7 @@ jobs:
           Compression=lzma
           SolidCompression=yes
           WizardStyle=modern
-          UninstallDisplayIcon={app}Noteration.exe
+          UninstallDisplayIcon={app}\Noteration.exe
 
           [Languages]
           Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -173,9 +175,16 @@ jobs:
           "@ | Out-File -FilePath noteration.iss -Encoding UTF8
 
       - name: Compile installer
+        shell: pwsh
         run: |
           mkdir installer
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" noteration.iss
+          
+          # Build versioned sudah otomatis dari Inno Setup
+          # Salinan nama tetap untuk URL permanen
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          Copy-Item "installer\Noteration-Setup-$version.exe" `
+                    "installer\noteration-latest-windows.exe"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -224,6 +233,7 @@ jobs:
           # Use GITHUB_REF_NAME directly to avoid scope issues
           VERSION=${GITHUB_REF_NAME#v}
 
+          # Build versioned
           create-dmg \
             --volname "Noteration $VERSION" \
             --volicon "noteration/assets/images/icon.icns" \
@@ -236,7 +246,8 @@ jobs:
             "Noteration-${VERSION}.dmg" \
             "dist/Noteration.app"
 
-          cp "Noteration-${VERSION}.dmg" noteration-latest-macos.dmg
+          # Salinan nama tetap untuk URL permanen
+          cp "Noteration-${VERSION}.dmg" "noteration-latest-macos.dmg"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -284,6 +295,9 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: List release assets
+        run: ls -lh release-assets/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -292,12 +306,24 @@ jobs:
           body: |
             ## Installation
 
-            | Platform | File | How to install |
+            ### One-liner (Linux & macOS)
+            ```bash
+            curl -fsSL https://noteration.app/install.sh | bash
+            ```
+
+            ### One-liner (Windows PowerShell)
+            ```powershell
+            irm https://noteration.app/install.ps1 | iex
+            ```
+
+            ### Direct download
+
+            | Platform | Versioned | Permanent URL |
             |---|---|---|
-            | Linux (Ubuntu/Debian) | `noteration_*_amd64.deb` | `sudo dpkg -i noteration_*_amd64.deb` |
-            | Windows | `Noteration-Setup-*.exe` | Run the installer |
-            | macOS | `Noteration-*.dmg` | Open and drag to Applications |
-            | Any (pip) | `noteration-*.whl` | `pip install noteration[all]` |
+            | Linux (Ubuntu/Debian) | `noteration_*_amd64.deb` | [noteration-latest-linux.deb](https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-linux.deb) |
+            | Windows | `Noteration-Setup-*.exe` | [noteration-latest-windows.exe](https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-windows.exe) |
+            | macOS | `Noteration-*.dmg` | [noteration-latest-macos.dmg](https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-macos.dmg) |
+            | Any (pip) | — | `pip install "noteration[all]"` |
 
             See [CHANGELOG.md](https://github.com/lilamr/noteration/blob/main/CHANGELOG.md) for what's new.
           files: release-assets/*
