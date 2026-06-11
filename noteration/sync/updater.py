@@ -18,8 +18,8 @@ from noteration import __version__
 REMOTE_PYPROJECT_URL = "https://raw.githubusercontent.com/lilamr/noteration/main/pyproject.toml"
 
 # Permanent download links for installers
-LATEST_LINUX_URL = "https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-linux-amd64.deb"
-LATEST_WINDOWS_URL = "https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-windows-x64.exe"
+LATEST_LINUX_URL = "https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-linux.deb"
+LATEST_WINDOWS_URL = "https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-windows.exe"
 LATEST_MACOS_URL = "https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-macos.dmg"
 
 
