@@ -148,7 +148,7 @@ jobs:
           DefaultGroupName=Noteration
           OutputDir=installer
           OutputBaseFilename=Noteration-Setup-$version
-          SetupIconFile=noterationassetsimagesicon.ico
+          SetupIconFile=noteration\assets\images\icon.ico
           Compression=lzma
           SolidCompression=yes
           WizardStyle=modern
