@@ -39,6 +39,7 @@ jobs:
       - name: Build executable with PyInstaller
         run: |
           pyinstaller \
+            --onefile \
             --name noteration \
             --icon noteration/assets/images/icon.png \
             --collect-all PySide6 \
@@ -58,15 +59,12 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           mkdir -p pkg/DEBIAN
-          mkdir -p pkg/opt/noteration
           mkdir -p pkg/usr/local/bin
           mkdir -p pkg/usr/share/applications
           
-          # Copy the entire distribution directory
-          cp -r dist/noteration/* pkg/opt/noteration/
-          
-          # Create symbolic link for the binary
-          ln -s /opt/noteration/noteration pkg/usr/local/bin/noteration
+          # Copy only the single binary
+          cp dist/noteration pkg/usr/local/bin/noteration
+          chmod +x pkg/usr/local/bin/noteration
 
           for size in 16 32 48 128 256 512; do
             ICON_PATH="pkg/usr/share/icons/hicolor/${size}x${size}/apps"
