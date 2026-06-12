@@ -14,7 +14,7 @@ jobs:
   # 1. LINUX — build .deb
   # ─────────────────────────────────────────────
   build-linux:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
 
@@ -39,8 +39,6 @@ jobs:
       - name: Build executable with PyInstaller
         run: |
           pyinstaller \
-            --onefile \
-            --windowed \
             --name noteration \
             --icon noteration/assets/images/icon.png \
             --collect-all PySide6 \
@@ -60,11 +58,15 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           mkdir -p pkg/DEBIAN
+          mkdir -p pkg/opt/noteration
           mkdir -p pkg/usr/local/bin
           mkdir -p pkg/usr/share/applications
           
-          cp dist/noteration pkg/usr/local/bin/noteration
-          chmod +x pkg/usr/local/bin/noteration
+          # Copy the entire distribution directory
+          cp -r dist/noteration/* pkg/opt/noteration/
+          
+          # Create symbolic link for the binary
+          ln -s /opt/noteration/noteration pkg/usr/local/bin/noteration
 
           for size in 16 32 48 128 256 512; do
             ICON_PATH="pkg/usr/share/icons/hicolor/${size}x${size}/apps"
@@ -77,7 +79,7 @@ jobs:
           Version: ${VERSION}
           Architecture: amd64
           Maintainer: lilamr <https://github.com/lilamr>
-          Depends: libgl1, libglib2.0-0, libdbus-1-3, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-randr0, libxcb-render-util0, libxcb-xinerama0, libxcb-xinput0, libxcb-xfixes0, libxcb-shape0, libxcb-cursor0, libxkbcommon-x11-0, libfontconfig1, libnss3, libasound2
+          Depends: libgl1, libglib2.0-0, libdbus-1-3, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-randr0, libxcb-render-util0, libxcb-xinerama0, libxcb-xinput0, libxcb-xfixes0, libxcb-shape0, libxcb-cursor0, libxkbcommon-x11-0, libfontconfig1, libnss3, libasound2, libgbm1, libxshmfence1
           Description: Research note-taking app
            Markdown editor, PDF viewer, Git sync, Papis integration.
           EOF
@@ -200,7 +202,7 @@ jobs:
   # 3. macOS — build .dmg
   # ─────────────────────────────────────────────
   build-macos:
-    runs-on: macos-14
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
 
