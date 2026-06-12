@@ -47,10 +47,13 @@ jobs:
             --collect-all shiboken6 \
             --collect-all papis \
             --collect-all pymupdf \
+            --collect-all citeproc \
+            --collect-all citeproc_styles \
             --hidden-import PySide6.QtSvg \
             --hidden-import PySide6.QtPdf \
             --hidden-import PySide6.QtPdfWidgets \
             --add-data "noteration/assets:noteration/assets" \
+            --add-data "noteration/docs:noteration/docs" \
             noteration/app.py
 
       - name: Package as .deb
@@ -59,19 +62,23 @@ jobs:
           mkdir -p pkg/DEBIAN
           mkdir -p pkg/usr/local/bin
           mkdir -p pkg/usr/share/applications
-          mkdir -p pkg/usr/share/icons/hicolor/256x256/apps
 
           cp dist/noteration pkg/usr/local/bin/noteration
           chmod +x pkg/usr/local/bin/noteration
 
-          cp noteration/assets/images/icon_256.png \
-             pkg/usr/share/icons/hicolor/256x256/apps/noteration.png
+          # Deploy icons of all sizes
+          for size in 16 32 48 128 256 512; do
+            ICON_PATH="pkg/usr/share/icons/hicolor/${size}x${size}/apps"
+            mkdir -p "$ICON_PATH"
+            cp "noteration/assets/images/icon_${size}.png" "$ICON_PATH/noteration.png"
+          done
 
           cat > pkg/DEBIAN/control << EOF
           Package: noteration
           Version: ${VERSION}
           Architecture: amd64
           Maintainer: lilamr <https://github.com/lilamr>
+          Depends: libgl1, libglib2.0-0, libdbus-1-3, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-randr0, libxcb-render-util0, libxcb-xinerama0, libxcb-xinput0, libxcb-xfixes0, libxcb-shape0, libxcb-cursor0, libxkbcommon-x11-0, libfontconfig1, libnss3, libasound2
           Description: Research note-taking app
            Markdown editor, PDF viewer, Git sync, Papis integration.
           EOF
@@ -87,10 +94,8 @@ jobs:
           Categories=Office;Education;Science;
           EOF
 
-          # Build versioned
-          fakeroot dpkg-deb --build pkg noteration_${VERSION}_amd64.deb
-          # Salinan nama tetap untuk URL permanen
-          cp noteration_${VERSION}_amd64.deb noteration-latest-linux.deb
+          fakeroot dpkg-deb --build pkg \
+            noteration_${VERSION}_amd64.deb
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -127,10 +132,13 @@ jobs:
             --collect-all shiboken6 `
             --collect-all papis `
             --collect-all pymupdf `
+            --collect-all citeproc `
+            --collect-all citeproc_styles `
             --hidden-import PySide6.QtSvg `
             --hidden-import PySide6.QtPdf `
             --hidden-import PySide6.QtPdfWidgets `
             --add-data "noteration/assets;noteration/assets" `
+            --add-data "noteration/docs;noteration/docs" `
             noteration/app.py
 
       - name: Install Inno Setup
@@ -146,15 +154,15 @@ jobs:
           AppVersion=$version
           AppPublisher=lilamr
           AppPublisherURL=https://github.com/lilamr/noteration
-          DefaultDirName={autopf}\Noteration
+          DefaultDirName={autopf}Noteration
           DefaultGroupName=Noteration
           OutputDir=installer
           OutputBaseFilename=Noteration-Setup-$version
-          SetupIconFile=noteration\assets\images\icon.ico
+          SetupIconFile=noterationassetsimagesicon.ico
           Compression=lzma
           SolidCompression=yes
           WizardStyle=modern
-          UninstallDisplayIcon={app}\Noteration.exe
+          UninstallDisplayIcon={app}Noteration.exe
 
           [Languages]
           Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -175,16 +183,9 @@ jobs:
           "@ | Out-File -FilePath noteration.iss -Encoding UTF8
 
       - name: Compile installer
-        shell: pwsh
         run: |
           mkdir installer
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" noteration.iss
-          
-          # Build versioned sudah otomatis dari Inno Setup
-          # Salinan nama tetap untuk URL permanen
-          $version = "${{ github.ref_name }}".TrimStart('v')
-          Copy-Item "installer\Noteration-Setup-$version.exe" `
-                    "installer\noteration-latest-windows.exe"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -220,20 +221,21 @@ jobs:
             --collect-all shiboken6 \
             --collect-all papis \
             --collect-all pymupdf \
+            --collect-all citeproc \
+            --collect-all citeproc_styles \
             --hidden-import PySide6.QtSvg \
             --hidden-import PySide6.QtPdf \
             --hidden-import PySide6.QtPdfWidgets \
             --add-data "noteration/assets:noteration/assets" \
+            --add-data "noteration/docs:noteration/docs" \
             --osx-bundle-identifier com.lilamr.noteration \
             noteration/app.py
 
       - name: Create .dmg
         run: |
-          brew install create-dmg
-          # Use GITHUB_REF_NAME directly to avoid scope issues
+          pip install create-dmg
           VERSION=${GITHUB_REF_NAME#v}
 
-          # Build versioned
           create-dmg \
             --volname "Noteration $VERSION" \
             --volicon "noteration/assets/images/icon.icns" \
@@ -246,8 +248,8 @@ jobs:
             "Noteration-${VERSION}.dmg" \
             "dist/Noteration.app"
 
-          # Salinan nama tetap untuk URL permanen
-          cp "Noteration-${VERSION}.dmg" "noteration-latest-macos.dmg"
+      - name: Create latest alias
+        run: cp Noteration-${VERSION}.dmg noteration-latest-macos.dmg
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -295,9 +297,6 @@ jobs:
           path: release-assets
           merge-multiple: true
 
-      - name: List release assets
-        run: ls -lh release-assets/
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -306,24 +305,12 @@ jobs:
           body: |
             ## Installation
 
-            ### One-liner (Linux & macOS)
-            ```bash
-            curl -fsSL https://noteration.app/install.sh | bash
-            ```
-
-            ### One-liner (Windows PowerShell)
-            ```powershell
-            irm https://noteration.app/install.ps1 | iex
-            ```
-
-            ### Direct download
-
-            | Platform | Versioned | Permanent URL |
+            | Platform | File | How to install |
             |---|---|---|
-            | Linux (Ubuntu/Debian) | `noteration_*_amd64.deb` | [noteration-latest-linux.deb](https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-linux.deb) |
-            | Windows | `Noteration-Setup-*.exe` | [noteration-latest-windows.exe](https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-windows.exe) |
-            | macOS | `Noteration-*.dmg` | [noteration-latest-macos.dmg](https://github.com/lilamr/noteration/releases/latest/download/noteration-latest-macos.dmg) |
-            | Any (pip) | — | `pip install "noteration[all]"` |
+            | Linux (Ubuntu/Debian) | `noteration_*_amd64.deb` | `sudo dpkg -i noteration_*_amd64.deb` |
+            | Windows | `Noteration-Setup-*.exe` | Run the installer |
+            | macOS | `Noteration-*.dmg` | Open and drag to Applications |
+            | Any (pip) | `noteration-*.whl` | `pip install noteration[all]` |
 
             See [CHANGELOG.md](https://github.com/lilamr/noteration/blob/main/CHANGELOG.md) for what's new.
           files: release-assets/*
