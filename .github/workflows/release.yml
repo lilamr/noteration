@@ -62,11 +62,10 @@ jobs:
           mkdir -p pkg/DEBIAN
           mkdir -p pkg/usr/local/bin
           mkdir -p pkg/usr/share/applications
-
+          
           cp dist/noteration pkg/usr/local/bin/noteration
           chmod +x pkg/usr/local/bin/noteration
 
-          # Deploy icons of all sizes
           for size in 16 32 48 128 256 512; do
             ICON_PATH="pkg/usr/share/icons/hicolor/${size}x${size}/apps"
             mkdir -p "$ICON_PATH"
@@ -96,6 +95,7 @@ jobs:
 
           fakeroot dpkg-deb --build pkg \
             noteration_${VERSION}_amd64.deb
+          cp noteration_${VERSION}_amd64.deb noteration-latest-linux-amd64.deb
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -154,15 +154,15 @@ jobs:
           AppVersion=$version
           AppPublisher=lilamr
           AppPublisherURL=https://github.com/lilamr/noteration
-          DefaultDirName={autopf}Noteration
+          DefaultDirName={autopf}\Noteration
           DefaultGroupName=Noteration
           OutputDir=installer
           OutputBaseFilename=Noteration-Setup-$version
-          SetupIconFile=noterationassetsimagesicon.ico
+          SetupIconFile=noteration\assets\images\icon.ico
           Compression=lzma
           SolidCompression=yes
           WizardStyle=modern
-          UninstallDisplayIcon={app}Noteration.exe
+          UninstallDisplayIcon={app}\Noteration.exe
 
           [Languages]
           Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -183,9 +183,12 @@ jobs:
           "@ | Out-File -FilePath noteration.iss -Encoding UTF8
 
       - name: Compile installer
+        shell: pwsh        
         run: |
-          mkdir installer
+          if (!(Test-Path installer)) { mkdir installer }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" noteration.iss
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          cp installer/Noteration-Setup-$version.exe installer/noteration-latest-windows-x64.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -204,6 +207,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Install system dependencies
+        run: brew install create-dmg
 
       - name: Install Python dependencies
         run: |
@@ -233,7 +239,6 @@ jobs:
 
       - name: Create .dmg
         run: |
-          pip install create-dmg
           VERSION=${GITHUB_REF_NAME#v}
 
           create-dmg \
@@ -248,8 +253,7 @@ jobs:
             "Noteration-${VERSION}.dmg" \
             "dist/Noteration.app"
 
-      - name: Create latest alias
-        run: cp Noteration-${VERSION}.dmg noteration-latest-macos.dmg
+          cp Noteration-${VERSION}.dmg noteration-latest-macos.dmg
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
