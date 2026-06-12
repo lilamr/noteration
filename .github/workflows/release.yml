@@ -52,7 +52,7 @@ jobs:
             --hidden-import PySide6.QtPdfWidgets \
             --add-data "noteration/assets:noteration/assets" \
             --add-data "noteration/docs:noteration/docs" \
-            noteration/app.py
+            noteration/__main__.py
 
       - name: Package as .deb
         run: |
@@ -66,15 +66,8 @@ jobs:
           cp -r dist/noteration/* pkg/opt/noteration/
           
           # Create a WRAPPER SCRIPT instead of a symlink
-          # This script will print errors if the app fails
-          cat > pkg/usr/local/bin/noteration << 'EOF'
-          #!/bin/bash
-          export LD_LIBRARY_PATH=/opt/noteration:$LD_LIBRARY_PATH
-          /opt/noteration/noteration "$@"
-          if [ $? -ne 0 ]; then
-            echo "Application exited with error code $?"
-          fi
-          EOF
+          # This script ensures libraries in /opt are found and captures errors
+          printf '#!/bin/bash\nexport LD_LIBRARY_PATH=/opt/noteration:$LD_LIBRARY_PATH\n/opt/noteration/noteration "$@"\nif [ $? -ne 0 ]; then echo "Application exited with error code $?"; fi\n' > pkg/usr/local/bin/noteration
           
           chmod +x pkg/usr/local/bin/noteration
           chmod +x pkg/opt/noteration/noteration
@@ -152,7 +145,7 @@ jobs:
             --hidden-import PySide6.QtPdfWidgets `
             --add-data "noteration/assets;noteration/assets" `
             --add-data "noteration/docs;noteration/docs" `
-            noteration/app.py
+            noteration/__main__.py
 
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
@@ -250,7 +243,7 @@ jobs:
             --add-data "noteration/assets:noteration/assets" \
             --add-data "noteration/docs:noteration/docs" \
             --osx-bundle-identifier com.lilamr.noteration \
-            noteration/app.py
+            noteration/__main__.py
 
       - name: Create .dmg
         run: |

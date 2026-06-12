@@ -59,31 +59,21 @@ noteration/
 
 Choose the quickest way to get Noteration running on your system.
 
-### 📦 Download Installer (Recommended)
+### 🐧 Linux & 🍎 macOS (One-liner)
 
-Get the latest stable version from the [**GitHub Releases**](https://github.com/lilamr/noteration/releases/latest) page.
-
-| Platform | File | How to install |
-|---|---|---|
-| **Linux** (Ubuntu/Debian) | `.deb` | `sudo dpkg -i noteration_*.deb` |
-| **Windows** | `.exe` | Run the `Noteration-Setup-*.exe` |
-| **macOS** | `.dmg` | Open and drag `Noteration.app` to Applications |
-
----
-
-### 🚀 One-liner Installers
-
-Alternatively, use these commands for a quick scripted setup:
-
-#### 🐧 Linux & 🍎 macOS
+Open your terminal and run:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/lilamr/noteration/main/install.sh | bash
 ```
+*On macOS, this will create a **Noteration.app** in your Applications folder and add it to your Launchpad.*
 
-#### 🪟 Windows (PowerShell)
+### 🪟 Windows (One-liner)
+
+Open PowerShell and run:
 ```powershell
 irm https://raw.githubusercontent.com/lilamr/noteration/main/install.ps1 | iex
 ```
+*This will create a desktop shortcut and a Start Menu entry for easy access.*
 
 ---
 
@@ -118,9 +108,10 @@ pip install -e ".[all]"
 | File watcher (live reload) | `pip install -e ".[watch]"` |
 | Markdown & Math preview | `pip install -e ".[markdown]"` |
 
+
 ---
 
-#### 4. Running the Application
+## Running the Application
 
 ```bash
 # Via entry point (after pip install -e .)
@@ -130,37 +121,43 @@ noteration
 python -m noteration
 ```
 
+On first run, a **Select Vault** dialog will appear to choose or create a new research vault.
+
 ---
 
 ## Uninstallation
 
-If you need to remove Noteration, follow the steps for your installation method:
+If you need to remove Noteration, follow the steps for your operating system:
 
-### 📦 Binary Installer
-- **Linux**: `sudo apt remove noteration`
-- **Windows**: Use **Add or Remove Programs** in Settings, or run the `unins000.exe` in the installation folder.
-- **macOS**: Delete `Noteration.app` from your **Applications** folder.
-
-### 🚀 One-liner Script (Manual removal)
-
-#### 🐧 Linux
+### 🐧 Linux
 ```bash
+# Remove installation directory and venv
 rm -rf ~/.local/share/noteration
+
+# Remove wrapper script
 rm ~/.local/bin/noteration
+
+# Remove desktop entry and icon
 rm ~/.local/share/applications/noteration.desktop
-rm -rf ~/.local/share/icons/hicolor/*/apps/noteration.png
+rm ~/.local/share/icons/noteration.png
 ```
 
-#### 🍎 macOS
+### 🍎 macOS
 ```bash
+# Remove App Bundle
 rm -rf ~/Applications/Noteration.app
+
+# Remove installation directory and binary
 rm -rf ~/.local/share/noteration
 rm ~/.local/bin/noteration
 ```
 
-#### 🪟 Windows (PowerShell)
+### 🪟 Windows (PowerShell)
 ```powershell
+# Remove installation directory
 Remove-Item -Recurse -Force "$env:LOCALAPPDATA\noteration"
+
+# Remove shortcuts
 Remove-Item "$env:USERPROFILE\Desktop\Noteration.lnk" -ErrorAction SilentlyContinue
 Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Noteration.lnk" -ErrorAction SilentlyContinue
 ```
@@ -172,7 +169,7 @@ Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Noteration.lnk" 
 
 ## Vault Structure
 
-On first run, a **Select Vault** dialog will appear to choose or create a new research vault. A Noteration vault is a standard directory that remains fully functional even without the app. 
+A Noteration vault is a standard directory that remains fully functional even without the app.
 
 ```
 ~/research-vault/
@@ -197,6 +194,9 @@ Noteration supports transparent vault encryption using the [age](https://age-enc
 ---
 
 ## CLI & REST API
+
+> [!IMPORTANT]
+> The `ntr` and `ntr-api` commands are **only available** if you install Noteration using the **One-liner** scripts or **Manual (pip)** method. The pre-compiled binary installers (.deb, .exe, .dmg) only include the GUI application.
 
 Noteration provides powerful terminal and programmatic access via `ntr` and `ntr-api`.
 

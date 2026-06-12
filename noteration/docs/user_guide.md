@@ -1062,6 +1062,9 @@ A: Place `.csl` file in the vault's `.noteration/` folder, then select from drop
 **Q: Is encryption safe for sensitive research data?**  
 A: Encryption uses the `age` tool which implements modern cryptography (ChaCha20-Poly1305). Security depends on secure storage of the private key. Warning! — always keep data backup before encrypting vault for the first time.
 
+**Q: Why are `ntr` or `ntr-api` commands not found on my system?**  
+A: These commands are only available if you installed Noteration via the **One-liner script** (curl/bash or powershell) or **manual pip install**. The binary installers (Windows `.exe` installer, Linux `.deb`, or macOS `.dmg`) only provide the main GUI application to keep the package size smaller and avoid conflicts. If you need the CLI/API, please use the one-liner installation method.
+
 **Q: Is sync supported for private Git repositories?**  
 A: Yes. Noteration doesn't care if repository is public or private — Git handles authentication. Use SSH key or GitHub Personal Access Token for passwordless sync.
 
