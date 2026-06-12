@@ -39,7 +39,6 @@ jobs:
       - name: Build executable with PyInstaller
         run: |
           pyinstaller \
-            --onefile \
             --name noteration \
             --icon noteration/assets/images/icon.png \
             --collect-all PySide6 \
@@ -59,12 +58,26 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           mkdir -p pkg/DEBIAN
+          mkdir -p pkg/opt/noteration
           mkdir -p pkg/usr/local/bin
           mkdir -p pkg/usr/share/applications
           
-          # Copy only the single binary
-          cp dist/noteration pkg/usr/local/bin/noteration
+          # Copy the entire distribution directory
+          cp -r dist/noteration/* pkg/opt/noteration/
+          
+          # Create a WRAPPER SCRIPT instead of a symlink
+          # This script will print errors if the app fails
+          cat > pkg/usr/local/bin/noteration << 'EOF'
+          #!/bin/bash
+          export LD_LIBRARY_PATH=/opt/noteration:$LD_LIBRARY_PATH
+          /opt/noteration/noteration "$@"
+          if [ $? -ne 0 ]; then
+            echo "Application exited with error code $?"
+          fi
+          EOF
+          
           chmod +x pkg/usr/local/bin/noteration
+          chmod +x pkg/opt/noteration/noteration
 
           for size in 16 32 48 128 256 512; do
             ICON_PATH="pkg/usr/share/icons/hicolor/${size}x${size}/apps"
