@@ -829,15 +829,31 @@ def _md_to_html(
     mathjax_url = (assets_js / "tex-mml-chtml.js").as_uri()
 
     if _HAS_MARKDOWN:
-        body = _markdown_lib.markdown(
-            text,
-            extensions=_MARKDOWN_EXTENSIONS,
-            extension_configs={
-                "pymdownx.arithmatex": {
-                    "generic": True,
-                }
-            },
-        )
+        try:
+            body = _markdown_lib.markdown(
+                text,
+                extensions=_MARKDOWN_EXTENSIONS,
+                extension_configs={
+                    "pymdownx.arithmatex": {
+                        "generic": True,
+                    }
+                },
+            )
+        except (ImportError, ModuleNotFoundError) as e:
+            logger.error(f"Failed to render Markdown with extensions: {e}")
+            # Try again with only standard extensions if a specific extension failed to load
+            try:
+                # Filter out extensions that might be causing the failure (dynamic loading)
+                # If it's a ModuleNotFoundError for 'pymdownx', we remove all pymdownx extensions
+                safe_extensions = [
+                    ext for ext in _MARKDOWN_EXTENSIONS if not ext.startswith("pymdownx")
+                ]
+                body = _markdown_lib.markdown(text, extensions=safe_extensions)
+                logger.info("Successfully rendered Markdown using fallback extensions.")
+            except Exception as e2:
+                logger.error(f"Fallback Markdown rendering failed: {e2}")
+                import html as _html
+                body = f"<pre>{_html.escape(text)}</pre>"
     else:
         import html as _html
 
@@ -855,9 +871,9 @@ def _md_to_html(
         unique_keys = list(set(c.key for c in raw_citations))
         entries = []
         for k in unique_keys:
-            e = vault.papis.get(k)
-            if e:
-                entries.append(e)
+            entry = vault.papis.get(k)
+            if entry:
+                entries.append(entry)
 
         # Render them as a batch
         if entries:

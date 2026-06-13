@@ -47,6 +47,8 @@ jobs:
             --collect-all pymupdf \
             --collect-all citeproc \
             --collect-all citeproc_styles \
+            --collect-all pymdownx \
+            --collect-all markdown \
             --hidden-import PySide6.QtSvg \
             --hidden-import PySide6.QtPdf \
             --hidden-import PySide6.QtPdfWidgets \
@@ -130,7 +132,6 @@ jobs:
       - name: Build executable with PyInstaller
         run: |
           pyinstaller `
-            --onefile `
             --windowed `
             --name Noteration `
             --icon noteration/assets/images/icon.ico `
@@ -140,6 +141,8 @@ jobs:
             --collect-all pymupdf `
             --collect-all citeproc `
             --collect-all citeproc_styles `
+            --collect-all pymdownx `
+            --collect-all markdown `
             --hidden-import PySide6.QtSvg `
             --hidden-import PySide6.QtPdf `
             --hidden-import PySide6.QtPdfWidgets `
@@ -177,7 +180,7 @@ jobs:
           Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"
 
           [Files]
-          Source: "dist\Noteration.exe"; DestDir: "{app}"; Flags: ignoreversion
+          Source: "dist\Noteration\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
           [Icons]
           Name: "{group}\Noteration"; Filename: "{app}\Noteration.exe"
@@ -237,6 +240,8 @@ jobs:
             --collect-all pymupdf \
             --collect-all citeproc \
             --collect-all citeproc_styles \
+            --collect-all pymdownx \
+            --collect-all markdown \
             --hidden-import PySide6.QtSvg \
             --hidden-import PySide6.QtPdf \
             --hidden-import PySide6.QtPdfWidgets \
@@ -321,7 +326,7 @@ jobs:
             |---|---|---|
             | Linux (Ubuntu/Debian) | `noteration_*_amd64.deb` | `sudo dpkg -i noteration_*_amd64.deb` |
             | Windows | `Noteration-Setup-*.exe` | Run the installer |
-            | macOS | `Noteration-*.dmg` | Open and drag to Applications |
+            | macOS | `Noteration-*.dmg` | Drag to Applications, then run:<br>`xattr -cr /Applications/Noteration.app` |
             | Any (pip) | `noteration-*.whl` | `pip install noteration[all]` |
 
             See [CHANGELOG.md](https://github.com/lilamr/noteration/blob/main/CHANGELOG.md) for what's new.

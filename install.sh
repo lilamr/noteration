@@ -166,6 +166,8 @@ EOF
 </plist>
 EOF
     touch "$APP_DIR"
+    # Remove quarantine attribute to avoid Gatekeeper issues for unsigned apps
+    xattr -cr "$APP_DIR" 2>/dev/null || true
     echo -e "${GREEN}==>${NC} $APP_NAME.app created in ~/Applications."
 fi
 
