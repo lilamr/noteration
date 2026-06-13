@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed unused variable lint error in `editor_tab.py`.
 
 ### Changed
-- Citations context menu streamlined to only show 'Open Literature'.
+- Citations context menu streamlined to show 'Open Literature'.
 - install.sh and install.ps1 now auto-detect latest release tag from GitHub API
 - macOS Info.plist version no longer hardcoded
 - GitHub Actions release workflow now builds .deb, .exe, and .dmg installers

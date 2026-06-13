@@ -49,6 +49,13 @@ jobs:
             --collect-all citeproc_styles \
             --collect-all pymdownx \
             --collect-all markdown \
+            --collect-all pyrage \
+            --collect-all networkx \
+            --collect-all watchdog \
+            --collect-all fastapi \
+            --collect-all uvicorn \
+            --collect-all pydantic \
+            --collect-all thefuzz \
             --hidden-import PySide6.QtSvg \
             --hidden-import PySide6.QtPdf \
             --hidden-import PySide6.QtPdfWidgets \
@@ -143,6 +150,13 @@ jobs:
             --collect-all citeproc_styles `
             --collect-all pymdownx `
             --collect-all markdown `
+            --collect-all pyrage `
+            --collect-all networkx `
+            --collect-all watchdog `
+            --collect-all fastapi `
+            --collect-all uvicorn `
+            --collect-all pydantic `
+            --collect-all thefuzz `
             --hidden-import PySide6.QtSvg `
             --hidden-import PySide6.QtPdf `
             --hidden-import PySide6.QtPdfWidgets `
@@ -242,6 +256,13 @@ jobs:
             --collect-all citeproc_styles \
             --collect-all pymdownx \
             --collect-all markdown \
+            --collect-all pyrage \
+            --collect-all networkx \
+            --collect-all watchdog \
+            --collect-all fastapi \
+            --collect-all uvicorn \
+            --collect-all pydantic \
+            --collect-all thefuzz \
             --hidden-import PySide6.QtSvg \
             --hidden-import PySide6.QtPdf \
             --hidden-import PySide6.QtPdfWidgets \
