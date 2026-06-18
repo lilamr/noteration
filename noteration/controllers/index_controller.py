@@ -343,8 +343,10 @@ class IndexController(QObject):
         self._safe_stop_thread("_scan_thread")
         self._safe_stop_thread("_graph_thread")
 
-        self._scan_worker = None
-        self._graph_worker = None
+        if self._scan_thread is None:
+            self._scan_worker = None
+        if self._graph_thread is None:
+            self._graph_worker = None
 
         # 3. Save state
         self.pdf_index.save()
