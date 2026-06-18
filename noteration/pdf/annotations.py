@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Callable, Literal
 
 from noteration.logger import get_logger
+from noteration.pdf.reading_state import ReadingStateStore
 
 logger = get_logger(__name__)
 
@@ -54,8 +55,6 @@ class DocumentAnnotations:
     pdf_hash: str
     pdf_path_relative: str
     annotations: list[Annotation] = field(default_factory=list)
-    last_page: int = 0
-    reading_progress: float = 0.0
 
     # ------------------------------------------------------------------
     # CRUD Operations
@@ -145,8 +144,6 @@ class DocumentAnnotations:
             "pdf_hash": self.pdf_hash,
             "pdf_path_relative": self.pdf_path_relative,
             "annotations": [asdict(a) for a in self.annotations],
-            "last_page": self.last_page,
-            "reading_progress": self.reading_progress,
         }
 
     @classmethod
@@ -158,8 +155,6 @@ class DocumentAnnotations:
             pdf_hash=data.get("pdf_hash", ""),
             pdf_path_relative=data.get("pdf_path_relative", ""),
             annotations=anns,
-            last_page=data.get("last_page", 0),
-            reading_progress=data.get("reading_progress", 0.0),
         )
 
 
@@ -176,6 +171,7 @@ class AnnotationStore:
         self._annotations_dir.mkdir(parents=True, exist_ok=True)
         self._images_dir = self._annotations_dir / "images"
         self._images_dir.mkdir(parents=True, exist_ok=True)
+        self._reading_state_store = ReadingStateStore(vault_path)
         self._cache: dict[str, DocumentAnnotations] = {}
         self._lock = threading.RLock()
 
@@ -197,7 +193,20 @@ class AnnotationStore:
             if json_path.exists():
                 with open(json_path) as f:
                     data = json.load(f)
-                doc = DocumentAnnotations.from_dict(data)
+                
+                # Migration: If old format (has last_page/reading_progress), migrate to ReadingStateStore
+                if "last_page" in data or "reading_progress" in data:
+                    self._reading_state_store.save_state(
+                        papis_key,
+                        data.get("last_page", 0),
+                        data.get("reading_progress", 0.0)
+                    )
+                    # Save cleaned annotation file
+                    doc = DocumentAnnotations.from_dict(data)
+                    self._cache[papis_key] = doc
+                    self.save(papis_key)
+                else:
+                    doc = DocumentAnnotations.from_dict(data)
             else:
                 doc = DocumentAnnotations(
                     papis_key=papis_key,
@@ -262,11 +271,7 @@ class AnnotationStore:
 
     def update_metadata(self, papis_key: str, last_page: int, reading_progress: float) -> None:
         """Update document reading metadata."""
-        with self._lock:
-            doc = self.load(papis_key)
-            doc.last_page = last_page
-            doc.reading_progress = reading_progress
-            self.save(papis_key)
+        self._reading_state_store.save_state(papis_key, last_page, reading_progress)
 
     # ------------------------------------------------------------------
     # Helper: create new highlight

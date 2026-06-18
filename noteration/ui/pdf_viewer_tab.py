@@ -944,7 +944,8 @@ class PdfViewerTab(QWidget):
         self._page_spin.setMaximum(max(1, self._total_pages))
         self._lbl_total.setText(f"/ {self._total_pages}")
 
-        last = self._doc_ann.last_page
+        state = self._store._reading_state_store.get_state(self.papis_key)
+        last = state["last_page"]
         if 0 < last < self._total_pages:
             self._current_page = last
             self._page_spin.blockSignals(True)
@@ -1014,9 +1015,7 @@ class PdfViewerTab(QWidget):
 
     def _save_progress(self, page_idx: int) -> None:
         progress = (page_idx + 1) / max(1, self._total_pages)
-        self._doc_ann.last_page = page_idx
-        self._doc_ann.reading_progress = progress
-        self._store.save(self.papis_key)
+        self._store._reading_state_store.save_state(self.papis_key, page_idx, progress)
         self._update_progress()
 
     # ── Zoom ──────────────────────────────────────────────────────────
@@ -1136,7 +1135,8 @@ class PdfViewerTab(QWidget):
         self.annotation_count_changed.emit(count)
 
     def _update_progress(self) -> None:
-        pct = int(self._doc_ann.reading_progress * 100)
+        state = self._store._reading_state_store.get_state(self.papis_key)
+        pct = int(state["reading_progress"] * 100)
         self._progress_bar.setValue(pct)
         self._progress_bar.setFormat(f"{pct}%")
         self._lbl_progress.setText(f"Page {self._current_page + 1} / {self._total_pages}")

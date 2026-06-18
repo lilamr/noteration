@@ -837,6 +837,7 @@ class GitRepo:
                     ".noteration/pdf_index.json\n"
                     ".noteration/pdf_index.json.age\n"
                     ".noteration/db.sqlite\n"
+                    ".noteration/reading_state/\n"
                     "*.log\n"
                     "literature/**/*.pdf\n"
                     "__pycache__/\n"
