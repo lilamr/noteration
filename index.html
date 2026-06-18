@@ -562,6 +562,7 @@
       <div class="changelog-nav reveal">
         <div style="font-family:'DM Mono',monospace;font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;">Versions</div>
         <button class="cl-version-btn active">v2.2.0 · Latest</button>
+        <button class="cl-version-btn">v2.1.0</button>
         <button class="cl-version-btn">v2.0.0</button>
         <button class="cl-version-btn">v1.2.0</button>
         <button class="cl-version-btn">v1.1.2</button>
@@ -580,19 +581,38 @@
 
           <div class="cl-section-title">Added</div>
           <ul class="cl-list">
+            <li><strong>Standardize background tasks</strong> — Introduced <code>BaseWorker</code> class to standardize background tasks and signal handling.</li>
+          </ul>
+
+          <div class="cl-section-title">Fixed</div>
+          <ul class="cl-list">
+            <li><strong>Asynchronous PDF Rendering</strong> — PDF pages are now rendered asynchronously in a background thread.</li>
+          </ul>
+
+          <div class="cl-section-title">Changed</div>
+          <ul class="cl-list">
+            <li><strong>Architectural Refactoring</strong> — Decomposed massive <code>editor_tab.py</code> into focused modules.</li>
+            <li><strong>API Routing</strong> — Migrated the REST API to use FastAPI's <code>APIRouter</code> for better modularity.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry reveal">
+          <div class="cl-header">
+            <h3 class="cl-ver">v2.1.0</h3>
+            <div class="cl-date">2026-06-11</div>
+          </div>
+
+          <div class="cl-section-title">Added</div>
+          <ul class="cl-list">
             <li><strong>Citation Locators</strong> — Added support for citation locators (e.g., <code>@key[p.10]</code>) in Markdown editor.</li>
             <li><strong>Deep Linking</strong> — Clicking literature search results or right-clicking citations in the sidebar now opens and focuses the Literature tab directly to the target document.</li>
             <li><strong>Search Dialog Behavior</strong> — The search dialog now remains open after selecting a result, allowing for continuous searching without re-opening.</li>
           </ul>
 
-          <div class="cl-section-title">Fixed</div>
-          <ul class="cl-list">
-            <li>Fixed unused variable lint error in <code>editor_tab.py</code>.</li>
-          </ul>
-
           <div class="cl-section-title">Changed</div>
           <ul class="cl-list">
-            <li>Citations context menu streamlined to only show 'Open Literature'.</li>
+            <li><strong>Citations context</strong> — New menu streamlined to show 'Open Literature'.</li>
+            <li><strong>Standalone installer</strong> — GitHub Actions release workflow now builds .deb, .exe, and .dmg installers.</li>
           </ul>
         </div>
 
