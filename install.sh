@@ -84,7 +84,7 @@ source "$INSTALL_DIR/venv/bin/activate"
 
 echo -e "${BLUE}==>${NC} Installing Noteration ${VERSION}..."
 pip install --upgrade pip --quiet
-pip install "noteration[all] @ git+https://github.com/${REPO}.git @${INSTALL_REF}" --quiet
+pip install "noteration[all] @ git+https://github.com/${REPO}.git@${INSTALL_REF}" --quiet
 
 # Simpan versi yang terinstall untuk referensi
 echo "$VERSION" > "$INSTALL_DIR/VERSION"
