@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QColor, QFont, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QDialog,
@@ -33,6 +33,7 @@ from noteration.sync.git_engine import (
     SyncStatus,
     SyncStrategy,
 )
+from noteration.utils.qt_helpers import BaseWorker
 
 logger = get_logger(__name__)
 
@@ -40,7 +41,7 @@ logger = get_logger(__name__)
 # ── Worker ────────────────────────────────────────────────────────────────
 
 
-class SyncWorker(QObject):
+class SyncWorker(BaseWorker):
     log_line = Signal(str, str)  # (text, level)
     finished = Signal(object)  # SyncResult
 
@@ -54,9 +55,11 @@ class SyncWorker(QObject):
         self._op = "sync"
 
     def set_operation(self, op: str) -> None:
+        """Set the current git operation."""
         self._op = op
 
     def run(self) -> None:
+        """Execute the git synchronization operation."""
         def log(msg: str) -> None:
             lvl = (
                 "ok"
@@ -181,6 +184,7 @@ class SetRemoteDialog(QDialog):
         lay.addRow(btns)
 
     def result_remote(self) -> tuple[str, str]:
+        """Return the configured remote name and URL."""
         return self.name_edit.text().strip(), self.url_edit.text().strip()
 
 
@@ -195,6 +199,7 @@ class LogEdit(QPlainTextEdit):
         self.setStyleSheet("background: #1a1a1d; color: #e8e4da; border: 1px solid #2a2a2e;")
 
     def append_log(self, text: str, level: str = "info"):
+        """Append a formatted log message to the log display."""
         fmt = QTextCharFormat()
         if level == "error":
             fmt.setForeground(QColor("#ff5f57"))
@@ -224,6 +229,7 @@ class SyncTab(QWidget):
         self._refresh_status()
 
     def _setup_ui(self):
+        """Initialize the synchronization tab UI components."""
         layout = QVBoxLayout(self)
 
         # 1. Status Group
@@ -273,6 +279,7 @@ class SyncTab(QWidget):
         layout.addWidget(self._log_edit)
 
     def _refresh_status(self):
+        """Refresh the displayed Git status."""
         repo = self.vault.core.git_repo
         if not repo:
             self._lbl_branch.setText("Not a Git repository")
@@ -289,15 +296,18 @@ class SyncTab(QWidget):
         self._btn_sync.setText("Sync Now")
 
     def start_sync(self):
+        """Initiate the synchronization process."""
         if not self.vault.core.git_repo:
             self._start_op("init", "Initializing...")
             return
         self._start_op("sync", "Synchronizing...")
 
     def _on_sync(self):
+        """Handle sync button click."""
         self.start_sync()
 
     def _start_op(self, op: str, status_text: str):
+        """Start a background synchronization operation."""
         if self._thread and self._thread.isRunning():
             return
 
@@ -306,7 +316,7 @@ class SyncTab(QWidget):
         self._btn_sync.setText(f"{status_text}...")
         self._btn_sync.setStyleSheet("font-weight: bold; background: #6c757d; color: white;")
 
-        self._thread = QThread()
+        self._thread = QThread(self)
         self._worker = SyncWorker(self.vault)
         self._worker.set_operation(op)
         self._worker.moveToThread(self._thread)
@@ -318,9 +328,14 @@ class SyncTab(QWidget):
         self._thread.start()
 
     def _on_finished(self, result: SyncResult):
+        """Handle synchronization operation completion."""
         if self._thread:
+            self._thread.finished.connect(self._thread.deleteLater)
+            if hasattr(self, "_worker") and self._worker:
+                self._worker.deleteLater()
             self._thread.quit()
-            self._thread.wait()
+            self._thread = None
+            self._worker = None
 
         # 1. Handle Conflicts
         if result.status == SyncStatus.CONFLICT and result.conflicts:
@@ -361,15 +376,17 @@ class SyncTab(QWidget):
             logger.info("SyncTab: Stopping background sync thread...")
             self._thread.requestInterruption()
             self._thread.quit()
-            if not self._thread.wait(5000):
-                logger.warning("SyncTab: Sync thread failed to stop within timeout.")
-        
-        # We don't set to None immediately if we just called wait to be extra safe
-        # but in shutdown it is generally okay as the object is being destroyed.
-        self._thread = None
-        self._worker = None
+            if self._thread.wait(5000):
+                self._thread = None
+                self._worker = None
+            else:
+                logger.error("SyncTab: Sync thread failed to stop. Holding reference to prevent crash.")
+        else:
+            self._thread = None
+            self._worker = None
 
     def _on_set_remote(self):
+        """Handle set remote button click."""
         repo = self.vault.core.git_repo
 
         # If no repo exists, current remotes is empty

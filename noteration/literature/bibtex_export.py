@@ -84,12 +84,7 @@ def _escape_bibtex(value: str) -> str:
 
 
 def _format_author_bibtex(author: Any) -> str:
-    """Convert author field to BibTeX format: "Family, Given and Family2, Given2".
-    Supports three input formats produced by Papis:
-      - str   : already in any format, return as is
-      - list[str]  : join with " and "
-      - list[dict] : convert each dict {family, given} → "Family, Given"
-    """
+    """Convert author field to BibTeX format: 'Family, Given and Family2, Given2'."""
     if not author:
         return ""
     if isinstance(author, str):
@@ -181,6 +176,7 @@ class BibtexExporter:
     """Export Papis library to a .bib file."""
 
     def __init__(self, bridge: PapisBridge) -> None:
+        """Initialize the exporter with a Papis library bridge."""
         self._bridge = bridge
 
     # ── Public API ────────────────────────────────────────────────────
@@ -241,6 +237,7 @@ class BibtexExporter:
     # ── Internal ──────────────────────────────────────────────────────
 
     def _write(self, entries: list[LiteratureEntry], output_path: Path) -> int:
+        """Write the formatted BibTeX entries to the output file."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         header = [

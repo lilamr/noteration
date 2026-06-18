@@ -1,4 +1,4 @@
-"""Noteration: Research Literature Note-Taking App
+"""Noteration: Research literature note-taking app.
 """
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"

@@ -1,3 +1,6 @@
+"""Security utilities for path validation and safety checks.
+"""
+
 from pathlib import Path
 
 

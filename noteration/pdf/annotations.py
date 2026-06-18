@@ -13,6 +13,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Literal
 
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
+
 AnnotationType = Literal["highlight", "image", "comment", "bookmark"]
 
 
@@ -37,6 +41,7 @@ class Annotation:
     position: list[float] | None = None
 
     def __post_init__(self) -> None:
+        """Initialize created_at if not set."""
         if not self.created_at:
             self.created_at = datetime.now(timezone.utc).isoformat()
 
@@ -57,20 +62,24 @@ class DocumentAnnotations:
     # ------------------------------------------------------------------
 
     def add(self, annotation: Annotation) -> None:
+        """Add an annotation to the document."""
         self.annotations.append(annotation)
 
     def remove(self, ann_id: str) -> bool:
+        """Remove an annotation by its ID."""
         original = len(self.annotations)
         self.annotations = [a for a in self.annotations if a.id != ann_id]
         return len(self.annotations) < original
 
     def get(self, ann_id: str) -> Annotation | None:
+        """Get an annotation by its ID."""
         for a in self.annotations:
             if a.id == ann_id:
                 return a
         return None
 
     def update(self, ann_id: str, **kwargs) -> bool:
+        """Update annotation attributes by ID."""
         ann = self.get(ann_id)
         if ann is None:
             return False
@@ -80,6 +89,7 @@ class DocumentAnnotations:
         return True
 
     def for_page(self, page: int) -> list[Annotation]:
+        """Get all annotations for a specific page."""
         return [a for a in self.annotations if a.page == page]
 
     def compile_to_markdown(self, vault_path: Path) -> str:
@@ -129,6 +139,7 @@ class DocumentAnnotations:
     # ------------------------------------------------------------------
 
     def to_dict(self) -> dict:
+        """Serialize DocumentAnnotations to a dictionary."""
         return {
             "papis_key": self.papis_key,
             "pdf_hash": self.pdf_hash,
@@ -140,6 +151,7 @@ class DocumentAnnotations:
 
     @classmethod
     def from_dict(cls, data: dict) -> "DocumentAnnotations":
+        """Deserialize DocumentAnnotations from a dictionary."""
         anns = [Annotation(**a) for a in data.get("annotations", [])]
         return cls(
             papis_key=data["papis_key"],
@@ -157,6 +169,7 @@ class AnnotationStore:
     """
 
     def __init__(self, vault_path: Path, on_changed: Callable[[], None] | None = None) -> None:
+        """Initialize the annotation store."""
         self.vault_path = vault_path
         self.on_changed = on_changed
         self._annotations_dir = vault_path / "annotations"
@@ -171,9 +184,11 @@ class AnnotationStore:
     # ------------------------------------------------------------------
 
     def _json_path(self, papis_key: str) -> Path:
+        """Return the path to the annotation JSON file for a given papis key."""
         return self._annotations_dir / f"{papis_key}.json"
 
     def load(self, papis_key: str, force_reload: bool = False) -> DocumentAnnotations:
+        """Load annotations for a document."""
         with self._lock:
             if papis_key in self._cache and not force_reload:
                 return self._cache[papis_key]
@@ -194,6 +209,7 @@ class AnnotationStore:
             return doc
 
     def save(self, papis_key: str) -> None:
+        """Save annotations for a document to JSON."""
         with self._lock:
             if papis_key not in self._cache:
                 return
@@ -209,18 +225,18 @@ class AnnotationStore:
                 if self.on_changed:
                     self.on_changed()
             except Exception as e:
-                from noteration.logger import get_logger
-
-                get_logger(__name__).error(f"Failed to save annotations for {papis_key}: {e}")
+                logger.error(f"Failed to save annotations for {papis_key}: {e}")
                 if tmp_path.exists():
                     tmp_path.unlink()
 
     def save_all(self) -> None:
+        """Save all cached annotations to JSON."""
         with self._lock:
             for key in list(self._cache.keys()):
                 self.save(key)
 
     def remove_annotation(self, papis_key: str, ann_id: str) -> bool:
+        """Remove an annotation from a document."""
         with self._lock:
             doc = self.load(papis_key)
             if doc.remove(ann_id):
@@ -229,6 +245,7 @@ class AnnotationStore:
             return False
 
     def update_annotation(self, papis_key: str, ann_id: str, **kwargs) -> bool:
+        """Update an annotation by its ID."""
         with self._lock:
             doc = self.load(papis_key)
             if doc.update(ann_id, **kwargs):
@@ -237,12 +254,14 @@ class AnnotationStore:
             return False
 
     def add_annotation(self, papis_key: str, annotation: Annotation) -> None:
+        """Add an annotation to a document."""
         with self._lock:
             doc = self.load(papis_key)
             doc.add(annotation)
             self.save(papis_key)
 
     def update_metadata(self, papis_key: str, last_page: int, reading_progress: float) -> None:
+        """Update document reading metadata."""
         with self._lock:
             doc = self.load(papis_key)
             doc.last_page = last_page
@@ -266,6 +285,7 @@ class AnnotationStore:
         type_: AnnotationType = "highlight",
         quads: list[list[float]] | None = None,
     ) -> Annotation:
+        """Create a new highlight annotation."""
         with self._lock:
             ann = Annotation(
                 id=f"ann-{uuid.uuid4().hex[:8]}",
@@ -292,6 +312,7 @@ class AnnotationStore:
         note: str,
         tags: list[str] | None = None,
     ) -> Annotation:
+        """Create a new comment annotation."""
         with self._lock:
             ann = Annotation(
                 id=f"ann-{uuid.uuid4().hex[:8]}",
@@ -312,9 +333,11 @@ class AnnotationStore:
 
     @property
     def images_dir(self) -> Path:
+        """Return the directory path for annotation images."""
         return self._images_dir
 
     def save_image(self, papis_key: str, ann_id: str, image_bytes: bytes) -> str:
+        """Save an annotation image to disk."""
         with self._lock:
             filename = f"{papis_key}_{ann_id}.png"
             image_path = self._images_dir / filename

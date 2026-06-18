@@ -29,6 +29,7 @@ class EventBus:
     """
 
     def __init__(self) -> None:
+        """Initialize the EventBus with an empty subscriber list and a lock."""
         self._subscribers: Dict[Type[Event], List[Callable[[Any], None]]] = {}
         self._lock = threading.RLock()
 

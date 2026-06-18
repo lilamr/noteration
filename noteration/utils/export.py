@@ -22,10 +22,12 @@ class PandocExporter:
     }
 
     def __init__(self) -> None:
+        """Initialize the exporter and locate the pandoc executable."""
         self.pandoc_path = shutil.which("pandoc")
 
     @property
     def is_available(self) -> bool:
+        """Return True if pandoc is installed and available."""
         return self.pandoc_path is not None
 
     def has_pdf_engine(self) -> bool:
@@ -39,6 +41,7 @@ class PandocExporter:
         output_path: Path,
         from_fmt: str = "markdown",
         title: str = "Noteration Export",
+        resource_path: str | Path | None = None,
     ) -> tuple[bool, str]:
         """Run pandoc to convert content to the format specified by output_path suffix.
         Returns (success, message).
@@ -53,6 +56,10 @@ class PandocExporter:
             )
 
         try:
+            # We assume the content might reference files (like images)
+            # relative to the current working directory or a specific vault path.
+            res_path = str(resource_path) if resource_path else "."
+
             cmd = [
                 str(self.pandoc_path),
                 "-f",
@@ -61,6 +68,8 @@ class PandocExporter:
                 str(output_path),
                 "--metadata",
                 f"title={title}",
+                "--resource-path",
+                res_path,
             ]
 
             # Enhancements for specific formats

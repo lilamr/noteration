@@ -20,6 +20,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
+
 # File to store the list of previously opened vaults
 _VAULTS_FILE = Path.home() / ".noteration" / "vaults.toml"
 
@@ -58,9 +62,7 @@ def _save_vault(vault_path: Path, name: str) -> None:
             tomli_w.dump({"vaults": vaults}, f)
         tmp_path.replace(_VAULTS_FILE)
     except Exception as e:
-        from noteration.logger import get_logger
-
-        get_logger(__name__).debug(f"Failed to persist known vaults list: {e}")
+        logger.error(f"Failed to persist known vaults list: {e}")
 
 
 def _remove_vault(vault_path: Path) -> None:
@@ -77,9 +79,7 @@ def _remove_vault(vault_path: Path) -> None:
             tomli_w.dump({"vaults": vaults}, f)
         tmp_path.replace(_VAULTS_FILE)
     except Exception as e:
-        from noteration.logger import get_logger
-
-        get_logger(__name__).debug(f"Failed to persist known vaults list: {e}")
+        logger.error(f"Failed to persist known vaults list: {e}")
 
 
 class VaultPickerDialog(QDialog):

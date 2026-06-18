@@ -56,6 +56,10 @@ jobs:
             --collect-all uvicorn \
             --collect-all pydantic \
             --collect-all thefuzz \
+            --collect-all tomli_w \
+            --collect-all requests \
+            --collect-all yaml \
+            --collect-all starlette \
             --hidden-import PySide6.QtSvg \
             --hidden-import PySide6.QtPdf \
             --hidden-import PySide6.QtPdfWidgets \
@@ -157,6 +161,10 @@ jobs:
             --collect-all uvicorn `
             --collect-all pydantic `
             --collect-all thefuzz `
+            --collect-all tomli_w `
+            --collect-all requests `
+            --collect-all yaml `
+            --collect-all starlette `
             --hidden-import PySide6.QtSvg `
             --hidden-import PySide6.QtPdf `
             --hidden-import PySide6.QtPdfWidgets `
@@ -263,6 +271,10 @@ jobs:
             --collect-all uvicorn \
             --collect-all pydantic \
             --collect-all thefuzz \
+            --collect-all tomli_w \
+            --collect-all requests \
+            --collect-all yaml \
+            --collect-all starlette \
             --hidden-import PySide6.QtSvg \
             --hidden-import PySide6.QtPdf \
             --hidden-import PySide6.QtPdfWidgets \

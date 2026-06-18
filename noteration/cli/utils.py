@@ -1,3 +1,6 @@
+"""Utility functions and helpers for the Noteration CLI.
+"""
+
 import os
 import sys
 from pathlib import Path

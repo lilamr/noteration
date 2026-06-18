@@ -33,6 +33,7 @@ class PdfIndex:
     """
 
     def __init__(self, vault_path: Path) -> None:
+        """Initialize the PDF index for a given vault."""
         self.vault_path = vault_path
         self._index_path = vault_path / _INDEX_FILE
         self._data: dict[str, dict] = {}
@@ -52,6 +53,7 @@ class PdfIndex:
                 return False
 
     def save(self) -> None:
+        """Save the index to a JSON file."""
         with self._lock:
             self._index_path.parent.mkdir(parents=True, exist_ok=True)
             # Atomic write: save to temp then rename
@@ -161,9 +163,11 @@ class PdfIndex:
 
     @property
     def all_entries(self) -> dict[str, dict]:
+        """Return all index entries as a dictionary."""
         with self._lock:
             return dict(self._data)
 
     def __len__(self) -> int:
+        """Return the number of registered PDFs."""
         with self._lock:
             return len(self._data)

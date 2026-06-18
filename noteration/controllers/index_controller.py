@@ -17,46 +17,53 @@ from noteration.literature.papis_bridge import PapisBridge
 from noteration.logger import get_logger
 from noteration.pdf.pdf_index import PdfIndex
 from noteration.search.fts_engine import FTSEngine
+from noteration.utils.qt_helpers import BaseWorker
 
 logger = get_logger(__name__)
 
 
-class _ScanWorker(QObject):
+class _ScanWorker(BaseWorker):
     """Worker for PDF indexing in a background thread."""
 
-    done = Signal(int)
-    error = Signal(str)
+    finished = Signal(int)
 
     def __init__(
         self, pdf_index: PdfIndex, library_path: Path, stop_check: Callable[[], bool]
     ) -> None:
+        """Initialize the scan worker.
+
+        Args:
+            pdf_index: The PDF index engine.
+            library_path: Path to the literature library.
+            stop_check: Callback to check if shutdown is requested.
+        """
         super().__init__()
         self.pdf_index = pdf_index
         self.library_path = library_path
         self.stop_check = stop_check
 
     def run(self) -> None:
+        """Execute the PDF scanning and indexing process."""
         try:
             self.pdf_index.load()
             count = self.pdf_index.scan_vault(self.library_path, check_stop=self.stop_check)
-            self.done.emit(count)
+            self.finished.emit(count)
         except (IOError, OSError) as e:
             msg = f"IO error during background PDF scan: {e}"
             logger.error(msg)
             self.error.emit(msg)
-            self.done.emit(0)
+            self.finished.emit(0)
         except Exception as e:
             logger.exception(f"Unexpected error during background PDF scan: {e}")
             self.error.emit(f"PDF indexing failed: {str(e)}")
-            self.done.emit(0)
+            self.finished.emit(0)
 
 
-class _GraphWorker(QObject):
+class _GraphWorker(BaseWorker):
     """Worker for LinkGraph building and FTS indexing in a background thread."""
 
-    done = Signal(int)
+    finished = Signal(int)
     progress = Signal(str)
-    error = Signal(str)
 
     def __init__(
         self,
@@ -67,6 +74,16 @@ class _GraphWorker(QObject):
         force: bool,
         stop_check: Callable[[], bool],
     ) -> None:
+        """Initialize the graph worker.
+
+        Args:
+            graph: The LinkGraph instance.
+            fts: The optional FTS engine.
+            papis: The optional Papis bridge.
+            notes: Repository of vault notes.
+            force: Whether to force rebuild.
+            stop_check: Callback to check if shutdown is requested.
+        """
         super().__init__()
         self.graph = graph
         self.fts = fts
@@ -76,6 +93,7 @@ class _GraphWorker(QObject):
         self.stop_check = stop_check
 
     def run(self) -> None:
+        """Execute the graph building and FTS indexing process."""
         try:
             if not self.force:
                 self.graph.load()
@@ -88,11 +106,11 @@ class _GraphWorker(QObject):
             # 2. Rebuild Link Graph & Index Notes
             count = self._index_notes()
 
-            self.done.emit(count)
+            self.finished.emit(count)
         except Exception as e:
             logger.exception(f"Index worker failed: {e}")
             self.error.emit(str(e))
-            self.done.emit(0)
+            self.finished.emit(0)
         finally:
             if self.fts:
                 self.fts.close()
@@ -120,10 +138,14 @@ class _GraphWorker(QObject):
                                 (entry.key, tag, "literature"),
                             )
         except Exception as e:
-            logger.warning(f"Failed to index literature tags: {e}")
+            logger.exception(f"Unexpected error indexing literature tags: {e}")
 
     def _index_notes(self) -> int:
-        """Stage 2: Link Graph & Full-Text Indexing."""
+        """Stage 2: Link Graph & Full-Text Indexing.
+
+        Returns:
+            Number of notes indexed.
+        """
         if not self.notes.notes_dir.exists():
             return 0
 
@@ -145,7 +167,7 @@ class _GraphWorker(QObject):
                     try:
                         mtime = md_file.stat().st_mtime
                     except Exception as e:
-                        logger.debug(f"Failed to get mtime for {md_file}: {e}")
+                        logger.error(f"Failed to get mtime for {md_file}: {e}")
                         continue
 
                     # Update Graph (without saving yet)
@@ -185,7 +207,7 @@ class _GraphWorker(QObject):
 
                             count += 1
                         except Exception as e:
-                            logger.warning(f"Failed to FTS index {md_file}: {e}")
+                            logger.exception(f"Unexpected error FTS indexing {md_file}: {e}")
 
             self.graph.save()
             return count
@@ -210,6 +232,16 @@ class IndexController(QObject):
         notes: NoteRepository,
         parent: Optional[QObject] = None,
     ) -> None:
+        """Initialize the controller.
+
+        Args:
+            pdf_index: The PDF index engine.
+            graph: The LinkGraph instance.
+            fts: The optional FTS engine.
+            papis: The optional Papis bridge.
+            notes: Repository of vault notes.
+            parent: Parent QObject.
+        """
         super().__init__(parent)
         self.pdf_index = pdf_index
         self.graph = graph
@@ -226,6 +258,7 @@ class IndexController(QObject):
         self._graph_worker: Optional[_GraphWorker] = None
 
     def scan_pdfs(self) -> None:
+        """Start the PDF scanning process in a background thread."""
         if self._is_shutting_down or not self.library_path:
             return
         if self._scan_thread and self._scan_thread.isRunning():
@@ -237,24 +270,27 @@ class IndexController(QObject):
         )
         self._scan_worker.moveToThread(self._scan_thread)
 
-        self._scan_worker.done.connect(self._on_scan_done)
+        self._scan_worker.finished.connect(self._on_scan_done)
         self._scan_worker.error.connect(lambda msg: self.status_message.emit(msg, 5000))
-        self._scan_worker.done.connect(self._scan_thread.quit)
-        self._scan_worker.done.connect(self._clear_scan_worker)
+        self._scan_worker.finished.connect(self._scan_thread.quit)
+        self._scan_worker.finished.connect(self._clear_scan_worker)
         self._scan_thread.started.connect(self._scan_worker.run)
         self._scan_thread.start()
 
     def _clear_scan_worker(self) -> None:
+        """Clear and delete the PDF scanning worker."""
         if self._scan_worker:
             self._scan_worker.deleteLater()
             self._scan_worker = None
 
     def _on_scan_done(self, count: int) -> None:
+        """Handle completion of the PDF scan worker."""
         self.indexing_finished.emit(count)
         if count > 0:
             self.status_message.emit(f"PDF index: {count} new files indexed.", 3000)
 
     def build_graph(self, force: bool = False) -> None:
+        """Start the graph building process in a background thread."""
         if self._is_shutting_down:
             return
         if self._graph_thread and self._graph_thread.isRunning():
@@ -272,20 +308,22 @@ class IndexController(QObject):
 
         self._graph_worker.moveToThread(self._graph_thread)
 
-        self._graph_worker.done.connect(self._on_graph_done)
+        self._graph_worker.finished.connect(self._on_graph_done)
         self._graph_worker.progress.connect(lambda msg: self.status_message.emit(msg, 0))
         self._graph_worker.error.connect(lambda msg: self.status_message.emit(msg, 5000))
-        self._graph_worker.done.connect(self._graph_thread.quit)
-        self._graph_worker.done.connect(self._clear_graph_worker)
+        self._graph_worker.finished.connect(self._graph_thread.quit)
+        self._graph_worker.finished.connect(self._clear_graph_worker)
         self._graph_thread.started.connect(self._graph_worker.run)
         self._graph_thread.start()
 
     def _clear_graph_worker(self) -> None:
+        """Clear and delete the graph building worker."""
         if self._graph_worker:
             self._graph_worker.deleteLater()
             self._graph_worker = None
 
     def _on_graph_done(self, count: int) -> None:
+        """Handle completion of the graph building worker."""
         if count > 0:
             self.status_message.emit(f"Backlink graph: {count} links found.", 3000)
         self.graph_updated.emit(count)
@@ -313,13 +351,17 @@ class IndexController(QObject):
         self.graph.save()
 
     def _safe_stop_thread(self, attr_name: str) -> None:
-        """Helper to safely stop a QThread stored in an attribute without blocking."""
+        """Helper to safely stop a QThread stored in an attribute.
+        Ensures the Python reference is held if the thread fails to stop.
+        """
         thread = getattr(self, attr_name, None)
         if thread and thread.isRunning():
             thread.requestInterruption()
             thread.quit()
-            # Wait for the thread to actually finish to avoid Segfaults on exit
-            if not thread.wait(5000):
-                logger.warning(f"Thread {attr_name} failed to stop within timeout.")
-
-        setattr(self, attr_name, None)
+            if thread.wait(5000):
+                # Only nullify if the thread actually stopped
+                setattr(self, attr_name, None)
+            else:
+                logger.error(f"Thread {attr_name} failed to stop within 5s. Holding reference to prevent crash.")
+        else:
+            setattr(self, attr_name, None)

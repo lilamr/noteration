@@ -8,7 +8,7 @@ import threading
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -26,16 +26,18 @@ from PySide6.QtWidgets import (
 )
 
 from noteration.core.events import EventBus, LiteratureSelectedEvent, NoteOpenedEvent
+from noteration.logger import get_logger
 from noteration.search.fts_engine import FTSEngine
 from noteration.search.vault_search import SearchResult, VaultSearch
+from noteration.utils.qt_helpers import BaseWorker
+
+logger = get_logger(__name__)
 
 
-class SearchWorker(QObject):
+class SearchWorker(BaseWorker):
     """Worker to perform search in a background thread."""
 
     results_ready = Signal(list)
-    error = Signal(str)
-    finished = Signal()
 
     def __init__(
         self,
@@ -45,6 +47,7 @@ class SearchWorker(QObject):
         use_regex: bool,
         scope: str,
     ) -> None:
+        """Initialize the search worker."""
         super().__init__()
         self.searcher = searcher
         self.query = query
@@ -58,6 +61,7 @@ class SearchWorker(QObject):
         self._abort_event.set()
 
     def run(self) -> None:
+        """Execute the search in a background thread."""
         try:
             all_results = self.searcher.search(
                 self.query, self.case_sensitive, self.use_regex, abort_event=self._abort_event
@@ -79,9 +83,7 @@ class SearchWorker(QObject):
 
             self.results_ready.emit(all_results)
         except Exception as e:
-            from noteration.logger import get_logger
-
-            get_logger(__name__).exception(f"Background search failed: {e}")
+            logger.exception(f"Background search failed: {e}")
             self.error.emit(f"Search failed: {str(e)}")
             self.results_ready.emit([])
         finally:
@@ -104,6 +106,7 @@ class SearchDialog(QDialog):
         events: Optional[EventBus] = None,
         parent=None,
     ) -> None:
+        """Initialize the search dialog."""
         super().__init__(parent)
         self.vault_path = vault_path
         self._searcher = VaultSearch(vault_path, papis_bridge, fts_engine=fts_engine)
@@ -123,6 +126,7 @@ class SearchDialog(QDialog):
         self._setup_shortcuts()
 
     def _setup_ui(self) -> None:
+        """Set up the user interface."""
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
 
@@ -222,6 +226,7 @@ class SearchDialog(QDialog):
         self._search_input.setFocus()
 
     def _setup_shortcuts(self) -> None:
+        """Set up keyboard shortcuts for the search dialog."""
         # Ctrl+F: Focus to search input
         shortcut_find = QShortcut(QKeySequence.StandardKey.Find, self)
         shortcut_find.activated.connect(self._focus_input)
@@ -239,10 +244,12 @@ class SearchDialog(QDialog):
         shortcut_esc.activated.connect(self.close)
 
     def _focus_input(self) -> None:
+        """Focus the search input field."""
         self._search_input.selectAll()
         self._search_input.setFocus()
 
     def _get_scope(self) -> str:
+        """Return the currently selected search scope."""
         if self._scope_notes.isChecked():
             return "notes"
         elif self._scope_lit.isChecked():
@@ -252,6 +259,7 @@ class SearchDialog(QDialog):
         return "all"
 
     def _on_text_changed(self, text: str) -> None:
+        """Handle changes in search text."""
         self._debounce_timer.stop()
         if len(text) >= 2:
             self._debounce_timer.start()
@@ -262,11 +270,12 @@ class SearchDialog(QDialog):
             self._update_nav_buttons()
 
     def _on_return_pressed(self) -> None:
+        """Handle return pressed in search input."""
         self._debounce_timer.stop()
         self._perform_search()
 
     def _abort_search(self) -> None:
-        """Stop current background search if running."""
+        """Abort the current background search."""
         if self._search_worker:
             self._search_worker.abort()
 
@@ -280,6 +289,7 @@ class SearchDialog(QDialog):
         self._progress.hide()
 
     def _perform_search(self) -> None:
+        """Initiate a new search."""
         query = self._search_input.text().strip()
         if len(query) < 2:
             self._abort_search()
@@ -317,6 +327,7 @@ class SearchDialog(QDialog):
         self._search_thread.start()
 
     def _on_results_ready(self, results: list[SearchResult]) -> None:
+        """Handle the completion of the background search."""
         self._status_label.setStyleSheet("")  # Reset style
         self._results = results
         self._current_index = -1
@@ -324,10 +335,12 @@ class SearchDialog(QDialog):
         self._status_label.setText(f"Found {len(results)} results")
 
     def _on_search_error(self, message: str) -> None:
+        """Handle search errors."""
         self._status_label.setText(f"Error: {message}")
         self._status_label.setStyleSheet("color: #c0392b;")  # Red color
 
     def _populate_tree(self, results: list[SearchResult]) -> None:
+        """Populate the result tree."""
         self._results_tree.clear()
 
         # Group by type
@@ -380,20 +393,24 @@ class SearchDialog(QDialog):
         self._update_nav_buttons()
 
     def _update_nav_buttons(self) -> None:
+        """Update the state of navigation buttons."""
         has_results = len(self._results) > 0
         self._prev_btn.setEnabled(has_results)
         self._next_btn.setEnabled(has_results)
 
     def _on_item_activated(self, item: QTreeWidgetItem, column: int) -> None:
+        """Handle activation of an item in the result tree."""
         self._navigate_to_item(item)
 
     def _on_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
+        """Handle item clicking in the result tree."""
         # Track current selection
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if data:
             self._current_index = next((i for i, r in enumerate(self._results) if r == data), -1)
 
     def _navigate_to_item(self, item: QTreeWidgetItem) -> None:
+        """Navigate to the selected result."""
         data: Optional[SearchResult] = item.data(0, Qt.ItemDataRole.UserRole)
         if not data:
             return
@@ -413,18 +430,21 @@ class SearchDialog(QDialog):
             self.annotation_requested.emit(data.papis_key, page + 1)  # 1-indexed
 
     def _go_next(self) -> None:
+        """Select the next result."""
         if not self._results:
             return
         self._current_index = (self._current_index + 1) % len(self._results)
         self._select_result(self._current_index)
 
     def _go_prev(self) -> None:
+        """Select the previous result."""
         if not self._results:
             return
         self._current_index = (self._current_index - 1) % len(self._results)
         self._select_result(self._current_index)
 
     def _select_result(self, index: int) -> None:
+        """Select a result by index."""
         if index < 0 or index >= len(self._results):
             return
         result = self._results[index]
@@ -446,5 +466,6 @@ class SearchDialog(QDialog):
         self._perform_search()
 
     def closeEvent(self, event) -> None:
+        """Handle the dialog close event."""
         self._abort_search()
         super().closeEvent(event)

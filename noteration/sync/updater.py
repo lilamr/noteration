@@ -10,9 +10,13 @@ import sys
 import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import Signal
 
 from noteration import __version__
+from noteration.logger import get_logger
+from noteration.utils.qt_helpers import BaseWorker
+
+logger = get_logger(__name__)
 
 # URL to check for latest version (directly from pyproject.toml on main branch)
 REMOTE_PYPROJECT_URL = "https://raw.githubusercontent.com/lilamr/noteration/main/pyproject.toml"
@@ -38,11 +42,10 @@ def get_latest_binary_url() -> str:
     return LATEST_LINUX_URL
 
 
-class CheckUpdateThread(QThread):
-    """Thread to check for updates without blocking the UI."""
+class CheckUpdateWorker(BaseWorker):
+    """Worker to check for updates without blocking the UI."""
 
     finished = Signal(bool, str)  # (is_update_available, latest_version)
-    error = Signal(str)
 
     def run(self) -> None:
         try:
@@ -69,6 +72,7 @@ class CheckUpdateThread(QThread):
                 else:
                     self.error.emit("Could not parse version from remote repository.")
         except Exception as e:
+            logger.error(f"Failed to check for updates: {e}")
             self.error.emit(str(e))
 
     def _is_newer(self, remote: str, local: str) -> bool:
@@ -100,9 +104,10 @@ def run_update_process() -> bool:
             return _run_windows_update(install_cmd)
         else:
             # Linux/macOS can usually update in-place
-            subprocess.Popen(install_cmd)  # nosec S603
+            subprocess.Popen(install_cmd)
             return True
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to initiate update process: {e}")
         return False
 
 
@@ -133,5 +138,5 @@ def _run_windows_update(install_cmd: list[str]) -> bool:
         f.write('del "%~f0"\n')
         batch_path = f.name
 
-    subprocess.Popen(["cmd.exe", "/c", "start", "/min", batch_path], shell=True)  # nosec S602 S603 S607
+    subprocess.Popen(["cmd.exe", "/c", "start", "/min", batch_path], shell=True)
     return True

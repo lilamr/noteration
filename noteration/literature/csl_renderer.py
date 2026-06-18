@@ -9,6 +9,10 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
+
 if TYPE_CHECKING:
     from noteration.literature.papis_bridge import LiteratureEntry
 
@@ -34,6 +38,7 @@ class CSLRenderer:
     """
 
     def __init__(self, style_name: str = "apa", custom_style_path: Optional[Path] = None) -> None:
+        """Initialize the CSL renderer with a specified style."""
         self.style_name = style_name
         self.custom_style_path = custom_style_path
         self._style: Optional[CitationStylesStyle] = None
@@ -42,6 +47,7 @@ class CSLRenderer:
         self._initialized = False
 
     def is_available(self) -> bool:
+        """Return True if citeproc-py is installed and available."""
         return _HAS_CITEPROC
 
     def _get_style_path(self, style_path: Optional[Path] = None) -> Path:

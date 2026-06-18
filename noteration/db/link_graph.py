@@ -186,7 +186,7 @@ class LinkGraph:
                     self._add_edge(src_id, dst_id)
             self._file_mtimes[src_id] = mtime
         except Exception as e:
-            logger.error(f"Failed to process note {note_path}: {e}")
+            logger.exception(f"Failed to process note {note_path}: {e}")
 
     def _remove_node(self, node_id: str) -> None:
         """Completely remove a node and all its incident edges."""
@@ -218,6 +218,7 @@ class LinkGraph:
             return sorted(self._adj.get(note_id, set()))
 
     def all_nodes(self) -> list[str]:
+        """Return a sorted list of all nodes in the graph."""
         with self._lock:
             return sorted(self._adj.keys())
 
@@ -264,6 +265,7 @@ class LinkGraph:
                 return {note_stem}
 
     def stats(self) -> dict:
+        """Return various statistics about the graph structure."""
         with self._lock:
             n_nodes = len(self._adj)
             n_edges = sum(len(v) for v in self._adj.values())
@@ -297,6 +299,7 @@ class LinkGraph:
     # ── Serialization ─────────────────────────────────────────────────
 
     def save(self) -> None:
+        """Persist the graph structure to a JSON file."""
         with self._lock:
             self._graph_path.parent.mkdir(parents=True, exist_ok=True)
             data = {
@@ -354,6 +357,7 @@ class LinkGraph:
     # ── Internal Helpers ──────────────────────────────────────────────
 
     def _ensure_node(self, name: str) -> None:
+        """Ensure a node exists in the adjacency lists and the graph object."""
         with self._lock:
             self._adj.setdefault(name, set())
             self._radj.setdefault(name, set())
@@ -361,6 +365,7 @@ class LinkGraph:
                 self._G.add_node(name)
 
     def _add_edge(self, src: str, dst: str) -> None:
+        """Add a directed edge from src to dst."""
         with self._lock:
             self._ensure_node(src)
             self._ensure_node(dst)

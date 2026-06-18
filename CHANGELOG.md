@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-06-18
+
+### Added
+- **BaseWorker Pattern**: Introduced `BaseWorker` class in `noteration/utils/qt_helpers.py` to standardize background tasks and signal handling.
+- **Improved Test Coverage**: Added comprehensive test suites for controllers, editor logic, FTS engine, and link graph (`test_controllers.py`, `test_editor_logic.py`, etc.).
+- **New Controller Layer**: Decoupled Qt-specific orchestration into `IndexController`, `SyncController`, and `LibraryController`.
+
+### Fixed
+- **UI Freezes during PDF Rendering**: PDF pages are now rendered asynchronously in a background thread, preventing the main window from hanging.
+- **UI Freezes during Git Operations**: Git status and sync operations moved to background workers.
+- **Code Duplication**: Extracted redundant tab-finding logic in `MainWindow` into a unified `_find_tab` helper.
+
+### Changed
+- **Architectural Refactoring**: Decomposed the massive `editor_tab.py` into smaller, focused modules under `noteration/ui/editor/` (`markdown_editor.py`, `markdown_preview.py`, etc.).
+- **API Routing**: Migrated the REST API to use FastAPI's `APIRouter` for improved modularity and scalability.
+- **Enhanced Type Safety**: Added comprehensive type hints and return types to `VaultManager` and core properties.
+- **Tab Management**: Replaced hardcoded title limits with the `MAX_TAB_TITLE_LEN` constant.
+
 ## [2.1.0] - 2026-06-11
 
 ### Added
@@ -16,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed unused variable lint error in `editor_tab.py`.
 
 ### Changed
-- Citations context menu streamlined to show 'Open Literature'.
+- Citations context menu streamlined to only show 'Open Literature'.
 - install.sh and install.ps1 now auto-detect latest release tag from GitHub API
 - macOS Info.plist version no longer hardcoded
 - GitHub Actions release workflow now builds .deb, .exe, and .dmg installers

@@ -27,6 +27,7 @@ class CitationCompleter(QObject):
     _AT_RE = re.compile(r"@([A-Za-z][A-Za-z0-9_:\-]*)$")
 
     def __init__(self, editor, bridge: PapisBridge, parent=None) -> None:
+        """Initialize the CitationCompleter with the editor and literature bridge."""
         super().__init__(parent)
         self._editor = editor
         self._bridge = bridge
@@ -64,6 +65,7 @@ class CitationCompleter(QObject):
     # ── Text change detection ─────────────────────────────────────────
 
     def _on_text_changed(self) -> None:
+        """Detect '@' in text and trigger completion if found."""
         cursor = self._editor.textCursor()
         block_text = cursor.block().text()
         col = cursor.positionInBlock()
@@ -79,6 +81,7 @@ class CitationCompleter(QObject):
                 popup.hide()
 
     def _show_completion(self, partial: str, cursor: QTextCursor) -> None:
+        """Display completion popup with matches."""
         self._completer.setCompletionPrefix(partial)
         if self._completer.completionCount() == 0:
             popup = self._completer.popup()

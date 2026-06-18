@@ -1,6 +1,6 @@
 # Noteration User Guide
 
-**Version 2.1.0**
+**Version 2.2.0**
 
 Noteration is a desktop application for integrated research note management. This application combines a Markdown editor, a PDF viewer with non-destructive annotations, literature management via Papis, and Git synchronization — all in one interface.
 
@@ -1070,4 +1070,4 @@ A: Yes. Noteration doesn't care if repository is public or private — Git handl
 
 ---
 
-*This guide applies to Noteration v2.1.0*
+*This guide applies to Noteration v2.2.0*

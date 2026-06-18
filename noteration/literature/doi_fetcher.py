@@ -50,13 +50,14 @@ def _strip_html(text: str) -> str:
 
 
 def _get_json(url: str, timeout: int = 10) -> dict | None:
+    """Fetch JSON data from a given URL."""
     if not url.startswith(("http://", "https://")):
         return None
     req = urllib.request.Request(
         url, headers={"User-Agent": _USER_AGENT, "Accept": "application/json"}
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec S310
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.load(resp)
     except (
         urllib.error.URLError,
@@ -94,6 +95,7 @@ def fetch_doi(doi: str) -> dict[str, Any] | None:
 
 
 def _parse_crossref(work: dict) -> dict[str, Any]:
+    """Parse Crossref API response into a metadata dictionary."""
     # Title
     title = (work.get("title") or [""])[0]
 
@@ -180,11 +182,12 @@ def _extract_arxiv_id(text: str) -> str:
 
 
 def _get_xml(url: str, timeout: int = 10) -> str | None:
+    """Fetch XML content from a given URL."""
     if not url.startswith(("http://", "https://")):
         return None
     req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec S310
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.read().decode("utf-8")
     except (urllib.error.URLError, OSError, TimeoutError):
         return None
@@ -279,6 +282,7 @@ def fetch_isbn(isbn: str) -> dict[str, Any] | None:
 
 
 def _parse_openlibrary(book: dict, isbn: str) -> dict[str, Any]:
+    """Parse OpenLibrary API response into a metadata dictionary."""
     # Title
     title = book.get("title", "")
     subtitle = book.get("subtitle", "")

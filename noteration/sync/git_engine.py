@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import threading
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum, auto
@@ -21,6 +22,7 @@ _HAS_GIT: bool | None = None
 
 
 def get_git() -> Any:
+    """Return the gitpython module, importing it if necessary."""
     global _git_mod, _HAS_GIT
     if _HAS_GIT is None:
         try:
@@ -34,6 +36,7 @@ def get_git() -> Any:
 
 
 def has_git() -> bool:
+    """Check if the gitpython module is available."""
     return get_git() is not None
 
 
@@ -53,6 +56,43 @@ class SyncStrategy(Enum):
     REBASE = "rebase"
     MERGE = "merge"
     STASH = "stash"
+
+
+class BaseSyncStrategy(ABC):
+    """Abstract base class for Git synchronization strategies."""
+
+    @abstractmethod
+    def pull(self, repo: Any, remote: str, branch: str, env: dict[str, str]) -> None:
+        """Perform the pull operation using a specific strategy."""
+        pass
+
+
+class RebaseSyncStrategy(BaseSyncStrategy):
+    """Strategy that uses 'git pull --rebase'."""
+
+    def pull(self, repo: Any, remote: str, branch: str, env: dict[str, str]) -> None:
+        repo.git.pull(remote, branch, rebase=True, env=env)
+
+
+class MergeSyncStrategy(BaseSyncStrategy):
+    """Strategy that uses standard 'git pull' (merge)."""
+
+    def pull(self, repo: Any, remote: str, branch: str, env: dict[str, str]) -> None:
+        repo.git.pull(remote, branch, env=env)
+
+
+class StashSyncStrategy(BaseSyncStrategy):
+    """Strategy that uses 'git pull --rebase --autostash'."""
+
+    def pull(self, repo: Any, remote: str, branch: str, env: dict[str, str]) -> None:
+        repo.git.pull(remote, branch, rebase=True, autostash=True, env=env)
+
+
+STRATEGY_MAP: dict[SyncStrategy, BaseSyncStrategy] = {
+    SyncStrategy.REBASE: RebaseSyncStrategy(),
+    SyncStrategy.MERGE: MergeSyncStrategy(),
+    SyncStrategy.STASH: StashSyncStrategy(),
+}
 
 
 @dataclass
@@ -79,6 +119,7 @@ class SyncResult:
 @dataclass
 class RepoStatus:
     is_repo: bool = False
+    is_busy: bool = False  # True if a lock is held by another operation
     branch: str = ""
     remotes: list[str] = field(default_factory=list)
     is_dirty: bool = False
@@ -105,6 +146,7 @@ class GitRepo:
         self.work_tree = work_tree
         self._repo: Any = None
         self._lock = threading.RLock()
+        self._last_status = RepoStatus()
 
         if not has_git():
             return
@@ -163,10 +205,12 @@ class GitRepo:
                 logger.error(f"Failed to add {rel_path} to Git: {e}")
 
     def is_rebase_in_progress(self) -> bool:
+        """Check if a rebase operation is currently in progress."""
         git_dir = self.vault_path / ".git"
         return (git_dir / "rebase-merge").exists() or (git_dir / "rebase-apply").exists()
 
     def is_merge_in_progress(self) -> bool:
+        """Check if a merge operation is currently in progress."""
         return (self.vault_path / ".git" / "MERGE_HEAD").exists()
 
     def abort_sync(self) -> bool:
@@ -247,9 +291,18 @@ class GitRepo:
     # ── Status ──────────────────────────────────────────
 
     def status(self, fetch: bool = False, session_hashes: dict[str, str] | None = None) -> RepoStatus:
-        s = RepoStatus()
-        with self._lock:
+        """Get repository status. Non-blocking; returns cached status if busy."""
+        # Try to acquire lock without blocking to keep UI responsive
+        if not self._lock.acquire(blocking=False):
+            # If busy, return last known status with is_busy flag
+            s = self._last_status
+            s.is_busy = True
+            return s
+
+        try:
+            s = RepoStatus()
             if not self._ensure_repo() or self._repo is None:
+                self._last_status = s
                 return s
 
             repo = self._repo
@@ -359,7 +412,10 @@ class GitRepo:
             except Exception as e:
                 logger.exception(f"Unexpected error during status check: {e}")
 
-        return s
+            self._last_status = s
+            return s
+        finally:
+            self._lock.release()
 
     # ── Synchronization ───────────────────────────────────────────────────
 
@@ -447,14 +503,10 @@ class GitRepo:
                     result.message = "Local commit finished (offline mode)"
                     return result
 
-                log(f"  i Pulling from {remote}/{branch}...")
+                log(f"  i Pulling from {remote}/{branch} using {strategy.value} strategy...")
                 try:
-                    if strategy == SyncStrategy.REBASE:
-                        repo.git.pull(remote, branch, rebase=True, env=env)
-                    elif strategy == SyncStrategy.STASH:
-                        repo.git.pull(remote, branch, rebase=True, autostash=True, env=env)
-                    else:
-                        repo.git.pull(remote, branch, env=env)
+                    sync_strategy = STRATEGY_MAP.get(strategy, RebaseSyncStrategy())
+                    sync_strategy.pull(repo, remote, branch, env=env)
                     log("  ✓ Pull complete")
                 except get_git().GitCommandError as e:
                     err = str(e)
@@ -483,6 +535,7 @@ class GitRepo:
                 return SyncResult(status=SyncStatus.ERROR, message=f"Unexpected error: {str(e)}")
 
     def _sync_push(self, remote: str = "origin", branch: str = "", log_callback=None) -> SyncResult:
+        """Perform the push operation to the specified remote and branch."""
         def log(msg: str) -> None:
             if log_callback:
                 log_callback(msg)

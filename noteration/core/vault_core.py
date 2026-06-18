@@ -37,6 +37,7 @@ class VaultCore:
         secret_key: Optional[str] = None,
         session_path: Optional[Path] = None,
     ) -> None:
+        """Initialize the VaultCore with vault and storage paths, and optional keys."""
         self.vault_path = vault_path
         self.storage_path = storage_path or vault_path
         self.secret_key = secret_key
@@ -106,7 +107,7 @@ class VaultCore:
                     self._pdf_index = PdfIndex(self.vault_path)
                     self._pdf_index.load()
                 except Exception as e:
-                    logger.error(f"Failed to initialize PDF Index: {e}")
+                    logger.exception(f"Unexpected error initializing PDF Index: {e}")
                     self._pdf_index = PdfIndex(self.vault_path)
             return self._pdf_index
 
@@ -121,7 +122,7 @@ class VaultCore:
                     self._graph = LinkGraph(self.vault_path, notes=self.notes)
                     self._graph.load()
                 except Exception as e:
-                    logger.error(f"Failed to initialize Link Graph: {e}")
+                    logger.exception(f"Unexpected error initializing Link Graph: {e}")
                     self._graph = LinkGraph(self.vault_path, notes=self.notes)
             return self._graph
 
@@ -135,8 +136,9 @@ class VaultCore:
                 try:
                     self._fts = FTSEngine(self.vault_path)
                 except Exception as e:
-                    logger.error(f"Failed to initialize FTS Engine: {e}")
-                    pass
+                    logger.exception(f"Unexpected error initializing FTS Engine (Search will be disabled): {e}")
+                    # FTS is optional, so we log and continue
+                    self._fts = None
             return self._fts
 
     @property
@@ -152,7 +154,7 @@ class VaultCore:
                         lib_path = self.vault_path / "literature"
                     self._papis = PapisBridge(lib_path)
                 except Exception as e:
-                    logger.error(f"Failed to initialize Papis Bridge: {e}")
+                    logger.exception(f"Unexpected error initializing Papis Bridge: {e}")
                     self._papis = PapisBridge(self.vault_path / "literature")
             return self._papis
 
@@ -223,5 +225,5 @@ class VaultCore:
             logger.info(f"Encryption disabled for vault {self.vault_path}")
             return True
         except Exception as e:
-            logger.error(f"Failed to disable encryption: {e}")
+            logger.exception(f"Unexpected error disabling encryption: {e}")
             return False

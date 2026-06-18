@@ -1,3 +1,6 @@
+"""CLI commands for exporting notes to various formats.
+"""
+
 import sys
 from pathlib import Path
 

@@ -23,6 +23,10 @@ try:
 except ImportError:
     _HAS_TOMLI_W = False
 
+from noteration.logger import get_logger
+
+logger = get_logger(__name__)
+
 _DEFAULTS: dict[str, Any] = {
     "version": {
         "schema_version": 1,
@@ -111,9 +115,7 @@ class NoterationConfig:
                         self.save()
 
                 except Exception as e:
-                    import logging
-
-                    logging.getLogger("noteration").error(f"Failed to load config: {e}")
+                    logger.error(f"Failed to load config from {self._config_path}: {e}")
 
     def _migrate(self, data: dict[str, Any]) -> bool:
         """Migrate config data to the current schema version.
@@ -154,9 +156,7 @@ class NoterationConfig:
                     tomli_w.dump(self._data, f)
                 tmp_path.replace(self._config_path)
             except Exception as e:
-                import logging
-
-                logging.getLogger("noteration").error(f"Failed to save config: {e}")
+                logger.error(f"Failed to save config to {self._config_path}: {e}")
                 if tmp_path.exists():
                     tmp_path.unlink()
 

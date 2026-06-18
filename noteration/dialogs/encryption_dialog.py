@@ -7,8 +7,9 @@ to handle the encryption of vault files, ensuring secure data management.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -24,11 +25,12 @@ from PySide6.QtWidgets import (
 from noteration.config import NoterationConfig
 from noteration.logger import get_logger
 from noteration.utils.encryption import encrypt_file, generate_keypair, is_age_available
+from noteration.utils.qt_helpers import BaseWorker
 
 logger = get_logger(__name__)
 
 
-class EncryptionWorker(QObject):
+class EncryptionWorker(BaseWorker):
     """Handle the encryption of vault files in a background thread.
     """
 
@@ -94,6 +96,8 @@ class EncryptionDialog(QDialog):
 
         self.public_key = ""
         self.private_key = ""
+        self._thread: Optional[QThread] = None
+        self._worker: Optional[EncryptionWorker] = None
 
         self._setup_ui()
 
@@ -201,7 +205,7 @@ class EncryptionDialog(QDialog):
         self._progress.setVisible(True)
 
         # Start background thread
-        self._thread = QThread()
+        self._thread = QThread(self)
         self._worker = EncryptionWorker(self.vault_path, self.public_key)
         self._worker.moveToThread(self._thread)
 
@@ -219,10 +223,13 @@ class EncryptionDialog(QDialog):
     def _on_finished(self, success: bool, message: str) -> None:
         """Handle completion of the encryption process."""
         if self._thread:
+            self._thread.finished.connect(self._thread.deleteLater)
+            if hasattr(self, "_worker") and self._worker:
+                self._worker.deleteLater()
             self._thread.quit()
-            self._thread.wait()
-            # We don't set self._thread = None here as the dialog will be closed
-            # and the closeEvent or destruction will handle it.
+            self._thread = None
+            self._worker = None
+            # We don't wait anymore
 
         if success:
             # Mark vault as encrypted in config

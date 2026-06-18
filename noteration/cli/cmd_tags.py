@@ -1,3 +1,6 @@
+"""CLI commands for managing and listing tags in the vault.
+"""
+
 import json
 
 import click

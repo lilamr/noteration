@@ -47,6 +47,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
     _STATE_CODE_INDENT = 2  # Placeholder for future use
 
     def __init__(self, document: QTextDocument, palette: dict | None = None) -> None:
+        """Initialize the Markdown highlighter."""
         super().__init__(document)
         self._palette = palette or {}
         self._rules: list[tuple[re.Pattern, QTextCharFormat]] = []
@@ -55,6 +56,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
         self._build_rules()
 
     def set_palette(self, palette: dict) -> None:
+        """Update the highlighter palette."""
         self._palette = palette
         self._build_rules()
         self.rehighlight()
@@ -70,6 +72,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
         size_pt: float | None = None,
         underline: bool = False,
     ) -> QTextCharFormat:
+        """Helper to create QTextCharFormat objects."""
         fmt = QTextCharFormat()
         if color:
             fmt.setForeground(QColor(color))
@@ -88,6 +91,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
     # ── Rule builder ──────────────────────────────────────────────────
 
     def _build_rules(self) -> None:
+        """Define all syntax highlighting rules."""
         self._rules = []
         add = self._rules.append
         p = self._palette

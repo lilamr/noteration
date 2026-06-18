@@ -8,13 +8,13 @@ from __future__ import annotations
 import collections
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
 
-from PySide6.QtCore import QPointF, QRect, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QImage, QKeySequence, QPixmap, QShortcut
+from PySide6.QtCore import QMetaObject, QPointF, QRect, QRectF, Qt, QThread, QTimer, Signal
+from PySide6.QtGui import QColor, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
 from noteration.logger import get_logger
 from noteration.pdf.annotation_overlay import AnnotationOverlay
 from noteration.pdf.annotations import Annotation, AnnotationStore, calculate_file_hash
+from noteration.pdf.workers import PdfMetadataWorker, PdfRenderWorker, PdfTextWorker
 
 logger = get_logger(__name__)
 
@@ -149,6 +150,8 @@ class MuPdfPageWidget(QWidget):
     """Single PDF page widget rendered via PyMuPDF.
     """
 
+    render_requested = Signal(int, float)
+
     def __init__(
         self,
         doc,
@@ -165,6 +168,7 @@ class MuPdfPageWidget(QWidget):
         self._overlay = overlay
         self._pdf_path = pdf_path
         self._rendered = False
+        self._page_rect: Optional[QRectF] = None
 
         # Container for stacking image and overlay
         self._container = QWidget(self)
@@ -183,81 +187,81 @@ class MuPdfPageWidget(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._setup_placeholder()
 
+    def apply_metadata(self, width: float, height: float, doc=None) -> None:
+        """Apply page dimensions and document reference asynchronously."""
+        self._page_rect = QRectF(0, 0, width, height)
+        if doc:
+            self._doc = doc
+        self._setup_placeholder()
+
     def _setup_placeholder(self) -> None:
         """Set fixed size before rendering based on PDF page rect."""
-        if not self._doc:
-            return
+        # Use existing _page_rect if available, otherwise try to fetch from doc (fallback)
+        if not self._page_rect and self._doc:
+            try:
+                page = self._doc[self._page_idx]
+                self._page_rect = page.rect
+            except Exception as e:
+                logger.debug(f"Fallback metadata fetch failed for page {self._page_idx}: {e}")
+
+        if not self._page_rect:
+            # Default A4-ish placeholder while waiting for metadata (72 dpi pts)
+            w, h = 595.0, 842.0
+        else:
+            w, h = self._page_rect.width(), self._page_rect.height()
 
         try:
-            page = self._doc[self._page_idx]
-            r = page.rect
-            w = int(r.width * self._zoom * 2.0)
-            h = int(r.height * self._zoom * 2.0)
-            self._img_label.setFixedSize(w, h)
-            self._container.setFixedSize(w, h)
-            self._overlay.setGeometry(0, 0, w, h)
+            target_w = int(w * self._zoom * 2.0)
+            target_h = int(h * self._zoom * 2.0)
+            self._img_label.setFixedSize(target_w, target_h)
+            self._container.setFixedSize(target_w, target_h)
+            self._overlay.setGeometry(0, 0, target_w, target_h)
             self.updateGeometry()
-        except (AttributeError, ValueError, IndexError) as e:
-            logger.error(f"Failed to setup placeholder for page {self._page_idx}: {e}")
         except Exception as e:
-            logger.exception(
-                f"Unexpected error in _setup_placeholder for page {self._page_idx}: {e}"
-            )
+            logger.error(f"Failed to setup placeholder for page {self._page_idx}: {e}")
 
     def render_if_needed(self) -> None:
         """Trigger render if not already rendered."""
         if not self._rendered:
             self._render()
-            self._rendered = True
 
     def _render(self) -> None:
         # Check global cache first
         cached = _RENDER_CACHE.get(self._pdf_path, self._page_idx, self._zoom)
         if cached:
-            self._img_label.setPixmap(cached)
-            self._img_label.setFixedSize(cached.size())
-            self._container.setFixedSize(cached.size())
-            self._overlay.setGeometry(0, 0, cached.width(), cached.height())
-            self._overlay.raise_()
-            self.updateGeometry()
+            self._on_render_finished(cached)
             return
 
         if not self._doc:
             return
 
-        try:
-            fitz = _get_fitz()
-            page = self._doc[self._page_idx]
-            # Render at 2x zoom for sharp baseline, then scale to target zoom
-            mat = fitz.Matrix(self._zoom * 2.0, self._zoom * 2.0)
-            pix = page.get_pixmap(matrix=mat, alpha=False)
-            img = QImage(
-                pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888
-            )
-            qpix = QPixmap.fromImage(img)
+        self._img_label.setText("[Rendering...]")
+        self.render_requested.emit(self._page_idx, self._zoom)
 
-            # Store in global cache
+    def _on_render_finished(self, qpix: QPixmap) -> None:
+        """Called when rendering is done (either from cache or worker)."""
+        self._rendered = True
+        # Store in global cache if not already there
+        if not _RENDER_CACHE.get(self._pdf_path, self._page_idx, self._zoom):
             _RENDER_CACHE.set(self._pdf_path, self._page_idx, self._zoom, qpix)
 
-            self._img_label.setPixmap(qpix)
-            self._img_label.setFixedSize(qpix.size())
-            self._container.setFixedSize(qpix.size())
-            self._overlay.setGeometry(0, 0, qpix.width(), qpix.height())
-            self._overlay.raise_()
-            self.updateGeometry()
-        except (AttributeError, ValueError, IndexError) as e:
-            self._img_label.setText(f"[Page data error: {e}]")
-            logger.error(f"Render data error for page {self._page_idx}: {e}")
-        except Exception as e:
-            self._img_label.setText(f"[Render failed: {e}]")
-            logger.exception(f"Unexpected render failure for page {self._page_idx}: {e}")
+        self._img_label.setPixmap(qpix)
+        self._img_label.setFixedSize(qpix.size())
+        self._container.setFixedSize(qpix.size())
+        self._overlay.setGeometry(0, 0, qpix.width(), qpix.height())
+        self._overlay.raise_()
+        self.updateGeometry()
+
+    def _on_render_error(self, error_msg: str) -> None:
+        """Handle rendering error."""
+        self._img_label.setText(f"[Render failed: {error_msg}]")
+        logger.error(f"Render error for page {self._page_idx}: {error_msg}")
 
     def update_zoom(self, zoom: float) -> None:
         self._zoom = zoom
         self._rendered = False
         if self.isVisible():
             self._render()
-            self._rendered = True
         else:
             self._setup_placeholder()
 
@@ -276,17 +280,32 @@ class MuPdfViewer(QWidget):
     """
 
     page_changed = Signal(int)  # current page (0-indexed)
+    search_finished = Signal(str, list)
+    document_loaded = Signal()
+
+    # Internal signals to communicate with workers safely
+    _render_requested = Signal(int, float)
+    _clip_requested = Signal(int, list, float)
+    _text_requested = Signal(int)
+    _search_requested = Signal(str)
 
     def __init__(
-        self, pdf_path: Path, papis_key: str, store: AnnotationStore, zoom: float = 1.0, parent=None
+        self, pdf_path: Path, papis_key: str, store: AnnotationStore, vault: VaultManager, zoom: float = 1.0, parent=None
     ) -> None:
         super().__init__(parent)
         self.pdf_path = pdf_path
         self.papis_key = papis_key
         self._store = store
+        self.vault = vault
         self._zoom = zoom
         self._overlays: list[AnnotationOverlay] = []
         self._page_widgets: list[MuPdfPageWidget] = []
+        self._render_thread: Optional[QThread] = None
+        self._metadata_thread: Optional[QThread] = None
+        self._text_thread: Optional[QThread] = None
+        self._render_worker: Optional[PdfRenderWorker] = None
+        self._metadata_worker: Optional[PdfMetadataWorker] = None
+        self._text_worker: Optional[PdfTextWorker] = None
 
         fitz = _get_fitz()
         self._doc = fitz.open(str(pdf_path))
@@ -312,6 +331,43 @@ class MuPdfViewer(QWidget):
 
         self._build_pages()
 
+        # Background rendering setup
+        self._render_thread = QThread(self)
+        self._render_worker = PdfRenderWorker(str(self.pdf_path))
+        self._render_worker.moveToThread(self._render_thread)
+        
+        # Connect signals to worker slots BEFORE starting thread
+        self._render_requested.connect(self._render_worker.render_page)
+        self._clip_requested.connect(self._render_worker.render_clip)
+        
+        # Proper cleanup connection: delete worker when thread finishes
+        self._render_thread.finished.connect(self._render_worker.deleteLater)
+        
+        self._render_thread.start()
+        self.vault.register_pdf_thread(self._render_thread)
+        
+        self._render_worker.finished.connect(self._on_worker_finished)
+        self._render_worker.clip_finished.connect(self._on_clip_finished)
+        self._render_worker.error.connect(self._on_worker_error)
+
+        # Background text extraction setup
+        self._text_thread = QThread(self)
+        self._text_worker = PdfTextWorker(str(self.pdf_path))
+        self._text_worker.moveToThread(self._text_thread)
+        
+        # Connect signals to worker slots
+        self._text_requested.connect(self._text_worker.extract_words)
+        self._search_requested.connect(self._text_worker.search_text)
+        
+        # Cleanup: delete worker when thread finishes
+        self._text_thread.finished.connect(self._text_worker.deleteLater)
+
+        self._text_thread.start()
+        self.vault.register_pdf_thread(self._text_thread)
+        
+        self._text_worker.finished.connect(self._on_text_ready)
+        self._text_worker.search_finished.connect(self._on_search_finished)
+
         # Debounce scroll events
         self._scroll_timer = QTimer()
         self._scroll_timer.setSingleShot(True)
@@ -334,26 +390,89 @@ class MuPdfViewer(QWidget):
         self._overlays.clear()
         self._page_widgets.clear()
 
+        # 1. Build skeleton pages with default dimensions (non-blocking)
         for i in range(self._doc.page_count):
-            page = self._doc[i]
-            r = page.rect
             overlay = AnnotationOverlay(
                 papis_key=self.papis_key,
                 page_idx=i,
                 store=self._store,
-                page_width_pts=r.width,
-                page_height_pts=r.height,
+                page_width_pts=595.0,  # Default A4 width
+                page_height_pts=842.0,  # Default A4 height
             )
-            overlay.set_fitz_page(self._doc[i])
+            overlay.clip_capture_requested.connect(self._request_clip_render)
             self._overlays.append(overlay)
 
-            pw = MuPdfPageWidget(self._doc, i, self._zoom, overlay, pdf_path=str(self.pdf_path))
+            pw = MuPdfPageWidget(None, i, self._zoom, overlay, pdf_path=str(self.pdf_path))
+            pw.render_requested.connect(self._request_render)
             self._page_widgets.append(pw)
             self._layout.addWidget(pw)
 
         self._container.adjustSize()
-        # Initial render of visible pages, queued to the end of the event loop
+
+        # 2. Launch background metadata loader
+        self._metadata_thread = QThread(self)
+        self._metadata_worker = PdfMetadataWorker(str(self.pdf_path))
+        self._metadata_worker.moveToThread(self._metadata_thread)
+        self._metadata_worker.finished.connect(self._on_metadata_ready)
+        self._metadata_thread.started.connect(self._metadata_worker.run)
+        self._metadata_thread.start()
+
+        # Initial render of visible pages (will use default sizes until metadata arrives)
         QTimer.singleShot(0, self._render_visible_pages)
+
+    def _on_metadata_ready(self, metadata: list) -> None:
+        """Update widgets with actual page dimensions when background task finishes."""
+        for i, w, h in metadata:
+            if i < len(self._page_widgets):
+                pw = self._page_widgets[i]
+                pw.apply_metadata(w, h, doc=self._doc)
+                pw._overlay.update_dimensions(w, h)
+                
+                # Request text extraction for this page now that we know it exists properly
+                self._text_requested.emit(i)
+
+        self._container.adjustSize()
+        self._detect_visible_page()
+        self._render_visible_pages()
+
+        # Cleanup metadata thread
+        if hasattr(self, "_metadata_thread") and self._metadata_thread:
+            self._metadata_thread.finished.connect(self._metadata_thread.deleteLater)
+            if hasattr(self, "_metadata_worker") and self._metadata_worker:
+                self._metadata_worker.deleteLater()
+            self._metadata_thread.quit()
+            self._metadata_thread = None
+            self._metadata_worker = None
+
+        self.document_loaded.emit()
+
+    def _on_text_ready(self, page_idx: int, words: list) -> None:
+        """Handle finished text extraction from worker."""
+        if 0 <= page_idx < len(self._overlays):
+            self._overlays[page_idx].set_words(words)
+
+    def _request_render(self, page_idx: int, zoom: float) -> None:
+        """Forward render request to the background worker."""
+        self._render_requested.emit(page_idx, zoom)
+
+    def _request_clip_render(self, page_idx: int, rect_pts: list[float]) -> None:
+        """Forward clip render request to the background worker."""
+        self._clip_requested.emit(page_idx, rect_pts, self._zoom)
+
+    def _on_clip_finished(self, page_idx: int, image_bytes: bytes, rect_pts: list[float]) -> None:
+        """Handle finished clip capture from worker."""
+        if 0 <= page_idx < len(self._overlays):
+            self._overlays[page_idx].finalize_image_highlight(image_bytes, rect_pts)
+
+    def _on_worker_finished(self, page_idx: int, qpix: QPixmap) -> None:
+        """Handle finished render from worker."""
+        if 0 <= page_idx < len(self._page_widgets):
+            self._page_widgets[page_idx]._on_render_finished(qpix)
+
+    def _on_worker_error(self, page_idx: int, error_msg: str) -> None:
+        """Handle render error from worker."""
+        if 0 <= page_idx < len(self._page_widgets):
+            self._page_widgets[page_idx]._on_render_error(error_msg)
 
     def set_zoom(self, zoom: float) -> None:
         old_zoom = self._zoom
@@ -382,12 +501,13 @@ class MuPdfViewer(QWidget):
         for ov in self._overlays:
             ov.refresh()
 
-    def search_text(self, query: str) -> list[tuple[int, tuple]]:
-        results = []
-        for i in range(self._doc.page_count):
-            for rect in self._doc[i].search_for(query):
-                results.append((i, (rect.x0, rect.y0, rect.x1, rect.y1)))
-        return results
+    def search_text(self, query: str) -> None:
+        """Forward search request to the background worker."""
+        self._search_requested.emit(query)
+
+    def _on_search_finished(self, query: str, results: list) -> None:
+        """Forward search results to the tab."""
+        self.search_finished.emit(query, results)
 
     # ── Scroll-based page detection & virtual rendering ───────────────
 
@@ -441,11 +561,39 @@ class MuPdfViewer(QWidget):
         if best_area > 0:
             self.page_changed.emit(best_page)
 
-    def closeEvent(self, event) -> None:
-        """Explicitly release PDF resources to prevent file locking."""
+    def shutdown(self) -> None:
+        """Synchronously stop all background threads and release resources.
+        This must be called before the widget is destroyed.
+        """
+        # Unregister threads so VaultManager doesn't try to access them
+        if self._render_thread:
+            self.vault.unregister_pdf_thread(self._render_thread)
+        if self._text_thread:
+            self.vault.unregister_pdf_thread(self._text_thread)
+        if self._metadata_thread:
+            self.vault.unregister_pdf_thread(self._metadata_thread)
+
+        # 1. Shutdown workers and threads locally as fallback
+        for worker, thread, label in [
+            (self._render_worker, self._render_thread, "Render"),
+            (self._text_worker, self._text_thread, "Text"),
+        ]:
+            if thread and thread.isRunning():
+                if worker:
+                    QMetaObject.invokeMethod(
+                        worker, "cleanup", Qt.ConnectionType.BlockingQueuedConnection
+                    )
+                thread.quit()
+                thread.wait(1000)
+
+        # 2. Metadata thread
+        if self._metadata_thread and self._metadata_thread.isRunning():
+            self._metadata_thread.quit()
+            self._metadata_thread.wait(1000)
+
+        # 3. Cleanup local document handle
         if self._doc:
             try:
-                # Clear references in children to avoid use-after-close
                 for pw in self._page_widgets:
                     pw._doc = None
                 self._doc.close()
@@ -453,6 +601,10 @@ class MuPdfViewer(QWidget):
                 logger.error(f"Error closing PDF document: {e}")
             finally:
                 self._doc = None
+
+    def closeEvent(self, event) -> None:
+        """Explicitly release PDF resources to prevent file locking and crashes."""
+        self.shutdown()
         super().closeEvent(event)
 
 
@@ -769,10 +921,12 @@ class PdfViewerTab(QWidget):
             pdf_path=self.pdf_path,
             papis_key=self.papis_key,
             store=self._store,
+            vault=self.vault,
             zoom=self._zoom,
         )
         # Connect scroll signal to update page & progress
         viewer.page_changed.connect(self._on_viewer_page_changed)
+        viewer.search_finished.connect(self._on_search_results)
 
         for ov in viewer.overlays:
             ov.annotation_created.connect(self._on_ov_created)
@@ -797,7 +951,7 @@ class PdfViewerTab(QWidget):
             self._page_spin.setValue(last + 1)
             self._page_spin.blockSignals(False)
             if self._mupdf_viewer:
-                QTimer.singleShot(200, lambda: self._mupdf_viewer.scroll_to_page(last))  # type: ignore[union-attr]
+                self._mupdf_viewer.document_loaded.connect(lambda: self._mupdf_viewer.scroll_to_page(last))  # type: ignore[union-attr]
 
         self._update_progress()
         self._refresh_annot_list()
@@ -916,14 +1070,18 @@ class PdfViewerTab(QWidget):
         if not q:
             return
         if self._mupdf_viewer:
-            results = self._mupdf_viewer.search_text(q)
-            if results:
-                self._set_page(results[0][0])
-                self._lbl_search_result.setText(f"{len(results)} results")
-            else:
-                self._lbl_search_result.setText("Not found")
+            self._lbl_search_result.setText("Searching...")
+            self._mupdf_viewer.search_text(q)
         else:
             self._lbl_search_result.setText("Search requires PyMuPDF")
+
+    def _on_search_results(self, query: str, results: list) -> None:
+        """Handle search results from the background worker."""
+        if results:
+            self._set_page(results[0][0])
+            self._lbl_search_result.setText(f"{len(results)} results")
+        else:
+            self._lbl_search_result.setText("Not found")
 
     # ── Annotation panel ──────────────────────────────────────────────
 
@@ -1086,7 +1244,7 @@ class PdfViewerTab(QWidget):
     def closeEvent(self, event) -> None:
         """Clear cache and shutdown viewer when tab is closed."""
         if self._mupdf_viewer:
-            self._mupdf_viewer.close()
+            self._mupdf_viewer.shutdown()
 
         # Explicitly clear cache for this PDF
         _RENDER_CACHE.clear(str(self.pdf_path))

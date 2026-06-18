@@ -1,7 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from noteration.api.server import app, get_core, set_vault_path
+from noteration.api.deps import get_core
+from noteration.api.server import app, set_vault_path
 from noteration.core.vault_core import VaultCore
 
 # Global API key for tests

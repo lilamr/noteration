@@ -28,7 +28,7 @@ _TEMP_SESSION_DIR: Path | None = None
 
 
 def _cleanup_temp_dir():
-    """Final emergency cleanup of the temporary session directory."""
+    """Performs emergency cleanup of the temporary session directory."""
     global _TEMP_SESSION_DIR
     if _TEMP_SESSION_DIR and _TEMP_SESSION_DIR.exists():
         try:
@@ -36,11 +36,16 @@ def _cleanup_temp_dir():
             shutil.rmtree(_TEMP_SESSION_DIR)
             _TEMP_SESSION_DIR = None
         except Exception as e:
-            print(f"Failed to cleanup temp dir {_TEMP_SESSION_DIR}: {e}")
+            logger.error(f"Failed to cleanup temp dir {_TEMP_SESSION_DIR}: {e}")
 
 
 def _signal_handler(sig, frame):
-    """Handle termination signals."""
+    """Handles termination signals for graceful shutdown.
+
+    Args:
+        sig: The signal number.
+        frame: The current stack frame.
+    """
     logger.info(f"Received signal {sig}, exiting...")
     _cleanup_temp_dir()
     sys.exit(0)
@@ -54,7 +59,11 @@ if sys.platform != "win32":
 
 
 def _global_config() -> NoterationConfig | None:
-    """Attempt to read config from the last known vault."""
+    """Attempts to read the configuration from the last known vault.
+
+    Returns:
+        A NoterationConfig instance if successful, None otherwise.
+    """
     vaults_file = Path.home() / ".noteration" / "vaults.toml"
     if not vaults_file.exists():
         return None
@@ -79,6 +88,11 @@ def _global_config() -> NoterationConfig | None:
 
 
 def main() -> int:
+    """Bootstraps and runs the Noteration application.
+
+    Returns:
+        The application exit code.
+    """
     # ── Security & Stability ──────────────────────────────────────────
     # Disable GPU acceleration if it's known to cause crashes (e.g. libva errors)
     # This is often needed for QtWebEngine on certain Linux drivers.
@@ -179,6 +193,11 @@ def main() -> int:
 
     # Wire theme changes from Settings to the application instance
     def _on_theme_changed(theme_str: str) -> None:
+        """Apply theme change requested from settings.
+
+        Args:
+            theme_str: The theme identifier.
+        """
         apply_theme(app, ThemeMode(theme_str))
         if theme_str == "system":
             watcher.start()
@@ -189,10 +208,12 @@ def main() -> int:
 
     # Ensure graceful shutdown on app exit
     def shutdown():
+        """Handle application shutdown tasks."""
         window.vault.shutdown()
         try:
             session.close()
         except Exception as e:
+            logger.exception(f"Failed to re-encrypt changes: {e}")
             QMessageBox.critical(None, "Save Error", f"Failed to re-encrypt changes: {e}")
 
     app.aboutToQuit.connect(shutdown)

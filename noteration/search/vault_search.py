@@ -57,9 +57,9 @@ class VaultSearch:
 
                 if isinstance(papis_bridge, Path):
                     papis_bridge = PapisBridge(papis_bridge)
-                    print("[INFO] Converted Path to PapisBridge")
+                    logger.info("Converted Path to PapisBridge")
             except Exception as e:
-                print(f"[WARNING] Failed to convert to PapisBridge: {e}")
+                logger.warning(f"Failed to convert to PapisBridge: {e}")
                 papis_bridge = None
 
         self.papis = papis_bridge
@@ -260,7 +260,7 @@ class VaultSearch:
         try:
             entries = self.papis.all_entries()
         except Exception as e:
-            print(f"[ERROR] Failed to load literature entries: {e}")
+            logger.error(f"Failed to load literature entries: {e}")
             return results
 
         for entry in entries:

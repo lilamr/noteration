@@ -48,6 +48,7 @@ _HAS_FITZ: bool | None = None
 
 
 def _get_fitz() -> Any:
+    """Get the PyMuPDF (fitz) module, importing it if necessary."""
     global _fitz, _HAS_FITZ
     if _HAS_FITZ is None:
         try:
@@ -61,6 +62,7 @@ def _get_fitz() -> Any:
 
 
 def _has_fitz() -> bool:
+    """Check if PyMuPDF (fitz) is available."""
     _get_fitz()
     return bool(_HAS_FITZ)
 
@@ -74,6 +76,7 @@ class AnnotationOverlay(QWidget):
     annotation_deleted = Signal(str)  # ann_id
     annotation_edited = Signal(object)  # Updated Annotation
     jump_to_note_requested = Signal(str)  # note path
+    clip_capture_requested = Signal(int, list)  # page_idx, rect_pts
 
     def __init__(
         self,
@@ -90,7 +93,6 @@ class AnnotationOverlay(QWidget):
         self._store = store
         self._page_w = page_width_pts
         self._page_h = page_height_pts
-        self._fitz_page = None  # PyMuPDF page
         self._page_words: list = []
         self._mode: str = "view"  # "view" | "highlight" | "comment" | "image"
 
@@ -106,26 +108,34 @@ class AnnotationOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setMouseTracking(True)
 
-    def set_fitz_page(self, page) -> None:
-        self._fitz_page = page
-        if page:
-            # words: (x0, y0, x1, y1, "word", block_no, line_no, word_no)
-            self._page_words = page.get_text("words")
-        else:
-            self._page_words = []
+    def update_dimensions(self, width: float, height: float) -> None:
+        """Update page dimensions asynchronously."""
+        self._page_w = width
+        self._page_h = height
+        self.update()
+
+    def set_words(self, words: list) -> None:
+        """Set extracted words for this page (usually from a background worker)."""
+        self._page_words = words
+        self.update()
 
     def _extract_text_from_rect(self, rect_pts: list[float]) -> str:
-        if self._fitz_page is None or not _has_fitz():
+        """Extract text from a rectangle using cached words.
+        Fallback to fitz if words are missing (not recommended for main thread).
+        """
+        if not self._page_words:
+            # If we don't have words yet, we can't do much without blocking.
+            # In a proper async flow, we should already have them.
             return ""
-        try:
-            fitz = _get_fitz()
-            x0, y0, x1, y1 = rect_pts
-            r = fitz.Rect(x0, y0, x1, y1)
-            text = self._fitz_page.get_text("text", clip=r)
-            return text.strip() if text else ""
-        except Exception as e:
-            logger.error(f"Failed to extract text from rect: {e}")
-            return ""
+            
+        x0, y0, x1, y1 = rect_pts
+        text_parts = []
+        for w in self._page_words:
+            # words: (x0, y0, x1, y1, "word", ...)
+            if w[0] >= x0 and w[1] >= y0 and w[2] <= x1 and w[3] <= y1:
+                text_parts.append(w[4])
+        
+        return " ".join(text_parts)
 
     # ------------------------------------------------------------------
     # Public API
@@ -142,6 +152,7 @@ class AnnotationOverlay(QWidget):
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def refresh(self) -> None:
+        """Refresh the widget by triggering an update."""
         self.update()
 
     # ------------------------------------------------------------------
@@ -155,11 +166,13 @@ class AnnotationOverlay(QWidget):
         return self.width() / self._page_w
 
     def _pts_to_px(self, bbox: list[float]) -> QRectF:
+        """Convert coordinates from PDF points to pixel coordinates."""
         s = self._scale()
         x0, y0, x1, y1 = bbox
         return QRectF(x0 * s, y0 * s, (x1 - x0) * s, (y1 - y0) * s)
 
     def _px_to_pts(self, px_rect: QRectF) -> list[float]:
+        """Convert coordinates from pixel coordinates to PDF points."""
         s = self._scale()
         if s <= 0:
             s = 1.0
@@ -206,6 +219,7 @@ class AnnotationOverlay(QWidget):
         return best_idx if min_dist < 150 else -1
 
     def paintEvent(self, event: QPaintEvent) -> None:
+        """Paint the annotation overlay."""
         painter = QPainter(self)
         try:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -261,6 +275,7 @@ class AnnotationOverlay(QWidget):
             painter.drawRect(QRectF(lx0 * s, ly0 * s, (lx1 - lx0) * s, (ly1 - ly0) * s))
 
     def _paint_annotation(self, painter: QPainter, ann: Annotation) -> None:
+        """Paint a single annotation based on its type."""
         if ann.type in ("highlight", "image"):
             color = QColor(ann.color)
             color.setAlpha(90)
@@ -334,6 +349,7 @@ class AnnotationOverlay(QWidget):
     # ------------------------------------------------------------------
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        """Handle mouse press events for annotation interactions."""
         pos = event.position()
         s = self._scale()
         pos_pts = QPointF(pos.x() / s, pos.y() / s)
@@ -362,6 +378,7 @@ class AnnotationOverlay(QWidget):
             self._show_context_menu(event.globalPosition().toPoint(), ann)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        """Handle mouse move events for dragging/selection."""
         if self._dragging:
             self._drag_end_pos = event.position()
 
@@ -373,6 +390,7 @@ class AnnotationOverlay(QWidget):
             self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        """Handle mouse release events to finalize selection or action."""
         if self._dragging:
             self._dragging = False
 
@@ -454,40 +472,38 @@ class AnnotationOverlay(QWidget):
     # ------------------------------------------------------------------
 
     def _add_highlight(self, rect_pts: list[float]) -> None:
-        if not _has_fitz():
-            return
+        """Create and save a new highlight annotation."""
         try:
-            fitz = _get_fitz()
             x0, y0, x1, y1 = rect_pts
-            fitz_rect = fitz.Rect(x0, y0, x1, y1)
-
             quads: list[list[float]] = []
             text_parts: list[str] = []
 
-            if self._fitz_page:
-                # Get all words within the rect area
-                # words: (x0, y0, x1, y1, "word", block_no, line_no, word_no)
-                words = self._fitz_page.get_text("words", clip=fitz_rect)
+            # Get all words within the rect area (with 1pt tolerance)
+            # words: (x0, y0, x1, y1, "word", block_no, line_no, word_no)
+            words_in_rect = [
+                w for w in self._page_words
+                if w[0] >= x0 - 1 and w[1] >= y0 - 1 and w[2] <= x1 + 1 and w[3] <= y1 + 1
+            ]
 
-                # Group by line_no to create quads per line
-                lines = {}
-                for w in words:
-                    l_no = w[6]
-                    if l_no not in lines:
-                        lines[l_no] = []
-                    lines[l_no].append(w)
-                    text_parts.append(w[4])
+            # Group by line_no to create quads per line
+            lines: dict[int, list[Any]] = {}
+            for w in words_in_rect:
+                l_no = w[6]
+                if l_no not in lines:
+                    lines[l_no] = []
+                lines[l_no].append(w)
+                text_parts.append(w[4])
 
-                for l_no in sorted(lines.keys()):
-                    line_words = lines[l_no]
-                    # Combine words in one line into a single bounding box
-                    lx0 = min(w[0] for w in line_words)
-                    ly0 = min(w[1] for w in line_words)
-                    lx1 = max(w[2] for w in line_words)
-                    ly1 = max(w[3] for w in line_words)
+            for l_no in sorted(lines.keys()):
+                line_words = lines[l_no]
+                # Combine words in one line into a single bounding box
+                lx0 = min(w[0] for w in line_words)
+                ly0 = min(w[1] for w in line_words)
+                lx1 = max(w[2] for w in line_words)
+                ly1 = max(w[3] for w in line_words)
 
-                    # Store as p0, p1, p2, p3
-                    quads.append([lx0, ly0, lx1, ly0, lx0, ly1, lx1, ly1])
+                # Store as p0, p1, p2, p3
+                quads.append([lx0, ly0, lx1, ly0, lx0, ly1, lx1, ly1])
 
             text = " ".join(text_parts)
 
@@ -501,23 +517,15 @@ class AnnotationOverlay(QWidget):
             self.update()
             self.annotation_created.emit(ann)
         except Exception as e:
-            logger.error(f"Failed to create annotation: {e}")
+            logger.error(f"Failed to create highlight: {e}")
 
     def _add_image_highlight(self, rect_pts: list[float]) -> None:
-        if self._fitz_page is None or not _has_fitz():
-            return
+        """Capture an image area and save it as an annotation."""
+        self.clip_capture_requested.emit(self.page_idx, rect_pts)
 
+    def finalize_image_highlight(self, image_bytes: bytes, rect_pts: list[float]) -> None:
+        """Finalize the image highlight after background capture is finished."""
         try:
-            fitz = _get_fitz()
-            x0, y0, x1, y1 = rect_pts
-
-            mat = fitz.Matrix(2.0, 2.0)
-            pix = self._fitz_page.get_pixmap(
-                matrix=mat, alpha=False, clip=fitz.Rect(x0, y0, x1, y1)
-            )
-
-            image_bytes = pix.tobytes("png")
-
             ann = self._store.new_highlight(
                 papis_key=self.papis_key,
                 page=self.page_idx,
@@ -533,9 +541,10 @@ class AnnotationOverlay(QWidget):
             self.update()
             self.annotation_created.emit(ann)
         except Exception as e:
-            logger.error(f"Failed to create annotation: {e}")
+            logger.error(f"Failed to finalize image highlight: {e}")
 
     def _add_comment(self, x_pts: float, y_pts: float) -> None:
+        """Open the comment dialog and save a new comment annotation."""
         dlg = CommentDialog(self)
         if dlg.exec():
             note = dlg.get_note()
@@ -553,6 +562,7 @@ class AnnotationOverlay(QWidget):
     # ------------------------------------------------------------------
 
     def _hit_test(self, pos: QPointF) -> Annotation | None:
+        """Perform hit testing to identify an annotation under the cursor."""
         doc = self._store.load(self.papis_key)
         for ann in reversed(doc.for_page(self.page_idx)):
             if ann.type in ("highlight", "image") and ann.rect:
@@ -572,6 +582,7 @@ class AnnotationOverlay(QWidget):
     # ------------------------------------------------------------------
 
     def _show_context_menu(self, global_pos, ann: Annotation | None) -> None:
+        """Display a context menu for annotations."""
         menu = QMenu(self)
 
         if ann:
@@ -612,6 +623,7 @@ class AnnotationOverlay(QWidget):
     # ------------------------------------------------------------------
 
     def _show_annotation_detail(self, ann: Annotation) -> None:
+        """Open a dialog to edit annotation details."""
         dlg = CommentDialog(self, initial_text=ann.note, read_only=False)
         if dlg.exec():
             new_note = dlg.get_note()

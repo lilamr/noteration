@@ -25,6 +25,7 @@ class FindReplaceDialog(QDialog):
     replace_all_requested = Signal(str, str, bool, bool, bool)
 
     def __init__(self, parent=None) -> None:
+        """Initialize the find and replace dialog."""
         super().__init__(parent)
         self.setWindowTitle("Find and Replace")
         self.setMinimumWidth(400)
@@ -34,6 +35,7 @@ class FindReplaceDialog(QDialog):
         self._setup_shortcuts()
 
     def _setup_ui(self) -> None:
+        """Set up the UI components."""
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
@@ -95,6 +97,7 @@ class FindReplaceDialog(QDialog):
         self._find_input.setFocus()
 
     def _setup_shortcuts(self) -> None:
+        """Set up keyboard shortcuts."""
         # Escape to close
         QShortcut(QKeySequence("Escape"), self).activated.connect(self.close)
         # Enter in find input triggers Find Next
@@ -103,6 +106,7 @@ class FindReplaceDialog(QDialog):
         self._replace_input.returnPressed.connect(self._on_replace)
 
     def _on_find_next(self) -> None:
+        """Emit request to find next occurrence."""
         query = self._find_input.text()
         if not query:
             return
@@ -111,6 +115,7 @@ class FindReplaceDialog(QDialog):
         )
 
     def _on_replace(self) -> None:
+        """Emit request to replace current occurrence."""
         query = self._find_input.text()
         replace_text = self._replace_input.text()
         if not query:
@@ -124,6 +129,7 @@ class FindReplaceDialog(QDialog):
         )
 
     def _on_replace_all(self) -> None:
+        """Emit request to replace all occurrences."""
         query = self._find_input.text()
         replace_text = self._replace_input.text()
         if not query:

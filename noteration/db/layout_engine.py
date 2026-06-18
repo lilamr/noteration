@@ -34,6 +34,7 @@ class LayoutEngine:
         width: float = 800.0,
         height: float = 600.0,
     ) -> None:
+        """Initialize the LayoutEngine with graph data and viewport dimensions."""
         self._adj = adj or {}
         self._width = width
         self._height = height

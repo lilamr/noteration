@@ -29,6 +29,7 @@ _fitz: Any = None
 
 
 def get_fitz() -> Any:
+    """Get the PyMuPDF (fitz) module, importing it if necessary."""
     global _fitz
     if _fitz is None:
         try:
@@ -39,13 +40,14 @@ def get_fitz() -> Any:
             try:
                 _fitz.TOOLS.mupdf_display_errors(False)
             except Exception as e:
-                print(f"[DEBUG] Could not silence MuPDF errors: {e}")
+                logger.debug(f"Could not silence MuPDF errors: {e}")
         except ImportError:
             pass
     return _fitz
 
 
 def has_fitz() -> bool:
+    """Check if PyMuPDF (fitz) is available."""
     return get_fitz() is not None
 
 
@@ -60,6 +62,7 @@ class TextSpan:
 
 @dataclass
 class PageInfo:
+    """Information about a PDF page."""
     width: float  # in PDF points
     height: float
     page_index: int
@@ -69,10 +72,12 @@ class RenderCache:
     """Simple LRU cache for QPixmap renders."""
 
     def __init__(self, max_size: int = 15) -> None:
+        """Initialize the render cache."""
         self.max_size = max_size
         self._cache: OrderedDict[Tuple[int, float], QPixmap] = OrderedDict()
 
     def get(self, page_idx: int, zoom: float) -> QPixmap | None:
+        """Retrieve a cached pixmap."""
         key = (page_idx, round(zoom, 2))
         if key in self._cache:
             self._cache.move_to_end(key)
@@ -80,6 +85,7 @@ class RenderCache:
         return None
 
     def set(self, page_idx: int, zoom: float, pixmap: QPixmap) -> None:
+        """Cache a pixmap for a page and zoom level."""
         key = (page_idx, round(zoom, 2))
         if key in self._cache:
             self._cache.move_to_end(key)
@@ -88,6 +94,7 @@ class RenderCache:
             self._cache.popitem(last=False)
 
     def clear(self) -> None:
+        """Clear the cache."""
         self._cache.clear()
 
 
@@ -97,6 +104,7 @@ class PdfReader:
     """
 
     def __init__(self, pdf_path: Path) -> None:
+        """Initialize the PDF reader with the given file path."""
         self.pdf_path = pdf_path
         self._doc = None
         self._render_cache = RenderCache(max_size=15)
@@ -117,13 +125,16 @@ class PdfReader:
 
     @property
     def is_open(self) -> bool:
+        """Check if the PDF document is open."""
         return self._doc is not None
 
     @property
     def page_count(self) -> int:
+        """Return the number of pages in the PDF document."""
         return self._doc.page_count if self._doc else 0
 
     def page_info(self, page_idx: int) -> PageInfo | None:
+        """Get information about a specific page."""
         if not self._doc or page_idx >= self.page_count:
             return None
         page = self._doc[page_idx]
@@ -137,7 +148,18 @@ class PdfReader:
     def render_page(self, page_idx: int, zoom: float = 1.0) -> QPixmap | None:
         """Render a single PDF page to QPixmap.
         zoom: 1.0 = 72 dpi, 2.0 = 144 dpi (for HiDPI screens).
+        
+        WARNING: This is a blocking CPU-heavy operation. 
+        It SHOULD be called from a background thread (e.g., via PdfRenderWorker).
         """
+        from PySide6.QtCore import QCoreApplication, QThread
+        app = QCoreApplication.instance()
+        if app and QThread.currentThread() == app.thread():
+            logger.warning(
+                f"PdfReader.render_page called from MAIN THREAD (page={page_idx}). "
+                "This will block the UI. Use PdfRenderWorker instead."
+            )
+
         if not self._doc or page_idx >= self.page_count:
             return None
 
@@ -160,7 +182,8 @@ class PdfReader:
                 pix.stride,
                 QImage.Format.Format_RGB888,
             )
-            pixmap = QPixmap.fromImage(img)
+            # Make a deep copy of the image data to safely pass to main thread
+            pixmap = QPixmap.fromImage(img.copy())
 
             # Save to cache
             self._render_cache.set(page_idx, zoom, pixmap)
@@ -168,6 +191,31 @@ class PdfReader:
             return pixmap
         except Exception as e:
             logger.error(f"render_page failed on page {page_idx}: {e}")
+            return None
+
+    def render_clip(self, page_idx: int, rect_pts: list[float], zoom: float) -> bytes | None:
+        """Render a specific rectangular area to image bytes (PNG)."""
+        from PySide6.QtCore import QCoreApplication, QThread
+        app = QCoreApplication.instance()
+        if app and QThread.currentThread() == app.thread():
+            logger.warning(
+                f"PdfReader.render_clip called from MAIN THREAD (page={page_idx}). "
+                "This will block the UI."
+            )
+
+        if not self._doc or page_idx >= self.page_count:
+            return None
+        
+        try:
+            fitz = get_fitz()
+            page = self._doc[page_idx]
+            # rect_pts: [x0, y0, x1, y1]
+            clip_rect = fitz.Rect(*rect_pts)
+            mat = fitz.Matrix(zoom * 2.0, zoom * 2.0)
+            pix = page.get_pixmap(matrix=mat, clip=clip_rect, alpha=False)
+            return pix.tobytes("png")
+        except Exception as e:
+            logger.error(f"render_clip failed: {e}")
             return None
 
     # ------------------------------------------------------------------
@@ -259,10 +307,12 @@ class PdfReader:
     # ------------------------------------------------------------------
 
     def close(self) -> None:
+        """Close the PDF document and clear the render cache."""
         if self._doc:
             self._doc.close()
             self._doc = None
         self._render_cache.clear()
 
     def __del__(self) -> None:
+        """Destructor to ensure PDF document is closed."""
         self.close()

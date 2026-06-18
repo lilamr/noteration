@@ -25,6 +25,7 @@ class VaultSession:
     """
 
     def __init__(self, vault_path: Path) -> None:
+        """Initialize the session for a given vault path, detecting encryption status."""
         self.vault_path = vault_path
         self.temp_dir: Optional[Path] = None
         self.secret_key: Optional[str] = None
@@ -340,7 +341,7 @@ class VaultSession:
         self.encrypt_vault()
 
     def cleanup(self) -> None:
-        """Remove the temporary session directory."""
+        """Remove the temporary session directory and reset the state."""
         if self.temp_dir and self.temp_dir.exists():
             try:
                 shutil.rmtree(self.temp_dir)

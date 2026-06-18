@@ -6,12 +6,12 @@ from __future__ import annotations
 import contextlib
 from collections import deque
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, cast
+from typing import TYPE_CHECKING, Callable, List, Optional, cast
 
 if TYPE_CHECKING:
     from noteration.sync.git_engine import RepoStatus
 
-from PySide6.QtCore import QPoint, Qt, QTimer, Signal
+from PySide6.QtCore import QPoint, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
     QDockWidget,
@@ -32,7 +32,7 @@ from noteration.dialogs.encryption_dialog import EncryptionDialog
 from noteration.logger import get_logger
 from noteration.search.search_dialog import SearchDialog
 from noteration.sync.updater import (
-    CheckUpdateThread,
+    CheckUpdateWorker,
     get_latest_binary_url,
     is_frozen,
     run_update_process,
@@ -47,6 +47,9 @@ from noteration.ui.sync_tab import SyncTab
 from noteration.vault_manager import VaultManager
 
 logger = get_logger(__name__)
+
+
+MAX_TAB_TITLE_LEN = 30
 
 
 class MainWindow(QMainWindow):
@@ -79,7 +82,8 @@ class MainWindow(QMainWindow):
 
         self._focus_mode_active = False
         self._focus_listener_connected = False
-        self._update_thread: Optional[CheckUpdateThread] = None
+        self._update_worker: Optional[CheckUpdateWorker] = None
+        self._update_thread: Optional[QThread] = None
 
         # Navigation history
         self._history: deque[Path] = deque(maxlen=50)
@@ -412,6 +416,37 @@ class MainWindow(QMainWindow):
 
     # ── Tab management ────────────────────────────────────────────────
 
+    def _iter_tabs(self, reverse: bool = False):
+        """Generator that yields (pane, widget) for every tab in all panes."""
+        for pane in (self.tabs, self.tabs_split):
+            indices: list[int] = list(range(pane.count()))
+            if reverse:
+                indices.reverse()
+            for i in indices:
+                yield pane, pane.widget(i)
+
+    def _foreach_tab(self, callback: Callable[[QWidget], None]) -> None:
+        """Execute a callback for every widget in all tab panes."""
+        for _, w in self._iter_tabs():
+            if w:
+                callback(w)
+
+    def _find_tab(
+        self, tab_type: type[QWidget], predicate: Optional[Callable[[QWidget], bool]] = None, reverse: bool = False
+    ) -> Optional[QWidget]:
+        """Find an existing tab of a specific type that matches an optional predicate.
+
+        If found, switches focus to that tab and returns it.
+        """
+        for pane, w in self._iter_tabs(reverse=reverse):
+            if isinstance(w, tab_type):
+                if predicate is None or predicate(w):
+                    idx = pane.indexOf(w)
+                    pane.setCurrentIndex(idx)
+                    self._active_tab_widget = pane
+                    return w
+        return None
+
     def _on_note_opened_event(self, event: NoteOpenedEvent) -> None:
         """Handler for NoteOpenedEvent from EventBus."""
         self._open_note(event.note_path)
@@ -426,20 +461,15 @@ class MainWindow(QMainWindow):
 
     def _open_note(self, path: Path) -> None:
         # Avoid opening the same note twice across both panes
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count()):
-                w = pane.widget(i)
-                if isinstance(w, EditorTab) and w.file_path == path:
-                    pane.setCurrentIndex(i)
-                    self._active_tab_widget = pane
-
-                    # History tracking for existing tab
-                    if not self._is_navigating:
-                        current_w = self._active_tab_widget.currentWidget()
-                        if isinstance(current_w, EditorTab) and current_w.file_path != path:
-                            self._history.append(current_w.file_path)
-                            self._forward_stack.clear()
-                    return
+        existing = self._find_tab(EditorTab, lambda w: isinstance(w, EditorTab) and w.file_path == path)
+        if existing:
+            # History tracking for existing tab
+            if not self._is_navigating:
+                current_w = self._active_tab_widget.currentWidget()
+                if isinstance(current_w, EditorTab) and current_w.file_path != path:
+                    self._history.append(current_w.file_path)
+                    self._forward_stack.clear()
+            return
 
         # History tracking for new tab
         if not self._is_navigating:
@@ -484,13 +514,9 @@ class MainWindow(QMainWindow):
     def _open_pdf(self, pdf_path: str | Path, papis_key: str = "") -> None:
         if isinstance(pdf_path, str):
             pdf_path = Path(pdf_path)
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count()):
-                w = pane.widget(i)
-                if isinstance(w, PdfViewerTab) and w.pdf_path == pdf_path:
-                    pane.setCurrentIndex(i)
-                    self._active_tab_widget = pane
-                    return
+        
+        if self._find_tab(PdfViewerTab, lambda w: isinstance(w, PdfViewerTab) and w.pdf_path == pdf_path):
+            return
 
         tab = PdfViewerTab(pdf_path, papis_key, self.vault)
         tab.insert_quote_requested.connect(self._insert_quote_to_editor)
@@ -509,23 +535,18 @@ class MainWindow(QMainWindow):
             display_title = pdf_path.name
 
         # Truncate title for tab display
-        max_len = 30
-        if len(display_title) > max_len:
-            display_title = display_title[: max_len - 3] + "..."
+        if len(display_title) > MAX_TAB_TITLE_LEN:
+            display_title = display_title[: MAX_TAB_TITLE_LEN - 3] + "..."
 
         active_pane = self._active_tab_widget
         idx = active_pane.addTab(tab, display_title)
         active_pane.setCurrentIndex(idx)
 
     def _open_literature_tab(self) -> None:
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count()):
-                w = pane.widget(i)
-                if isinstance(w, LiteratureTab):
-                    pane.setCurrentIndex(i)
-                    self._active_tab_widget = pane
-                    w.refresh()
-                    return
+        existing = self._find_tab(LiteratureTab)
+        if existing:
+            cast(LiteratureTab, existing).refresh()
+            return
         tab = LiteratureTab(self.vault)
         tab.pdf_open_requested.connect(self._open_pdf)
         tab.note_create_requested.connect(self._new_note_from_lit)
@@ -539,14 +560,9 @@ class MainWindow(QMainWindow):
 
     def _refresh_all_citation_completers(self) -> None:
         """Update citation completion data in all open EditorTabs."""
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count()):
-                w = pane.widget(i)
-                if (
-                    isinstance(w, EditorTab)
-                    and hasattr(w, "_completer")
-                    and w._completer is not None
-                ):
+        for _, w in self._iter_tabs():
+            if isinstance(w, EditorTab):
+                if hasattr(w, "_completer") and w._completer is not None:
                     w._completer.refresh_keys()
 
     def _on_extract_annotations(self, tab: PdfViewerTab) -> None:
@@ -574,6 +590,7 @@ class MainWindow(QMainWindow):
             self.sidebar.add_note(dest_path)
             self._open_note(dest_path)
         except Exception as e:
+            logger.exception(f"Failed to extract annotations to {dest_path}: {e}")
             QMessageBox.critical(self, "Extraction Failed", f"Failed to save extracted note: {e}")
 
     def _open_sync_tab(self) -> None:
@@ -585,12 +602,8 @@ class MainWindow(QMainWindow):
                 "You can view its status or initialize it in the Synchronization tab.",
             )
 
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count()):
-                if isinstance(pane.widget(i), SyncTab):
-                    pane.setCurrentIndex(i)
-                    self._active_tab_widget = pane
-                    return
+        if self._find_tab(SyncTab):
+            return
         tab = SyncTab(self.vault)
         active_pane = self._active_tab_widget
         idx = active_pane.addTab(tab, "Synchronization")
@@ -687,12 +700,9 @@ class MainWindow(QMainWindow):
     def _open_literature_by_key(self, papis_key: str) -> None:
         """Open the literature tab and focus on a specific entry."""
         self._open_literature_tab()
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count()):
-                w = pane.widget(i)
-                if isinstance(w, LiteratureTab):
-                    w.select_entry(papis_key)
-                    break
+        w = self._find_tab(LiteratureTab)
+        if isinstance(w, LiteratureTab):
+            w.select_entry(papis_key)
 
     def _open_pdf_by_key(self, papis_key: str, page: int) -> None:
         """Open the PDF viewer at a specific page."""
@@ -702,12 +712,9 @@ class MainWindow(QMainWindow):
         if entry and entry.pdf_path and entry.pdf_path.exists():
             self._open_pdf(entry.pdf_path, papis_key)
             # Navigate to the target page (page parameter is 1-indexed)
-            for pane in (self.tabs, self.tabs_split):
-                for i in range(pane.count()):
-                    w = pane.widget(i)
-                    if isinstance(w, PdfViewerTab) and w.pdf_path == entry.pdf_path:
-                        w._set_page(page - 1)
-                        break
+            w = self._find_tab(PdfViewerTab, lambda w: isinstance(w, PdfViewerTab) and w.pdf_path == entry.pdf_path)
+            if isinstance(w, PdfViewerTab):
+                w._set_page(page - 1)
 
     def _new_note(self) -> None:
         from noteration.dialogs.new_note import NewNoteDialog
@@ -719,18 +726,23 @@ class MainWindow(QMainWindow):
             self.sidebar.add_note(path)
 
     def _save_current(self) -> None:
-        active_pane = self._active_tab_widget
-        w = active_pane.currentWidget()
-        if isinstance(w, EditorTab) and w.is_modified:
-            w.save()
-            # Perform incremental graph update via the manager
-            self.vault.update_note_in_graph(w.file_path)
-            # Reset modified marker in tab title
-            idx = active_pane.currentIndex()
-            name = w.file_path.name
-            if active_pane.tabText(idx).endswith(" *"):
-                active_pane.setTabText(idx, name)
-            self.vault.request_git_status()
+        """Autosave all modified EditorTabs in all panes."""
+
+        def save_if_modified(w):
+            if isinstance(w, EditorTab) and w.is_modified:
+                # EditorTab.save() is non-blocking (uses QThread)
+                w.save()
+                
+                # Update tab title if modified marker is present
+                for pane, widget in self._iter_tabs():
+                    if widget == w:
+                        idx = pane.indexOf(w)
+                        name = w.file_path.name
+                        if pane.tabText(idx).endswith(" *"):
+                            pane.setTabText(idx, name)
+                        break
+
+        self._foreach_tab(save_if_modified)
 
     def _sync(self) -> None:
         self._open_sync_tab()
@@ -762,14 +774,9 @@ class MainWindow(QMainWindow):
             current.insert_quote(text, citation_key, locator)
             return
         # Fallback: find the most recently opened editor tab across both panes
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count() - 1, -1, -1):
-                w = pane.widget(i)
-                if isinstance(w, EditorTab):
-                    w.insert_quote(text, citation_key, locator)
-                    pane.setCurrentIndex(i)
-                    self._active_tab_widget = pane
-                    return
+        tab = self._find_tab(EditorTab, reverse=True)
+        if isinstance(tab, EditorTab):
+            tab.insert_quote(text, citation_key, locator)
 
     def _insert_image_to_editor(self, image_path: str, citation_key: str, locator: str = "") -> None:
         from pathlib import Path
@@ -783,55 +790,30 @@ class MainWindow(QMainWindow):
         if isinstance(current, EditorTab):
             current.insert_quote(md, citation_key, locator)
             return
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count() - 1, -1, -1):
-                w = pane.widget(i)
-                if isinstance(w, EditorTab):
-                    w.insert_quote(md, citation_key, locator)
-                    pane.setCurrentIndex(i)
-                    self._active_tab_widget = pane
-                    return
-
-    def _new_note_from_lit(self, papis_key: str, title: str) -> None:
-        note_path = self.vault_path / "notes" / f"{papis_key}.md"
-        if not note_path.exists():
-            note_path.write_text(
-                f"# {title}\n\nSource: @{papis_key}\n\n"
-                "## Summary\n\n\n"
-                "## Important Notes\n\n\n"
-                "## Quotes\n\n",
-                encoding="utf-8",
-            )
-        self._open_note(note_path)
-        self.sidebar.add_note(note_path)
+        
+        tab = self._find_tab(EditorTab, reverse=True)
+        if isinstance(tab, EditorTab):
+            tab.insert_quote(md, citation_key, locator)
 
     def _go_to_heading(self, heading: str) -> None:
         current = self._active_tab_widget.currentWidget()
         if isinstance(current, EditorTab):
             current.go_to_heading(heading)
             return
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count() - 1, -1, -1):
-                w = pane.widget(i)
-                if isinstance(w, EditorTab):
-                    w.go_to_heading(heading)
-                    pane.setCurrentIndex(i)
-                    self._active_tab_widget = pane
-                    return
+        
+        tab = self._find_tab(EditorTab, reverse=True)
+        if isinstance(tab, EditorTab):
+            tab.go_to_heading(heading)
 
     def _go_to_citation(self, key: str) -> None:
         current = self._active_tab_widget.currentWidget()
         if isinstance(current, EditorTab):
             current.go_to_citation(key)
             return
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count() - 1, -1, -1):
-                w = pane.widget(i)
-                if isinstance(w, EditorTab):
-                    w.go_to_citation(key)
-                    pane.setCurrentIndex(i)
-                    self._active_tab_widget = pane
-                    return
+        
+        tab = self._find_tab(EditorTab, reverse=True)
+        if isinstance(tab, EditorTab):
+            tab.go_to_citation(key)
 
     def _open_vault_dialog(self) -> None:
         from noteration.dialogs.vault_picker import VaultPickerDialog
@@ -904,12 +886,13 @@ class MainWindow(QMainWindow):
     def _apply_settings_ui(self) -> None:
         # Refresh configuration visibility across editor tabs
         self.vault.refresh_csl_renderer()
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count()):
-                w = pane.widget(i)
-                if isinstance(w, EditorTab):
-                    w.set_line_numbers_visible(self.config.get("editor", "show_line_numbers", True))
-                    w._refresh_preview()
+
+        def update_tab(w):
+            if isinstance(w, EditorTab):
+                w.set_line_numbers_visible(self.config.get("editor", "show_line_numbers", True))
+                w._refresh_preview()
+
+        self._foreach_tab(update_tab)
 
     def _open_encryption_dialog(self) -> None:
         """Open the vault encryption management dialog."""
@@ -940,12 +923,20 @@ class MainWindow(QMainWindow):
         if not silent:
             self.statusBar().showMessage("Checking for updates...")
 
-        self._update_thread = CheckUpdateThread(self)
-        self._update_thread.finished.connect(self._on_update_check_finished)
-        self._update_thread.error.connect(self._on_update_check_error)
+        self._update_thread = QThread()
+        self._update_worker = CheckUpdateWorker()
+        self._update_worker.moveToThread(self._update_thread)
+
+        self._update_worker.finished.connect(self._on_update_check_finished)
+        self._update_worker.error.connect(self._on_update_check_error)
+        self._update_worker.finished.connect(self._update_thread.quit)
+        self._update_worker.finished.connect(self._update_worker.deleteLater)
+        self._update_thread.started.connect(self._update_worker.run)
+
         self._update_thread.start()
 
     def _clear_update_thread(self) -> None:
+        """Clear the update check thread."""
         pass
 
     def _on_update_check_finished(self, available: bool, version: str) -> None:
@@ -1055,11 +1046,9 @@ class MainWindow(QMainWindow):
             self._right_dock.show()
 
         # Update all EditorTabs
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count()):
-                w = pane.widget(i)
-                if isinstance(w, EditorTab):
-                    w.set_focus_mode(enabled)
+        for _, w in self._iter_tabs():
+            if isinstance(w, EditorTab):
+                w.set_focus_mode(enabled)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         """Handle global keys, like Esc to exit Focus Mode when no editor is focused."""
@@ -1141,6 +1130,7 @@ class MainWindow(QMainWindow):
         self.vault.build_graph(force=True)
 
     def _toggle_graph_view(self) -> None:
+        """Toggle the visibility of the graph view dock."""
         # Navigate to the Graph tab in the right panel
         if self._graph_view:
             self._right_tabs.setCurrentIndex(1)
@@ -1175,33 +1165,32 @@ class MainWindow(QMainWindow):
 
     def _on_note_moved(self, src: Path, dest: Path) -> None:
         """Update open tabs when a note is moved via the sidebar."""
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count()):
-                w = pane.widget(i)
-                if isinstance(w, EditorTab):
-                    try:
-                        if w.file_path == src or w.file_path.is_relative_to(src):
-                            rel = w.file_path.relative_to(src)
-                            new_path = dest / rel
-                            w.file_path = new_path
-                            if w.file_path == dest:
-                                pane.setTabText(i, dest.name + (" *" if w.is_modified else ""))
+        for pane, w in self._iter_tabs():
+            if isinstance(w, EditorTab):
+                try:
+                    if w.file_path == src or w.file_path.is_relative_to(src):
+                        rel = w.file_path.relative_to(src)
+                        new_path = dest / rel
+                        w.file_path = new_path
+                        if w.file_path == dest:
+                            idx = pane.indexOf(w)
+                            pane.setTabText(idx, dest.name + (" *" if w.is_modified else ""))
 
-                            if pane == self._active_tab_widget and i == pane.currentIndex():
-                                note_id = self._get_note_id(new_path)
-                                self._backlink_panel.set_current_note(note_id)
-                                if self._graph_view:
-                                    self._graph_view.set_current_note(note_id)
-                    except (ValueError, AttributeError):
-                        if str(w.file_path).startswith(str(src)):
-                            rel_str = str(w.file_path)[len(str(src)) :]
-                            if rel_str.startswith("/"):
-                                rel_str = rel_str[1:]
-                            new_path = dest / rel_str
-                            w.file_path = new_path
-                            if pane == self._active_tab_widget and i == pane.currentIndex():
-                                note_id = self._get_note_id(new_path)
-                                self._backlink_panel.set_current_note(note_id)
+                        if pane == self._active_tab_widget and w == pane.currentWidget():
+                            note_id = self._get_note_id(new_path)
+                            self._backlink_panel.set_current_note(note_id)
+                            if self._graph_view:
+                                self._graph_view.set_current_note(note_id)
+                except (ValueError, AttributeError):
+                    if str(w.file_path).startswith(str(src)):
+                        rel_str = str(w.file_path)[len(str(src)) :]
+                        if rel_str.startswith("/"):
+                            rel_str = rel_str[1:]
+                        new_path = dest / rel_str
+                        w.file_path = new_path
+                        if pane == self._active_tab_widget and w == pane.currentWidget():
+                            note_id = self._get_note_id(new_path)
+                            self._backlink_panel.set_current_note(note_id)
 
     def _mark_modified(self, tab: EditorTab) -> None:
         for pane in (self.tabs, self.tabs_split):
@@ -1379,21 +1368,32 @@ class MainWindow(QMainWindow):
             self._update_thread = None
 
         # 2. Stop tab threads (e.g., Literature loading) and save modified notes
-        for pane in (self.tabs, self.tabs_split):
-            for i in range(pane.count()):
-                w = pane.widget(i)
-                if w is not None:
-                    # First save if it's an editor tab
-                    from noteration.ui.editor_tab import EditorTab
+        for _, w in self._iter_tabs():
+            if w is not None:
+                # First save if it's an editor tab
+                from noteration.ui.editor_tab import EditorTab
 
-                    if isinstance(w, EditorTab) and w.is_modified:
-                        w.save()
+                if isinstance(w, EditorTab) and w.is_modified:
+                    w.save()
 
-                    # Then call shutdown if available
-                    if hasattr(w, "shutdown"):
-                        w.shutdown()
+                # Then call shutdown if available
+                if hasattr(w, "shutdown"):
+                    w.shutdown()
 
         # 3. Shutdown vault manager (stops background threads + performs final save_all)
         self.vault.shutdown()
 
         super().closeEvent(event)
+
+    def _new_note_from_lit(self, papis_key: str, title: str) -> None:
+        note_path = self.vault_path / "notes" / f"{papis_key}.md"
+        if not note_path.exists():
+            note_path.write_text(
+                f"# {title}\n\nSource: @{papis_key}\n\n"
+                "## Summary\n\n\n"
+                "## Important Notes\n\n\n"
+                "## Quotes\n\n",
+                encoding="utf-8",
+            )
+        self._open_note(note_path)
+        self.sidebar.add_note(note_path)

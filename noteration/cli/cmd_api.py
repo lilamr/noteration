@@ -1,3 +1,6 @@
+"""CLI commands for managing the Noteration REST API server.
+"""
+
 import sys
 
 import click

@@ -48,6 +48,7 @@ class BacklinkPanel(QWidget):
     # ── UI ────────────────────────────────────────────────────────────
 
     def _setup_ui(self) -> None:
+        """Initialize the user interface for the backlink panel."""
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -89,6 +90,7 @@ class BacklinkPanel(QWidget):
         root.addWidget(self._tabs)
 
     def _make_note_list(self) -> QListWidget:
+        """Create and configure a list widget for displaying notes."""
         lst = QListWidget()
         lst.setStyleSheet(
             "QListWidget{font-size:12px;font-family:'Consolas',monospace;}"
@@ -99,6 +101,7 @@ class BacklinkPanel(QWidget):
         return lst
 
     def _make_stats_widget(self) -> QWidget:
+        """Create and configure the statistics widget."""
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(12, 12, 12, 12)
@@ -156,6 +159,7 @@ class BacklinkPanel(QWidget):
     # ── Refresh helpers ───────────────────────────────────────────────
 
     def _refresh_note_lists(self) -> None:
+        """Refresh the backlinks and forward links lists."""
         note_id = self._current_note
 
         # Backlinks
@@ -178,6 +182,7 @@ class BacklinkPanel(QWidget):
         self._refresh_stats()
 
     def _refresh_stats(self) -> None:
+        """Refresh the statistics display."""
         stats = self._graph.stats()
         for key, lbl in self._stat_labels.items():
             val = stats.get(key)
@@ -189,6 +194,7 @@ class BacklinkPanel(QWidget):
                 lbl.setText(str(val))
 
     def _refresh_orphans(self) -> None:
+        """Refresh the orphans list."""
         self._orphan_list.clear()
         for nid in self._graph.orphans():
             item = QListWidgetItem(f"◎ {nid}")
@@ -197,12 +203,14 @@ class BacklinkPanel(QWidget):
             self._orphan_list.addItem(item)
 
     def _rebuild_graph(self) -> None:
+        """Request a graph rebuild."""
         self._badge.setText("↺")
         self.rebuild_requested.emit()
 
     # ── Click handler ─────────────────────────────────────────────────
 
     def _on_item_double_clicked(self, item: QListWidgetItem) -> None:
+        """Handle double-click event on a note item."""
         stem = item.data(Qt.ItemDataRole.UserRole)
         if stem:
             self.note_requested.emit(stem)
