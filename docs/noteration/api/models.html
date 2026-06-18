@@ -184,72 +184,73 @@
 
                         <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos"> 1</span></a><span class="sd">&quot;&quot;&quot;Pydantic models for Noteration API responses and requests.&quot;&quot;&quot;</span>
 </span><span id="L-2"><a href="#L-2"><span class="linenos"> 2</span></a>
-</span><span id="L-3"><a href="#L-3"><span class="linenos"> 3</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
-</span><span id="L-4"><a href="#L-4"><span class="linenos"> 4</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
-</span><span id="L-5"><a href="#L-5"><span class="linenos"> 5</span></a>
+</span><span id="L-3"><a href="#L-3"><span class="linenos"> 3</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
+</span><span id="L-4"><a href="#L-4"><span class="linenos"> 4</span></a>
+</span><span id="L-5"><a href="#L-5"><span class="linenos"> 5</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
 </span><span id="L-6"><a href="#L-6"><span class="linenos"> 6</span></a>
-</span><span id="L-7"><a href="#L-7"><span class="linenos"> 7</span></a><span class="k">class</span><span class="w"> </span><span class="nc">NoteResponse</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="L-8"><a href="#L-8"><span class="linenos"> 8</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a note&#39;s metadata for API responses.&quot;&quot;&quot;</span>
-</span><span id="L-9"><a href="#L-9"><span class="linenos"> 9</span></a>
-</span><span id="L-10"><a href="#L-10"><span class="linenos">10</span></a>    <span class="n">note_id</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-11"><a href="#L-11"><span class="linenos">11</span></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-12"><a href="#L-12"><span class="linenos">12</span></a>    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-13"><a href="#L-13"><span class="linenos">13</span></a>    <span class="n">word_count</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="L-14"><a href="#L-14"><span class="linenos">14</span></a>    <span class="n">modified_at</span><span class="p">:</span> <span class="nb">float</span>
-</span><span id="L-15"><a href="#L-15"><span class="linenos">15</span></a>    <span class="n">tags</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
-</span><span id="L-16"><a href="#L-16"><span class="linenos">16</span></a>
+</span><span id="L-7"><a href="#L-7"><span class="linenos"> 7</span></a>
+</span><span id="L-8"><a href="#L-8"><span class="linenos"> 8</span></a><span class="k">class</span><span class="w"> </span><span class="nc">NoteResponse</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="L-9"><a href="#L-9"><span class="linenos"> 9</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a note&#39;s metadata for API responses.&quot;&quot;&quot;</span>
+</span><span id="L-10"><a href="#L-10"><span class="linenos">10</span></a>
+</span><span id="L-11"><a href="#L-11"><span class="linenos">11</span></a>    <span class="n">note_id</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-12"><a href="#L-12"><span class="linenos">12</span></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-13"><a href="#L-13"><span class="linenos">13</span></a>    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-14"><a href="#L-14"><span class="linenos">14</span></a>    <span class="n">word_count</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="L-15"><a href="#L-15"><span class="linenos">15</span></a>    <span class="n">modified_at</span><span class="p">:</span> <span class="nb">float</span>
+</span><span id="L-16"><a href="#L-16"><span class="linenos">16</span></a>    <span class="n">tags</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
 </span><span id="L-17"><a href="#L-17"><span class="linenos">17</span></a>
-</span><span id="L-18"><a href="#L-18"><span class="linenos">18</span></a><span class="k">class</span><span class="w"> </span><span class="nc">SearchResult</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="L-19"><a href="#L-19"><span class="linenos">19</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a single search result item.&quot;&quot;&quot;</span>
-</span><span id="L-20"><a href="#L-20"><span class="linenos">20</span></a>
-</span><span id="L-21"><a href="#L-21"><span class="linenos">21</span></a>    <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-22"><a href="#L-22"><span class="linenos">22</span></a>    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-23"><a href="#L-23"><span class="linenos">23</span></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-24"><a href="#L-24"><span class="linenos">24</span></a>    <span class="n">snippet</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-25"><a href="#L-25"><span class="linenos">25</span></a>    <span class="n">score</span><span class="p">:</span> <span class="nb">float</span>
-</span><span id="L-26"><a href="#L-26"><span class="linenos">26</span></a>
+</span><span id="L-18"><a href="#L-18"><span class="linenos">18</span></a>
+</span><span id="L-19"><a href="#L-19"><span class="linenos">19</span></a><span class="k">class</span><span class="w"> </span><span class="nc">SearchResult</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="L-20"><a href="#L-20"><span class="linenos">20</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a single search result item.&quot;&quot;&quot;</span>
+</span><span id="L-21"><a href="#L-21"><span class="linenos">21</span></a>
+</span><span id="L-22"><a href="#L-22"><span class="linenos">22</span></a>    <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-23"><a href="#L-23"><span class="linenos">23</span></a>    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-24"><a href="#L-24"><span class="linenos">24</span></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-25"><a href="#L-25"><span class="linenos">25</span></a>    <span class="n">snippet</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-26"><a href="#L-26"><span class="linenos">26</span></a>    <span class="n">score</span><span class="p">:</span> <span class="nb">float</span>
 </span><span id="L-27"><a href="#L-27"><span class="linenos">27</span></a>
-</span><span id="L-28"><a href="#L-28"><span class="linenos">28</span></a><span class="k">class</span><span class="w"> </span><span class="nc">LiteratureResponse</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="L-29"><a href="#L-29"><span class="linenos">29</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a literature entry&#39;s metadata for API responses.&quot;&quot;&quot;</span>
-</span><span id="L-30"><a href="#L-30"><span class="linenos">30</span></a>
-</span><span id="L-31"><a href="#L-31"><span class="linenos">31</span></a>    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-32"><a href="#L-32"><span class="linenos">32</span></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-33"><a href="#L-33"><span class="linenos">33</span></a>    <span class="n">author</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-34"><a href="#L-34"><span class="linenos">34</span></a>    <span class="n">year</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-35"><a href="#L-35"><span class="linenos">35</span></a>    <span class="n">doi</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-36"><a href="#L-36"><span class="linenos">36</span></a>    <span class="n">tags</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
-</span><span id="L-37"><a href="#L-37"><span class="linenos">37</span></a>
+</span><span id="L-28"><a href="#L-28"><span class="linenos">28</span></a>
+</span><span id="L-29"><a href="#L-29"><span class="linenos">29</span></a><span class="k">class</span><span class="w"> </span><span class="nc">LiteratureResponse</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="L-30"><a href="#L-30"><span class="linenos">30</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a literature entry&#39;s metadata for API responses.&quot;&quot;&quot;</span>
+</span><span id="L-31"><a href="#L-31"><span class="linenos">31</span></a>
+</span><span id="L-32"><a href="#L-32"><span class="linenos">32</span></a>    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-33"><a href="#L-33"><span class="linenos">33</span></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-34"><a href="#L-34"><span class="linenos">34</span></a>    <span class="n">author</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-35"><a href="#L-35"><span class="linenos">35</span></a>    <span class="n">year</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-36"><a href="#L-36"><span class="linenos">36</span></a>    <span class="n">doi</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-37"><a href="#L-37"><span class="linenos">37</span></a>    <span class="n">tags</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
 </span><span id="L-38"><a href="#L-38"><span class="linenos">38</span></a>
-</span><span id="L-39"><a href="#L-39"><span class="linenos">39</span></a><span class="k">class</span><span class="w"> </span><span class="nc">NoteCreate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="L-40"><a href="#L-40"><span class="linenos">40</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents the data required to create a new note.&quot;&quot;&quot;</span>
-</span><span id="L-41"><a href="#L-41"><span class="linenos">41</span></a>
-</span><span id="L-42"><a href="#L-42"><span class="linenos">42</span></a>    <span class="n">note_id</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-43"><a href="#L-43"><span class="linenos">43</span></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
-</span><span id="L-44"><a href="#L-44"><span class="linenos">44</span></a>
+</span><span id="L-39"><a href="#L-39"><span class="linenos">39</span></a>
+</span><span id="L-40"><a href="#L-40"><span class="linenos">40</span></a><span class="k">class</span><span class="w"> </span><span class="nc">NoteCreate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="L-41"><a href="#L-41"><span class="linenos">41</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents the data required to create a new note.&quot;&quot;&quot;</span>
+</span><span id="L-42"><a href="#L-42"><span class="linenos">42</span></a>
+</span><span id="L-43"><a href="#L-43"><span class="linenos">43</span></a>    <span class="n">note_id</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-44"><a href="#L-44"><span class="linenos">44</span></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
 </span><span id="L-45"><a href="#L-45"><span class="linenos">45</span></a>
-</span><span id="L-46"><a href="#L-46"><span class="linenos">46</span></a><span class="k">class</span><span class="w"> </span><span class="nc">NoteUpdate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="L-47"><a href="#L-47"><span class="linenos">47</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents the data required to update an existing note.&quot;&quot;&quot;</span>
-</span><span id="L-48"><a href="#L-48"><span class="linenos">48</span></a>
-</span><span id="L-49"><a href="#L-49"><span class="linenos">49</span></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-50"><a href="#L-50"><span class="linenos">50</span></a>
+</span><span id="L-46"><a href="#L-46"><span class="linenos">46</span></a>
+</span><span id="L-47"><a href="#L-47"><span class="linenos">47</span></a><span class="k">class</span><span class="w"> </span><span class="nc">NoteUpdate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="L-48"><a href="#L-48"><span class="linenos">48</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents the data required to update an existing note.&quot;&quot;&quot;</span>
+</span><span id="L-49"><a href="#L-49"><span class="linenos">49</span></a>
+</span><span id="L-50"><a href="#L-50"><span class="linenos">50</span></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="L-51"><a href="#L-51"><span class="linenos">51</span></a>
-</span><span id="L-52"><a href="#L-52"><span class="linenos">52</span></a><span class="k">class</span><span class="w"> </span><span class="nc">GraphStats</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="L-53"><a href="#L-53"><span class="linenos">53</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents statistics about the note graph.&quot;&quot;&quot;</span>
-</span><span id="L-54"><a href="#L-54"><span class="linenos">54</span></a>
-</span><span id="L-55"><a href="#L-55"><span class="linenos">55</span></a>    <span class="n">nodes</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="L-56"><a href="#L-56"><span class="linenos">56</span></a>    <span class="n">links</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="L-57"><a href="#L-57"><span class="linenos">57</span></a>    <span class="n">orphans</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="L-58"><a href="#L-58"><span class="linenos">58</span></a>    <span class="n">hub</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="L-59"><a href="#L-59"><span class="linenos">59</span></a>
+</span><span id="L-52"><a href="#L-52"><span class="linenos">52</span></a>
+</span><span id="L-53"><a href="#L-53"><span class="linenos">53</span></a><span class="k">class</span><span class="w"> </span><span class="nc">GraphStats</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="L-54"><a href="#L-54"><span class="linenos">54</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents statistics about the note graph.&quot;&quot;&quot;</span>
+</span><span id="L-55"><a href="#L-55"><span class="linenos">55</span></a>
+</span><span id="L-56"><a href="#L-56"><span class="linenos">56</span></a>    <span class="n">nodes</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="L-57"><a href="#L-57"><span class="linenos">57</span></a>    <span class="n">links</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="L-58"><a href="#L-58"><span class="linenos">58</span></a>    <span class="n">orphans</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="L-59"><a href="#L-59"><span class="linenos">59</span></a>    <span class="n">hub</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="L-60"><a href="#L-60"><span class="linenos">60</span></a>
-</span><span id="L-61"><a href="#L-61"><span class="linenos">61</span></a><span class="k">class</span><span class="w"> </span><span class="nc">SyncStatus</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="L-62"><a href="#L-62"><span class="linenos">62</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents the current git synchronization status.&quot;&quot;&quot;</span>
-</span><span id="L-63"><a href="#L-63"><span class="linenos">63</span></a>
-</span><span id="L-64"><a href="#L-64"><span class="linenos">64</span></a>    <span class="n">branch</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="L-65"><a href="#L-65"><span class="linenos">65</span></a>    <span class="n">remotes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
-</span><span id="L-66"><a href="#L-66"><span class="linenos">66</span></a>    <span class="n">is_dirty</span><span class="p">:</span> <span class="nb">bool</span>
-</span><span id="L-67"><a href="#L-67"><span class="linenos">67</span></a>    <span class="n">ahead</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="L-68"><a href="#L-68"><span class="linenos">68</span></a>    <span class="n">behind</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="L-61"><a href="#L-61"><span class="linenos">61</span></a>
+</span><span id="L-62"><a href="#L-62"><span class="linenos">62</span></a><span class="k">class</span><span class="w"> </span><span class="nc">SyncStatus</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="L-63"><a href="#L-63"><span class="linenos">63</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents the current git synchronization status.&quot;&quot;&quot;</span>
+</span><span id="L-64"><a href="#L-64"><span class="linenos">64</span></a>
+</span><span id="L-65"><a href="#L-65"><span class="linenos">65</span></a>    <span class="n">branch</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-66"><a href="#L-66"><span class="linenos">66</span></a>    <span class="n">remotes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</span><span id="L-67"><a href="#L-67"><span class="linenos">67</span></a>    <span class="n">is_dirty</span><span class="p">:</span> <span class="nb">bool</span>
+</span><span id="L-68"><a href="#L-68"><span class="linenos">68</span></a>    <span class="n">ahead</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="L-69"><a href="#L-69"><span class="linenos">69</span></a>    <span class="n">behind</span><span class="p">:</span> <span class="nb">int</span>
 </span></pre></div>
 
 
@@ -265,15 +266,15 @@
 
     </div>
     <a class="headerlink" href="#NoteResponse"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="NoteResponse-8"><a href="#NoteResponse-8"><span class="linenos"> 8</span></a><span class="k">class</span><span class="w"> </span><span class="nc">NoteResponse</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="NoteResponse-9"><a href="#NoteResponse-9"><span class="linenos"> 9</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a note&#39;s metadata for API responses.&quot;&quot;&quot;</span>
-</span><span id="NoteResponse-10"><a href="#NoteResponse-10"><span class="linenos">10</span></a>
-</span><span id="NoteResponse-11"><a href="#NoteResponse-11"><span class="linenos">11</span></a>    <span class="n">note_id</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="NoteResponse-12"><a href="#NoteResponse-12"><span class="linenos">12</span></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="NoteResponse-13"><a href="#NoteResponse-13"><span class="linenos">13</span></a>    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="NoteResponse-14"><a href="#NoteResponse-14"><span class="linenos">14</span></a>    <span class="n">word_count</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="NoteResponse-15"><a href="#NoteResponse-15"><span class="linenos">15</span></a>    <span class="n">modified_at</span><span class="p">:</span> <span class="nb">float</span>
-</span><span id="NoteResponse-16"><a href="#NoteResponse-16"><span class="linenos">16</span></a>    <span class="n">tags</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="NoteResponse-9"><a href="#NoteResponse-9"><span class="linenos"> 9</span></a><span class="k">class</span><span class="w"> </span><span class="nc">NoteResponse</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="NoteResponse-10"><a href="#NoteResponse-10"><span class="linenos">10</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a note&#39;s metadata for API responses.&quot;&quot;&quot;</span>
+</span><span id="NoteResponse-11"><a href="#NoteResponse-11"><span class="linenos">11</span></a>
+</span><span id="NoteResponse-12"><a href="#NoteResponse-12"><span class="linenos">12</span></a>    <span class="n">note_id</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="NoteResponse-13"><a href="#NoteResponse-13"><span class="linenos">13</span></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="NoteResponse-14"><a href="#NoteResponse-14"><span class="linenos">14</span></a>    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="NoteResponse-15"><a href="#NoteResponse-15"><span class="linenos">15</span></a>    <span class="n">word_count</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="NoteResponse-16"><a href="#NoteResponse-16"><span class="linenos">16</span></a>    <span class="n">modified_at</span><span class="p">:</span> <span class="nb">float</span>
+</span><span id="NoteResponse-17"><a href="#NoteResponse-17"><span class="linenos">17</span></a>    <span class="n">tags</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
 </span></pre></div>
 
 
@@ -365,14 +366,14 @@
 
     </div>
     <a class="headerlink" href="#SearchResult"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="SearchResult-19"><a href="#SearchResult-19"><span class="linenos">19</span></a><span class="k">class</span><span class="w"> </span><span class="nc">SearchResult</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="SearchResult-20"><a href="#SearchResult-20"><span class="linenos">20</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a single search result item.&quot;&quot;&quot;</span>
-</span><span id="SearchResult-21"><a href="#SearchResult-21"><span class="linenos">21</span></a>
-</span><span id="SearchResult-22"><a href="#SearchResult-22"><span class="linenos">22</span></a>    <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="SearchResult-23"><a href="#SearchResult-23"><span class="linenos">23</span></a>    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="SearchResult-24"><a href="#SearchResult-24"><span class="linenos">24</span></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="SearchResult-25"><a href="#SearchResult-25"><span class="linenos">25</span></a>    <span class="n">snippet</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="SearchResult-26"><a href="#SearchResult-26"><span class="linenos">26</span></a>    <span class="n">score</span><span class="p">:</span> <span class="nb">float</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="SearchResult-20"><a href="#SearchResult-20"><span class="linenos">20</span></a><span class="k">class</span><span class="w"> </span><span class="nc">SearchResult</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="SearchResult-21"><a href="#SearchResult-21"><span class="linenos">21</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a single search result item.&quot;&quot;&quot;</span>
+</span><span id="SearchResult-22"><a href="#SearchResult-22"><span class="linenos">22</span></a>
+</span><span id="SearchResult-23"><a href="#SearchResult-23"><span class="linenos">23</span></a>    <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="SearchResult-24"><a href="#SearchResult-24"><span class="linenos">24</span></a>    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="SearchResult-25"><a href="#SearchResult-25"><span class="linenos">25</span></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="SearchResult-26"><a href="#SearchResult-26"><span class="linenos">26</span></a>    <span class="n">snippet</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="SearchResult-27"><a href="#SearchResult-27"><span class="linenos">27</span></a>    <span class="n">score</span><span class="p">:</span> <span class="nb">float</span>
 </span></pre></div>
 
 
@@ -452,15 +453,15 @@
 
     </div>
     <a class="headerlink" href="#LiteratureResponse"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="LiteratureResponse-29"><a href="#LiteratureResponse-29"><span class="linenos">29</span></a><span class="k">class</span><span class="w"> </span><span class="nc">LiteratureResponse</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="LiteratureResponse-30"><a href="#LiteratureResponse-30"><span class="linenos">30</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a literature entry&#39;s metadata for API responses.&quot;&quot;&quot;</span>
-</span><span id="LiteratureResponse-31"><a href="#LiteratureResponse-31"><span class="linenos">31</span></a>
-</span><span id="LiteratureResponse-32"><a href="#LiteratureResponse-32"><span class="linenos">32</span></a>    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="LiteratureResponse-33"><a href="#LiteratureResponse-33"><span class="linenos">33</span></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="LiteratureResponse-34"><a href="#LiteratureResponse-34"><span class="linenos">34</span></a>    <span class="n">author</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="LiteratureResponse-35"><a href="#LiteratureResponse-35"><span class="linenos">35</span></a>    <span class="n">year</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="LiteratureResponse-36"><a href="#LiteratureResponse-36"><span class="linenos">36</span></a>    <span class="n">doi</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="LiteratureResponse-37"><a href="#LiteratureResponse-37"><span class="linenos">37</span></a>    <span class="n">tags</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="LiteratureResponse-30"><a href="#LiteratureResponse-30"><span class="linenos">30</span></a><span class="k">class</span><span class="w"> </span><span class="nc">LiteratureResponse</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="LiteratureResponse-31"><a href="#LiteratureResponse-31"><span class="linenos">31</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents a literature entry&#39;s metadata for API responses.&quot;&quot;&quot;</span>
+</span><span id="LiteratureResponse-32"><a href="#LiteratureResponse-32"><span class="linenos">32</span></a>
+</span><span id="LiteratureResponse-33"><a href="#LiteratureResponse-33"><span class="linenos">33</span></a>    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="LiteratureResponse-34"><a href="#LiteratureResponse-34"><span class="linenos">34</span></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="LiteratureResponse-35"><a href="#LiteratureResponse-35"><span class="linenos">35</span></a>    <span class="n">author</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="LiteratureResponse-36"><a href="#LiteratureResponse-36"><span class="linenos">36</span></a>    <span class="n">year</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="LiteratureResponse-37"><a href="#LiteratureResponse-37"><span class="linenos">37</span></a>    <span class="n">doi</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="LiteratureResponse-38"><a href="#LiteratureResponse-38"><span class="linenos">38</span></a>    <span class="n">tags</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
 </span></pre></div>
 
 
@@ -552,11 +553,11 @@
 
     </div>
     <a class="headerlink" href="#NoteCreate"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="NoteCreate-40"><a href="#NoteCreate-40"><span class="linenos">40</span></a><span class="k">class</span><span class="w"> </span><span class="nc">NoteCreate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="NoteCreate-41"><a href="#NoteCreate-41"><span class="linenos">41</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents the data required to create a new note.&quot;&quot;&quot;</span>
-</span><span id="NoteCreate-42"><a href="#NoteCreate-42"><span class="linenos">42</span></a>
-</span><span id="NoteCreate-43"><a href="#NoteCreate-43"><span class="linenos">43</span></a>    <span class="n">note_id</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="NoteCreate-44"><a href="#NoteCreate-44"><span class="linenos">44</span></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="NoteCreate-41"><a href="#NoteCreate-41"><span class="linenos">41</span></a><span class="k">class</span><span class="w"> </span><span class="nc">NoteCreate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="NoteCreate-42"><a href="#NoteCreate-42"><span class="linenos">42</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents the data required to create a new note.&quot;&quot;&quot;</span>
+</span><span id="NoteCreate-43"><a href="#NoteCreate-43"><span class="linenos">43</span></a>
+</span><span id="NoteCreate-44"><a href="#NoteCreate-44"><span class="linenos">44</span></a>    <span class="n">note_id</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="NoteCreate-45"><a href="#NoteCreate-45"><span class="linenos">45</span></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
 </span></pre></div>
 
 
@@ -600,10 +601,10 @@
 
     </div>
     <a class="headerlink" href="#NoteUpdate"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="NoteUpdate-47"><a href="#NoteUpdate-47"><span class="linenos">47</span></a><span class="k">class</span><span class="w"> </span><span class="nc">NoteUpdate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="NoteUpdate-48"><a href="#NoteUpdate-48"><span class="linenos">48</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents the data required to update an existing note.&quot;&quot;&quot;</span>
-</span><span id="NoteUpdate-49"><a href="#NoteUpdate-49"><span class="linenos">49</span></a>
-</span><span id="NoteUpdate-50"><a href="#NoteUpdate-50"><span class="linenos">50</span></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="NoteUpdate-48"><a href="#NoteUpdate-48"><span class="linenos">48</span></a><span class="k">class</span><span class="w"> </span><span class="nc">NoteUpdate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="NoteUpdate-49"><a href="#NoteUpdate-49"><span class="linenos">49</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents the data required to update an existing note.&quot;&quot;&quot;</span>
+</span><span id="NoteUpdate-50"><a href="#NoteUpdate-50"><span class="linenos">50</span></a>
+</span><span id="NoteUpdate-51"><a href="#NoteUpdate-51"><span class="linenos">51</span></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
 </span></pre></div>
 
 
@@ -635,13 +636,13 @@
 
     </div>
     <a class="headerlink" href="#GraphStats"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GraphStats-53"><a href="#GraphStats-53"><span class="linenos">53</span></a><span class="k">class</span><span class="w"> </span><span class="nc">GraphStats</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="GraphStats-54"><a href="#GraphStats-54"><span class="linenos">54</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents statistics about the note graph.&quot;&quot;&quot;</span>
-</span><span id="GraphStats-55"><a href="#GraphStats-55"><span class="linenos">55</span></a>
-</span><span id="GraphStats-56"><a href="#GraphStats-56"><span class="linenos">56</span></a>    <span class="n">nodes</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="GraphStats-57"><a href="#GraphStats-57"><span class="linenos">57</span></a>    <span class="n">links</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="GraphStats-58"><a href="#GraphStats-58"><span class="linenos">58</span></a>    <span class="n">orphans</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="GraphStats-59"><a href="#GraphStats-59"><span class="linenos">59</span></a>    <span class="n">hub</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GraphStats-54"><a href="#GraphStats-54"><span class="linenos">54</span></a><span class="k">class</span><span class="w"> </span><span class="nc">GraphStats</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="GraphStats-55"><a href="#GraphStats-55"><span class="linenos">55</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents statistics about the note graph.&quot;&quot;&quot;</span>
+</span><span id="GraphStats-56"><a href="#GraphStats-56"><span class="linenos">56</span></a>
+</span><span id="GraphStats-57"><a href="#GraphStats-57"><span class="linenos">57</span></a>    <span class="n">nodes</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="GraphStats-58"><a href="#GraphStats-58"><span class="linenos">58</span></a>    <span class="n">links</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="GraphStats-59"><a href="#GraphStats-59"><span class="linenos">59</span></a>    <span class="n">orphans</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="GraphStats-60"><a href="#GraphStats-60"><span class="linenos">60</span></a>    <span class="n">hub</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </span></pre></div>
 
 
@@ -709,14 +710,14 @@
 
     </div>
     <a class="headerlink" href="#SyncStatus"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="SyncStatus-62"><a href="#SyncStatus-62"><span class="linenos">62</span></a><span class="k">class</span><span class="w"> </span><span class="nc">SyncStatus</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="SyncStatus-63"><a href="#SyncStatus-63"><span class="linenos">63</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents the current git synchronization status.&quot;&quot;&quot;</span>
-</span><span id="SyncStatus-64"><a href="#SyncStatus-64"><span class="linenos">64</span></a>
-</span><span id="SyncStatus-65"><a href="#SyncStatus-65"><span class="linenos">65</span></a>    <span class="n">branch</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="SyncStatus-66"><a href="#SyncStatus-66"><span class="linenos">66</span></a>    <span class="n">remotes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
-</span><span id="SyncStatus-67"><a href="#SyncStatus-67"><span class="linenos">67</span></a>    <span class="n">is_dirty</span><span class="p">:</span> <span class="nb">bool</span>
-</span><span id="SyncStatus-68"><a href="#SyncStatus-68"><span class="linenos">68</span></a>    <span class="n">ahead</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="SyncStatus-69"><a href="#SyncStatus-69"><span class="linenos">69</span></a>    <span class="n">behind</span><span class="p">:</span> <span class="nb">int</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="SyncStatus-63"><a href="#SyncStatus-63"><span class="linenos">63</span></a><span class="k">class</span><span class="w"> </span><span class="nc">SyncStatus</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="SyncStatus-64"><a href="#SyncStatus-64"><span class="linenos">64</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Represents the current git synchronization status.&quot;&quot;&quot;</span>
+</span><span id="SyncStatus-65"><a href="#SyncStatus-65"><span class="linenos">65</span></a>
+</span><span id="SyncStatus-66"><a href="#SyncStatus-66"><span class="linenos">66</span></a>    <span class="n">branch</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="SyncStatus-67"><a href="#SyncStatus-67"><span class="linenos">67</span></a>    <span class="n">remotes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</span><span id="SyncStatus-68"><a href="#SyncStatus-68"><span class="linenos">68</span></a>    <span class="n">is_dirty</span><span class="p">:</span> <span class="nb">bool</span>
+</span><span id="SyncStatus-69"><a href="#SyncStatus-69"><span class="linenos">69</span></a>    <span class="n">ahead</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="SyncStatus-70"><a href="#SyncStatus-70"><span class="linenos">70</span></a>    <span class="n">behind</span><span class="p">:</span> <span class="nb">int</span>
 </span></pre></div>
 
 
