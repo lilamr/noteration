@@ -34,6 +34,7 @@ _DEFAULTS: dict[str, Any] = {
     "general": {
         "autosave": True,
         "autosave_interval": 30,
+        "restore_last_session": True,
     },
     "editor": {
         "tab_width": 2,
@@ -90,6 +91,8 @@ class NoterationConfig:
                 try:
                     with open(self._config_path, "rb") as f:
                         user_data = tomllib.load(f)
+
+                    user_data.pop("session", None)
 
                     # Perform migration if needed
                     if self._migrate(user_data):
@@ -148,6 +151,7 @@ class NoterationConfig:
         if not _HAS_TOMLI_W:
             return
         with self._lock:
+            self._data.pop("session", None)
             self._config_path.parent.mkdir(parents=True, exist_ok=True)
             # Atomic write: save to temp then rename
             tmp_path = self._config_path.with_suffix(".tmp")

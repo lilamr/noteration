@@ -6,7 +6,7 @@ from __future__ import annotations
 import contextlib
 from collections import deque
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Optional, cast
+from typing import TYPE_CHECKING, Callable, List, Optional, TypeVar, cast
 
 if TYPE_CHECKING:
     from noteration.sync.git_engine import RepoStatus
@@ -44,12 +44,15 @@ from noteration.ui.literature_tab import LiteratureTab
 from noteration.ui.pdf_viewer_tab import PdfViewerTab
 from noteration.ui.sidebar import SidebarWidget
 from noteration.ui.sync_tab import SyncTab
+from noteration.ui.tab_base import NoterationTab
 from noteration.vault_manager import VaultManager
 
 logger = get_logger(__name__)
 
 
 MAX_TAB_TITLE_LEN = 30
+
+T = TypeVar("T", bound=QWidget)
 
 
 class MainWindow(QMainWindow):
@@ -77,6 +80,7 @@ class MainWindow(QMainWindow):
         self.vault_path = self.vault.vault_path
         self.storage_path = self.vault.storage_path
         self.config = self.vault.config
+        self._session_store = self.vault.session_state
         self._pdf_index = self.vault.pdf_index
         self._graph = self.vault.graph
 
@@ -160,6 +164,7 @@ class MainWindow(QMainWindow):
             self.sidebar.update_tags(self.vault.get_all_tags())
             # Notify manager that init is fully done
             self.vault.initialization_finished.emit()
+            self._restore_session()
 
     def _is_alive(self) -> bool:
         """Check if the C++ object is still alive."""
@@ -404,6 +409,83 @@ class MainWindow(QMainWindow):
             self._autosave_timer.timeout.connect(self._save_current)
             self._autosave_timer.start()
 
+    def _save_session(self) -> None:
+        if not self.config.get("general", "restore_last_session", True):
+            return
+
+        tabs_data = []
+        for pane, widget in self._iter_tabs():
+            state = cast(NoterationTab, widget).session_state()
+            if not state:
+                continue
+            state["pane"] = "split" if pane is self.tabs_split else "main"
+            tabs_data.append(state)
+
+        active_pane = (
+            "split"
+            if self._active_tab_widget is self.tabs_split and self.tabs_split.count() > 0
+            else "main"
+        )
+        self._session_store.save(tabs_data, active_pane)
+
+    def _restore_session(self) -> None:
+        if not self.config.get("general", "restore_last_session", True):
+            return
+
+        session = self._session_store.load()
+        open_tabs = session.get("open_tabs", [])
+        if not isinstance(open_tabs, list):
+            return
+
+        for entry in open_tabs:
+            if not isinstance(entry, dict):
+                continue
+
+            pane_name = entry.get("pane", "main")
+            target_pane = self.tabs_split if pane_name == "split" else self.tabs
+            self._active_tab_widget = target_pane
+
+            tab_type = entry.get("type")
+            if tab_type == "editor":
+                path_value = entry.get("path")
+                if not isinstance(path_value, str):
+                    continue
+                path = self.vault_path / path_value
+                if path.exists():
+                    if target_pane is self.tabs_split:
+                        self.tabs_split.show()
+                    self._open_note(path)
+            elif tab_type == "pdf":
+                path_value = entry.get("path")
+                if not isinstance(path_value, str):
+                    continue
+                papis_key = entry.get("papis_key", "")
+                if not isinstance(papis_key, str):
+                    papis_key = ""
+                path = self.vault_path / path_value
+                if path.exists():
+                    if target_pane is self.tabs_split:
+                        self.tabs_split.show()
+                    self._open_pdf(path, papis_key)
+            elif tab_type == "literature":
+                if target_pane is self.tabs_split:
+                    self.tabs_split.show()
+                self._open_literature_tab()
+            elif tab_type == "sync":
+                if target_pane is self.tabs_split:
+                    self.tabs_split.show()
+                self._open_sync_tab()
+
+        active_pane = session.get("active_pane", "main")
+        if active_pane == "split" and self.tabs_split.count() > 0:
+            self._active_tab_widget = self.tabs_split
+            self.tabs_split.show()
+        else:
+            self._active_tab_widget = self.tabs
+
+        if self.tabs_split.count() == 0:
+            self.tabs_split.hide()
+
     # ── Helpers ───────────────────────────────────────────────────────
 
     def _get_note_id(self, path: Path) -> str:
@@ -432,8 +514,8 @@ class MainWindow(QMainWindow):
                 callback(w)
 
     def _find_tab(
-        self, tab_type: type[QWidget], predicate: Optional[Callable[[QWidget], bool]] = None, reverse: bool = False
-    ) -> Optional[QWidget]:
+        self, tab_type: type[T], predicate: Optional[Callable[[T], bool]] = None, reverse: bool = False
+    ) -> Optional[T]:
         """Find an existing tab of a specific type that matches an optional predicate.
 
         If found, switches focus to that tab and returns it.
@@ -461,7 +543,7 @@ class MainWindow(QMainWindow):
 
     def _open_note(self, path: Path) -> None:
         # Avoid opening the same note twice across both panes
-        existing = self._find_tab(EditorTab, lambda w: isinstance(w, EditorTab) and w.file_path == path)
+        existing = self._find_tab(EditorTab, lambda w: w.file_path == path)
         if existing:
             # History tracking for existing tab
             if not self._is_navigating:
@@ -611,9 +693,8 @@ class MainWindow(QMainWindow):
 
     def _close_tab_from_widget(self, tab_widget: QTabWidget, index: int) -> None:
         w = tab_widget.widget(index)
-        if isinstance(w, EditorTab) and w.is_modified:
-            w.save()
-            self.vault.update_note_in_graph(w.file_path)
+        if isinstance(w, NoterationTab):
+            w.save_if_dirty()
         tab_widget.removeTab(index)
         self._adjust_splitters()
 
@@ -726,23 +807,22 @@ class MainWindow(QMainWindow):
             self.sidebar.add_note(path)
 
     def _save_current(self) -> None:
-        """Autosave all modified EditorTabs in all panes."""
+        """Autosave all modified tabs in all panes."""
 
-        def save_if_modified(w):
-            if isinstance(w, EditorTab) and w.is_modified:
-                # EditorTab.save() is non-blocking (uses QThread)
-                w.save()
-                
-                # Update tab title if modified marker is present
-                for pane, widget in self._iter_tabs():
-                    if widget == w:
-                        idx = pane.indexOf(w)
-                        name = w.file_path.name
-                        if pane.tabText(idx).endswith(" *"):
-                            pane.setTabText(idx, name)
-                        break
+        def save_if_modified(w: QWidget) -> None:
+            if isinstance(w, NoterationTab) and w.is_dirty():
+                w.save_if_dirty()
+                self._clear_modified_marker(w)
 
         self._foreach_tab(save_if_modified)
+
+    def _clear_modified_marker(self, w: QWidget) -> None:
+        for pane, widget in self._iter_tabs():
+            if widget == w:
+                idx = pane.indexOf(w)
+                if pane.tabText(idx).endswith(" *"):
+                    pane.setTabText(idx, w.display_title() if isinstance(w, NoterationTab) else pane.tabText(idx))
+                break
 
     def _sync(self) -> None:
         self._open_sync_tab()
@@ -857,17 +937,11 @@ class MainWindow(QMainWindow):
                     QMessageBox.information(
                         dlg,
                         "Success",
-                        "Vault has been decrypted. The application will now restart "
-                        "in plaintext mode.",
+                        "Vault has been decrypted. The application will now close. "
+                        "Please reopen it to continue in plaintext mode.",
                     )
                     dlg.accept()
 
-                    # Restart logic
-                    import sys
-
-                    from PySide6.QtCore import QProcess
-
-                    QProcess.startDetached(sys.executable, sys.argv)
                     self.close()
                 else:
                     QMessageBox.warning(dlg, "Error", "Failed to disable encryption.")
@@ -904,15 +978,9 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self,
                 "Encryption Complete",
-                "Your vault is now encrypted. The application will now restart "
-                "to initialize your secure session.",
+                "Your vault is now encrypted. The application will now close. "
+                "Please reopen it to start your secure session.",
             )
-            # Restart logic
-            import sys
-
-            from PySide6.QtCore import QProcess
-
-            QProcess.startDetached(sys.executable, sys.argv)
             self.close()
 
     def _check_for_updates(self, silent: bool = False) -> None:
@@ -1047,7 +1115,7 @@ class MainWindow(QMainWindow):
 
         # Update all EditorTabs
         for _, w in self._iter_tabs():
-            if isinstance(w, EditorTab):
+            if isinstance(w, NoterationTab):
                 w.set_focus_mode(enabled)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
@@ -1347,6 +1415,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         """Ensure all resources are cleaned up before closing."""
         logger.info("Main window closing...")
+        self._save_session()
 
         # 0. Disconnect global focus listener
         if self._focus_listener_connected:
@@ -1367,18 +1436,11 @@ class MainWindow(QMainWindow):
                 self._update_thread.terminate()
             self._update_thread = None
 
-        # 2. Stop tab threads (e.g., Literature loading) and save modified notes
+        # 2. Stop tab threads and save dirty tabs
         for _, w in self._iter_tabs():
-            if w is not None:
-                # First save if it's an editor tab
-                from noteration.ui.editor_tab import EditorTab
-
-                if isinstance(w, EditorTab) and w.is_modified:
-                    w.save()
-
-                # Then call shutdown if available
-                if hasattr(w, "shutdown"):
-                    w.shutdown()
+            if isinstance(w, NoterationTab):
+                w.save_if_dirty()
+                w.shutdown()
 
         # 3. Shutdown vault manager (stops background threads + performs final save_all)
         self.vault.shutdown()

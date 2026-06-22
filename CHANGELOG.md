@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-06-22
+
+### Added
+- **Restore Last Session**: The application now remembers and restores the tabs (Editor, PDF, Literature, Sync) that were active when you last closed the app. This feature is enabled by default and can be toggled via Settings.
+
+### Fixed
+- **Terminal Hang on Exit**: Fixed an issue where the application would leave background processes running (requiring `Ctrl+C` in the terminal to close). Sync threads now have a safe-terminate escalation to ensure graceful shutdown.
+- **Auto-restart Instability**: The application no longer forces an auto-restart after enabling or disabling vault encryption, preventing initialization race conditions. Users are now prompted to manually reopen the app.
+- **Uncommitted Modifications on Exit**: Fixed a bug where final edits in an encrypted vault appeared as "modified" upon next startup. The app now guarantees a local commit during the shutdown sequence without triggering network blocks.
+
+### Changed
+- **UI Consistency (Tab Architecture)**: Introduced a polymorphic base class (`NoterationTab`) across all tab types, removing dozens of redundant type-checks and dramatically simplifying main window orchestration.
+- **UI Consistency (Toolbars)**: Standardized the action buttons in Literature, PDF Viewer, and Sync tabs to use native `QToolBar` and `QAction`, bringing them in line with the Editor tab and enabling proper overflow handling and checkable states.
+
 ## [2.2.0] - 2026-06-18
 
 ### Added

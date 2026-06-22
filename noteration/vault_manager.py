@@ -23,6 +23,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from noteration.controllers.index_controller import IndexController
 from noteration.controllers.library_controller import LibraryController
 from noteration.controllers.sync_controller import SyncController
+from noteration.core.session_state import SessionStateStore
 from noteration.core.vault_core import VaultCore
 from noteration.logger import get_logger
 from noteration.utils.qt_helpers import SaveWorker
@@ -42,6 +43,7 @@ class VaultManager(QObject):
     # Core components
     core: VaultCore
     config: NoterationConfig
+    session_state: SessionStateStore
     vault_path: Path
     storage_path: Path
     secret_key: Optional[str]
@@ -89,6 +91,7 @@ class VaultManager(QObject):
         self.vault_path = self.core.vault_path
         self.storage_path = self.core.storage_path
         self.config = self.core.config
+        self.session_state = self.core.session_state
 
         # Initialize Qt-based controllers as adapters
         self.index = IndexController(

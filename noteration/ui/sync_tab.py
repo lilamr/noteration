@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QVBoxLayout,
-    QWidget,
 )
 
 from noteration.logger import get_logger
@@ -33,6 +32,7 @@ from noteration.sync.git_engine import (
     SyncStatus,
     SyncStrategy,
 )
+from noteration.ui.tab_base import NoterationTab
 from noteration.utils.qt_helpers import BaseWorker
 
 logger = get_logger(__name__)
@@ -218,7 +218,7 @@ class LogEdit(QPlainTextEdit):
 # ── Main Tab ──────────────────────────────────────────────────────────────
 
 
-class SyncTab(QWidget):
+class SyncTab(NoterationTab):
     def __init__(self, vault: "VaultManager", parent=None) -> None:
         super().__init__(parent)
         self.vault = vault
@@ -227,6 +227,15 @@ class SyncTab(QWidget):
 
         self._setup_ui()
         self._refresh_status()
+
+    def display_title(self) -> str:
+        return "Synchronization"
+
+    def session_state(self) -> dict[str, str]:
+        return {"type": "sync"}
+
+    def can_close(self) -> bool:
+        return True
 
     def _setup_ui(self):
         """Initialize the synchronization tab UI components."""

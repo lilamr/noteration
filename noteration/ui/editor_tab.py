@@ -31,6 +31,7 @@ from noteration.logger import get_logger
 from noteration.ui.editor.markdown_editor import MarkdownEditor
 from noteration.ui.editor.markdown_preview import MarkdownPreview
 from noteration.ui.editor.vim import VimCommandField, VimMode
+from noteration.ui.tab_base import NoterationTab
 
 logger = get_logger(__name__)
 
@@ -38,7 +39,7 @@ if TYPE_CHECKING:
     from noteration.vault_manager import VaultManager
 
 
-class EditorTab(QWidget):
+class EditorTab(NoterationTab):
     """Complete tab implementation for Markdown editing and previewing.
     Orchestrates the editor, previewer, and metadata extraction.
     """
@@ -219,6 +220,28 @@ class EditorTab(QWidget):
             self._editor.setPlainText(text)
         self.is_modified = False
         self._emit_parsed_signals()
+
+    def display_title(self) -> str:
+        return self.file_path.name
+
+    def session_state(self) -> dict[str, Any] | None:
+        try:
+            rel_path = self.file_path.relative_to(self.vault_path)
+        except ValueError:
+            logger.warning(f"EditorTab path is outside vault: {self.file_path}")
+            return None
+        return {"type": "editor", "path": str(rel_path)}
+
+    def is_dirty(self) -> bool:
+        return self.is_modified
+
+    def save_if_dirty(self) -> None:
+        if self.is_dirty():
+            self.save()
+            self.vault.update_note_in_graph(self.file_path)
+
+    def can_close(self) -> bool:
+        return True
 
     def save(self) -> None:
         if not self.is_modified:

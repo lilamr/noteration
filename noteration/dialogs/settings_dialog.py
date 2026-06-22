@@ -97,6 +97,12 @@ class _EditorTab(QWidget):
         self._autosave.setChecked(bool(config.get("general", "autosave", True)))
         bl.addRow(self._autosave)
 
+        self._restore_last_session = QCheckBox("Restore last session")
+        self._restore_last_session.setChecked(
+            bool(config.get("general", "restore_last_session", True))
+        )
+        bl.addRow(self._restore_last_session)
+
         self._autosave_interval = QSpinBox()
         self._autosave_interval.setRange(5, 600)
         self._autosave_interval.setSuffix(" seconds")
@@ -114,6 +120,11 @@ class _EditorTab(QWidget):
         self._config.set("editor", "show_line_numbers", self._line_numbers.isChecked())
         self._config.set("editor", "auto_indent", self._auto_indent.isChecked())
         self._config.set("general", "autosave", self._autosave.isChecked())
+        self._config.set(
+            "general",
+            "restore_last_session",
+            self._restore_last_session.isChecked(),
+        )
         self._config.set("general", "autosave_interval", self._autosave_interval.value())
 
 

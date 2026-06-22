@@ -210,8 +210,16 @@ def main() -> int:
     def shutdown():
         """Handle application shutdown tasks."""
         window.vault.shutdown()
+        was_encrypted = session.is_encrypted
+        vault_path = session.vault_path
         try:
             session.close()
+            if was_encrypted:
+                from noteration.sync.git_engine import GitRepo
+                try:
+                    GitRepo(vault_path).sync(local_only=True, log_callback=logger.info)
+                except Exception as e:
+                    logger.error(f"Failed to commit re-encrypted changes on close: {e}")
         except Exception as e:
             logger.exception(f"Failed to re-encrypt changes: {e}")
             QMessageBox.critical(None, "Save Error", f"Failed to re-encrypt changes: {e}")

@@ -69,3 +69,4 @@ def test_git_repo_gitignore_logs(temp_vault):
     content = gitignore.read_text()
     assert "*.log" in content
     assert ".noteration/*.log" in content
+    assert ".noteration/session.json" in content

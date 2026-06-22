@@ -12,6 +12,7 @@ from typing import Callable, Optional
 from noteration.config import NoterationConfig
 from noteration.core.events import EventBus
 from noteration.core.repository import NoteRepository
+from noteration.core.session_state import SessionStateStore
 from noteration.db.link_graph import LinkGraph
 from noteration.literature.csl_renderer import CSLRenderer
 from noteration.literature.papis_bridge import PapisBridge
@@ -52,6 +53,7 @@ class VaultCore:
         # Core state
         self.notes = NoteRepository(self.vault_path / "notes")
         self.config = NoterationConfig(self.vault_path)
+        self.session_state = SessionStateStore(self.vault_path)
         self.events = EventBus()
         self._lock = threading.RLock()
 

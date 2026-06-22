@@ -424,6 +424,7 @@ class GitRepo:
         remote: str = "origin",
         branch: str = "",
         strategy: SyncStrategy = SyncStrategy.REBASE,
+        local_only: bool = False,
         log_callback=None,
     ) -> SyncResult:
         def log(msg: str) -> None:
@@ -494,6 +495,8 @@ class GitRepo:
                     else:
                         log("  i No changes to commit after staging and cleanup.")
 
+                if local_only:
+                    return result
 
                 # 2. Pull from remote
                 available_remotes = [r.name for r in repo.remotes]
@@ -758,6 +761,8 @@ class GitRepo:
                 ".noteration/*.log.age",
                 ".noteration/search.db",
                 ".noteration/search.db.age",
+                ".noteration/session.json",
+                ".noteration/session.json.age",
                 ".noteration/link_graph.json",
                 ".noteration/link_graph.json.age",
                 ".noteration/pdf_index.json",
@@ -797,6 +802,7 @@ class GitRepo:
                 to_untrack = [
                     ".noteration/noteration.log",
                     ".noteration/search.db",
+                    ".noteration/session.json",
                     ".noteration/link_graph.json",
                     ".noteration/pdf_index.json",
                     ".noteration/db.sqlite",
@@ -832,6 +838,8 @@ class GitRepo:
                     ".noteration/*.log.age\n"
                     ".noteration/search.db\n"
                     ".noteration/search.db.age\n"
+                    ".noteration/session.json\n"
+                    ".noteration/session.json.age\n"                    
                     ".noteration/link_graph.json\n"
                     ".noteration/link_graph.json.age\n"
                     ".noteration/pdf_index.json\n"

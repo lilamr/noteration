@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
 
 from noteration.literature.papis_bridge import LiteratureEntry
 from noteration.logger import get_logger
+from noteration.ui.tab_base import NoterationTab
 
 logger = get_logger(__name__)
 
@@ -414,7 +415,7 @@ class AddDocumentDialog(QDialog):
 # ── LiteratureTab ─────────────────────────────────────────────────────────
 
 
-class LiteratureTab(QWidget):
+class LiteratureTab(NoterationTab):
     """Papis literature browser tab.
     Left: list of entries with filter (supports field:value).
     Right: detail view + actions (open PDF, copy key, create note,
@@ -448,6 +449,15 @@ class LiteratureTab(QWidget):
         self._library.error_occurred.connect(self._on_load_error)
 
         QTimer.singleShot(0, self._load_entries)
+
+    def display_title(self) -> str:
+        return "Literature"
+
+    def session_state(self) -> dict[str, str]:
+        return {"type": "literature"}
+
+    def can_close(self) -> bool:
+        return True
 
     def shutdown(self) -> None:
         """Stop background threads handled by controllers."""

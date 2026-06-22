@@ -41,6 +41,7 @@ from noteration.logger import get_logger
 from noteration.pdf.annotation_overlay import AnnotationOverlay
 from noteration.pdf.annotations import Annotation, AnnotationStore, calculate_file_hash
 from noteration.pdf.workers import PdfMetadataWorker, PdfRenderWorker, PdfTextWorker
+from noteration.ui.tab_base import NoterationTab
 
 logger = get_logger(__name__)
 
@@ -611,7 +612,7 @@ class MuPdfViewer(QWidget):
 # ── PdfViewerTab ──────────────────────────────────────────────────────────
 
 
-class PdfViewerTab(QWidget):
+class PdfViewerTab(NoterationTab):
     """PDF viewer tab with annotations, sidebar, and reading progress."""
 
     insert_quote_requested = Signal(str, str, str)  # (text, papis_key, locator)
@@ -645,6 +646,20 @@ class PdfViewerTab(QWidget):
         self._setup_ui()
         self._setup_shortcuts()
         self._load_pdf()
+
+    def display_title(self) -> str:
+        return self.pdf_path.name
+
+    def session_state(self) -> dict[str, Any] | None:
+        try:
+            rel_path = self.pdf_path.relative_to(self.vault_path)
+        except ValueError:
+            logger.warning(f"PdfViewerTab path is outside vault: {self.pdf_path}")
+            return None
+        return {"type": "pdf", "path": str(rel_path), "papis_key": self.papis_key}
+
+    def can_close(self) -> bool:
+        return True
 
     # ── UI ────────────────────────────────────────────────────────────
 
