@@ -40,7 +40,7 @@
       "price": "0",
       "priceCurrency": "USD"
     },
-    "softwareVersion": "2.2.0",
+    "softwareVersion": "2.3.0",
     "description": "A free, open-source desktop application for academic researchers. Combines a Markdown editor, PDF viewer with annotations, Papis literature management, interactive wiki-link graph, and GitHub synchronisation in a single cross-platform app.",
     "url": "https://lilamr.github.io/noteration/",
     "downloadUrl": "https://github.com/lilamr/noteration/releases",
@@ -80,7 +80,7 @@
   <!-- HERO -->
   <section class="hero" style="padding:0;">
     <div class="hero-left">
-      <div class="hero-eyebrow">v2.2.0 · Free & Open Source · MIT License</div>
+      <div class="hero-eyebrow">v2.3.0 · Free & Open Source · MIT License</div>
       <h1 class="hero-title">
         Research notes,<br>
         <em>finally organised.</em>
@@ -114,7 +114,7 @@
           <span class="t-line">&nbsp;</span>
           <span class="t-line"><span class="t-info">==> Creating virtual environment...</span></span>
           <span class="t-line"><span class="t-info">==> Installing Noteration...</span></span>
-          <span class="t-line"><span class="t-ok">✓  Noteration v2.2.0 installed!</span></span>
+          <span class="t-line"><span class="t-ok">✓  Noteration v2.3.0 installed!</span></span>
           <span class="t-line">&nbsp;</span>
           <span class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">noteration</span> <span class="t-cursor"></span></span>
         </div>
@@ -561,7 +561,8 @@
     <div class="changelog-layout">
       <div class="changelog-nav reveal">
         <div style="font-family:'DM Mono',monospace;font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;">Versions</div>
-        <button class="cl-version-btn active">v2.2.0 · Latest</button>
+        <button class="cl-version-btn active">v2.3.0 · Latest</button>
+        <button class="cl-version-btn">v2.2.0</button>
         <button class="cl-version-btn">v2.1.0</button>
         <button class="cl-version-btn">v2.0.0</button>
         <button class="cl-version-btn">v1.2.0</button>
@@ -574,9 +575,34 @@
       <div>
         <div class="changelog-entry reveal">
           <div class="cl-header">
+            <h3 class="cl-ver">v2.3.0</h3>
+            <div class="cl-date">2026-06-22</div>
+            <div class="cl-badge">latest</div>
+          </div>
+
+          <div class="cl-section-title">Added</div>
+          <ul class="cl-list">
+            <li><strong>Restore Last Session</strong> — The application now remembers and restores the tabs (Editor, PDF, Literature, Sync) that were active when you last closed the app.</li>
+          </ul>
+
+          <div class="cl-section-title">Fixed</div>
+          <ul class="cl-list">
+            <li><strong>Terminal Hang on Exit</strong> — Sync threads now have a safe-terminate escalation to ensure graceful shutdown without requiring Ctrl+C.</li>
+            <li><strong>Auto-restart Instability</strong> — The application no longer forces an auto-restart after enabling or disabling vault encryption, preventing initialization race conditions.</li>
+            <li><strong>Uncommitted Modifications on Exit</strong> — The app now guarantees a local commit during the shutdown sequence of encrypted vaults without triggering network blocks.</li>
+          </ul>
+
+          <div class="cl-section-title">Changed</div>
+          <ul class="cl-list">
+            <li><strong>UI Consistency (Tab Architecture)</strong> — Introduced a polymorphic base class (<code>NoterationTab</code>) across all tab types.</li>
+            <li><strong>UI Consistency (Toolbars)</strong> — Standardized the action buttons in Literature, PDF Viewer, and Sync tabs to use native <code>QToolBar</code> and <code>QAction</code>.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry reveal">
+          <div class="cl-header">
             <h3 class="cl-ver">v2.2.0</h3>
             <div class="cl-date">2026-06-18</div>
-            <div class="cl-badge">latest</div>
           </div>
 
           <div class="cl-section-title">Added</div>
